@@ -21,6 +21,8 @@ export type CatalogProduct = {
   price: string | null;
   gtin?: string | null;
   mpn?: string | null;
+  /** Locul în topul vânzărilor (1 = cel mai vândut), dacă platforma sau feed-ul îl dă. */
+  rank?: number | null;
 };
 export type PromptIntent = "produs" | "cod" | "categorie" | "brand";
 export type SuggestedPrompt = { text: string; category: string; intent: PromptIntent; productId?: string };
@@ -84,8 +86,11 @@ const validCode = (s: string | null | undefined, title: string) => {
 };
 const stableKey = (p: CatalogProduct) => createHash("sha1").update(p.externalId ?? p.id ?? p.title).digest("hex");
 
-/** Ordinea de alegere: categorii mari întâi, câte un produs pe rând din fiecare, alternând mărcile. */
-export function pickProducts(products: CatalogProduct[], language: "ro" | "hu", n: number) {
+/**
+ * Ordinea de alegere: întâi cele mai vândute produse (dacă știm topul), apoi categorii mari (sau cele cu produse
+ * din top), câte un produs pe rând din fiecare, alternând mărcile.
+ */
+export function pickProducts(products: CatalogProduct[], language: "ro" | "hu", n: number, popular = Math.ceil(n * 0.8)) {
   const usable = products.filter((p) => p.title.trim().length >= 4 && parseFloat(p.price ?? "") > 0);
   const byCat = new Map<string, Map<string, CatalogProduct[]>>();
   for (const p of usable) {
@@ -97,7 +102,9 @@ export function pickProducts(products: CatalogProduct[], language: "ro" | "hu", 
   }
   const score = (p: CatalogProduct) => (validEan(p.gtin) ? 2 : 0) + (validCode(p.mpn, p.title) ? 1 : 0);
   const size = (m: Map<string, CatalogProduct[]>) => [...m.values()].reduce((s, l) => s + l.length, 0);
-  const cats = [...byCat.entries()].sort((a, b) => size(b[1]) - size(a[1]) || a[0].localeCompare(b[0])).map(([c, brands]) => ({
+  // Cu top de vânzări: categoriile cu cele mai vândute produse întâi; altfel, cele mai mari.
+  const best = (m: Map<string, CatalogProduct[]>) => Math.min(...[...m.values()].flat().map((p) => p.rank ?? Infinity));
+  const cats = [...byCat.entries()].sort((a, b) => best(a[1]) - best(b[1]) || size(b[1]) - size(a[1]) || a[0].localeCompare(b[0])).map(([c, brands]) => ({
     category: c,
     // mărcile cu mai multe produse întâi; în fiecare marcă, produsele cu EAN/cod întâi, apoi ordine stabilă
     queues: [...brands.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0])).map(([, l]) => l).map((l) => [...l].sort((x, y) => score(y) - score(x) || stableKey(x).localeCompare(stableKey(y)))),
@@ -106,6 +113,18 @@ export function pickProducts(products: CatalogProduct[], language: "ro" | "hu", 
   }));
   const out: { product: CatalogProduct; category: string }[] = [];
   const seen = new Set<string>();
+  // Produsele din top, în ordinea vânzărilor, până la `popular` din cele `n` (restul acoperă catalogul).
+  const ranked = usable.filter((p) => (p.rank ?? 0) > 0).sort((a, b) => a.rank! - b.rank!);
+  const used = new Set<CatalogProduct>();
+  for (const p of ranked) {
+    if (out.length >= popular) break;
+    const key = productQuery(p).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    used.add(p);
+    out.push({ product: p, category: categoryType(p, language) ?? "altele" });
+  }
+  for (const c of cats) c.queues = c.queues.map((q) => q.filter((p) => !used.has(p)));
   let progress = true;
   while (out.length < n && progress) {
     progress = false;
@@ -136,16 +155,16 @@ const STORE_Q = {
 export const storeSearchName = (name: string) => name.replace(/\s+(RO|HU)$/i, "").trim() || name;
 
 /**
- * Lista propusă, cel mult `max` căutări: ~25% tipuri de produs, restul produse anume
- * (numele; pentru o parte din ele și codul sau EAN-ul), plus 2 căutări despre magazin.
+ * Lista propusă, cel mult `max` căutări: ~25% tipuri de produs, ~10% coduri sau EAN, restul produse anume
+ * (cele mai vândute întâi, dacă știm topul), plus 2 căutări despre magazin.
  */
 export function suggestPrompts(products: CatalogProduct[], storeName: string, language: "ro" | "hu" = "ro", max = 30): SuggestedPrompt[] {
   const store = STORE_Q[language].map((f) => ({ text: f(storeSearchName(storeName)), category: "magazin", intent: "brand" as const }));
   const room = Math.max(0, max - store.length);
   if (!room || !products.length) return store.slice(0, max);
   const catCount = Math.max(1, Math.round(room * 0.25));
-  const prodRoom = room - catCount;
-  const nameCount = Math.ceil(prodRoom * 0.65);
+  const codeCount = Math.round(room * 0.1);
+  const nameCount = Math.max(1, room - catCount - codeCount);
   const { picked, categories } = pickProducts(products, language, nameCount);
 
   const out: SuggestedPrompt[] = [];
@@ -169,7 +188,7 @@ export function suggestPrompts(products: CatalogProduct[], storeName: string, la
 
   for (const x of catQ.slice(0, catCount)) push(x);
   for (const x of prodQ) push(x);
-  for (const x of codeQ) { if (out.length >= room) break; push(x); }
+  for (const x of codeQ) { if (out.length >= catCount + prodQ.length + codeCount || out.length >= room) break; push(x); }
   // Dacă nu sunt destule coduri, completăm cu alte tipuri de produs.
   for (const x of catQ.slice(catCount)) { if (out.length >= room) break; push(x); }
   return [...out.slice(0, room), ...store];

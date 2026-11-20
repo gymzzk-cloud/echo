@@ -11,7 +11,7 @@ import { decrypt, parseStoreUrl } from "@/lib/util";
 import { verifyTotp } from "@/lib/totp";
 import { enqueue, syncingConnections } from "@/core/jobs";
 import { connectStore, importFeedFile, runAuditRow } from "@/core/projects";
-import { refreshPrompts } from "@/core/tracked-prompts";
+import { refreshPrompts, setProductTracked } from "@/core/tracked-prompts";
 import { promptLimit } from "@/core/prompts";
 import { claimStore, noteAuditRequest, recentAudit } from "@/core/stores";
 import { invalidateWorld } from "@/core/ai/engine";
@@ -330,4 +330,14 @@ export async function markAlertsRead(form: FormData) {
   await ownProject(projectId);
   await db.update(schema.alerts).set({ read: true }).where(eq(schema.alerts.projectId, projectId));
   revalidatePath("/panou");
+}
+
+/** „Urmărește în AI” / „Nu mai urmări” pe un produs din pagina Produse. */
+export async function trackProduct(form: FormData) {
+  const projectId = String(form.get("projectId"));
+  const { org } = await ownProject(projectId);
+  const productId = z.string().uuid().parse(String(form.get("productId")));
+  await setProductTracked(projectId, productId, form.get("on") === "1", org.plan);
+  revalidatePath("/panou/produse");
+  revalidatePath("/panou/setari");
 }

@@ -23,6 +23,12 @@ export type CatalogItem = {
   description?: string | null;
   cartUrl?: string | null;
   delivery?: string | null;
+  /** Bucăți vândute (ex. ultimele 30 de zile), dacă feed-ul le dă: cu cât mai mare, cu atât mai popular. */
+  sales?: number | null;
+  /** Locul în topul vânzărilor (1 = cel mai vândut), dacă feed-ul îl dă. */
+  salesRank?: number | null;
+  /** Marcat în feed ca bestseller (ex. custom_label „bestseller”, „top vânzări”). */
+  bestseller?: boolean;
 };
 export type ConnectorKind = "shopify" | "woocommerce" | "feed" | "gomag" | "merchantpro" | "prestashop" | "upload";
 export const API_KINDS = ["gomag", "merchantpro", "prestashop"] as const;
@@ -126,7 +132,12 @@ const KEYS = {
   delivery: ["delivery_time", "termen_livrare", "livrare", "shipping_time", "szallitas", "szállítás"],
   shipping: ["shipping_cost", "cost_livrare", "transport", "shipping_price"],
   currency: ["currency", "moneda", "monedă", "penznem", "pénznem"],
+  sales: ["sales_30d", "sales_90d", "sales", "sold", "total_sales", "units_sold", "quantity_sold", "vanzari", "vânzări", "bucati_vandute", "eladott", "eladasok", "popularity", "popularitate"],
+  salesRank: ["sales_rank", "bestseller_rank", "popularity_rank", "rank_vanzari", "rang"],
+  labels: ["custom_label_0", "custom_label_1", "custom_label_2", "custom_label_3", "custom_label_4", "label", "eticheta", "tags", "badge"],
 } as const;
+const BESTSELLER_RE = /best\s*-?\s*sell|top\s*(vanz|vânz|sales|seller)|cel(e)?\s+mai\s+v[aâ]nd|popular|legnépszerűbb|sikertermék|hero/i;
+const num = (v: string) => { const n = parseFloat(v.replace(",", ".")); return Number.isFinite(n) ? n : null; };
 
 const norm = (k: string) => k.toLowerCase().trim().replace(/^g:/, "").replace(/\s+/g, "_");
 const scalar = (v: unknown): string => {
@@ -187,11 +198,14 @@ export function mapRecord(rec: Record<string, unknown>, currency = "RON"): Catal
     mpn: get(KEYS.mpn) || null,
     description: describe(m, get(KEYS.description)),
     delivery: deliveryText(get(KEYS.delivery), get(KEYS.shipping), cur),
+    sales: num(get(KEYS.sales)),
+    salesRank: num(get(KEYS.salesRank)),
+    bestseller: KEYS.labels.some((k) => BESTSELLER_RE.test(scalar(m.get(k)))),
   };
 }
 
 /** Găsește lista de produse într-un document JSON/YAML/XML, oricum s-ar numi cheia. */
-function findItems(doc: unknown, depth = 0): Record<string, unknown>[] {
+export function findItems(doc: unknown, depth = 0): Record<string, unknown>[] {
   if (Array.isArray(doc)) return doc.filter((x) => x && typeof x === "object") as Record<string, unknown>[];
   if (!doc || typeof doc !== "object" || depth > 4) return [];
   const o = doc as Record<string, unknown>;
@@ -277,14 +291,14 @@ export function feedAuth(secret?: string, scheme?: { in: string; name: string } 
   return a;
 }
 
-function withQuery(url: string, params: [string, string][]) {
+export function withQuery(url: string, params: [string, string][]) {
   const u = new URL(url);
   for (const [k, v] of params) u.searchParams.set(k, v);
   return u.toString();
 }
 
 
-async function getText(url: string, auth: FeedAuth, extra: Record<string, string> = {}) {
+export async function getText(url: string, auth: FeedAuth, extra: Record<string, string> = {}) {
   // politeFetch: o cerere odată pe host, pauză între cereri (CATALOG_PAGE_PAUSE_MS), respectă 429/503 + Retry-After.
   const r = await politeFetch(withQuery(url, auth.query), { headers: { "accept-encoding": "gzip", ...auth.headers, ...extra }, timeoutMs: 90000 });
   if (r.status === 304) return { status: 304, body: "", etag: r.headers.get("etag"), lastModified: r.headers.get("last-modified") };
@@ -293,7 +307,12 @@ async function getText(url: string, auth: FeedAuth, extra: Record<string, string
   return { status: r.status, body: await r.text(), etag: r.headers.get("etag"), lastModified: r.headers.get("last-modified") };
 }
 
-type ApiEndpoint = { url: string; params: [string, string][]; pageParam: "offset" | "page" | null; limitParam: string | null; limit: number; scheme: { in: string; name: string } | null };
+export type ApiEndpoint = {
+  url: string; params: [string, string][]; pageParam: "offset" | "page" | null; limitParam: string | null; limit: number; scheme: { in: string; name: string } | null;
+  /** Ordonarea după popularitate, dacă API-ul o declară (ex. sort=popularity). */
+  popularSort?: [string, string] | null;
+};
+const POPULAR_SORT_RE = /popular|best.?sell|sales|vanzari|vânzări|top/i;
 
 /** Dintr-o specificație OpenAPI alegem endpoint-ul de listare a produselor (GET, cu paginare). */
 export function endpointFromOpenApi(spec: Record<string, unknown>, specUrl: string): ApiEndpoint | null {
@@ -328,7 +347,9 @@ export function endpointFromOpenApi(spec: Record<string, unknown>, specUrl: stri
   // Schema de autentificare: prima de tip apiKey
   const schemes = ((spec.components as Record<string, unknown> | undefined)?.securitySchemes ?? {}) as Record<string, { type?: string; in?: string; name?: string }>;
   const sc = Object.values(schemes).find((x) => x.type === "apiKey" && x.name && x.in);
-  return { url: base + best.path, params, pageParam: names.includes("offset") ? "offset" : names.includes("page") ? "page" : null, limitParam, limit, scheme: sc ? { in: sc.in!, name: sc.name! } : null };
+  const sortP = ps.find((p) => ["sort", "sort_by", "sortby", "orderby", "order_by", "ordonare"].includes(p.name));
+  const popular = (sortP?.schema?.enum ?? []).map(String).find((v) => POPULAR_SORT_RE.test(v));
+  return { popularSort: sortP && popular ? [sortP.name, popular] : null, url: base + best.path, params, pageParam: names.includes("offset") ? "offset" : names.includes("page") ? "page" : null, limitParam, limit, scheme: sc ? { in: sc.in!, name: sc.name! } : null };
 }
 
 /**
@@ -347,7 +368,7 @@ export function parseYamlLenient(body: string): unknown {
   }
 }
 
-function isOpenApi(body: string): Record<string, unknown> | null {
+export function isOpenApi(body: string): Record<string, unknown> | null {
   const t = body.trimStart().slice(0, 200);
   if (!/^\{?\s*"?(openapi|swagger)"?\s*:/m.test(t)) return null;
   try {

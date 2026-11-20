@@ -3,8 +3,10 @@ import Link from "next/link";
 import { currentProject } from "@/lib/project";
 import { loadBase, productInsights } from "@/core/insights";
 import { providerLabel } from "@/core/ai/types";
-import { Badge, Card, Empty, PageHeader, Stat, Table, Td } from "@/components/ui";
+import { Badge, Button, Card, Empty, PageHeader, Stat, Table, Td } from "@/components/ui";
 import { money } from "@/lib/format";
+import { trackedProducts } from "@/core/tracked-prompts";
+import { trackProduct } from "@/app/actions";
 
 type Sp = { f?: string; q?: string };
 
@@ -24,7 +26,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
 
 async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeof currentProject>>["project"]; sp: Sp }) {
   const { rows } = await loadBase(project, 30);
-  const pi = await productInsights(project, rows);
+  const [pi, tracked] = await Promise.all([productInsights(project, rows), trackedProducts(project.id)]);
   if (!pi.list.length) return <><Empty title="Nu avem încă produsele tale" action={<Link prefetch={false} className="text-sm text-primary underline" href="/panou/setari">Conectează catalogul</Link>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
 
   const q = (sp.q ?? "").toLowerCase();
@@ -32,10 +34,12 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
   if (sp.f === "recomandate") list = list.filter((p) => p.mentions > 0);
   if (sp.f === "pret") list = list.filter((p) => p.wrongPrices.length);
   if (sp.f === "stoc") list = list.filter((p) => !p.inStock);
+  if (sp.f === "urmarite") list = list.filter((p) => tracked.has(p.id));
+  if (sp.f === "populare") list = list.filter((p) => p.popularityRank).sort((a, b) => a.popularityRank! - b.popularityRank!);
   if (sp.f === "incomplete") list = list.filter((p) => !p.gtin || !p.brand || !p.hasDescription || !p.hasImage);
   if (q) list = list.filter((p) => p.title.toLowerCase().includes(q));
   const missing = (p: (typeof list)[number]) => [!p.gtin && "GTIN", !p.brand && "brand", !p.hasDescription && "descriere", !p.hasImage && "imagine"].filter(Boolean) as string[];
-  const filters = [["", "Toate"], ["recomandate", "Recomandate de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
+  const filters = [["", "Toate"], ["urmarite", "Urmărite în AI"], ["populare", "Cele mai vândute"], ["recomandate", "Recomandate de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
 
   return (
     <>
@@ -51,10 +55,10 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
           <input type="hidden" name="f" value={sp.f ?? ""} />
           <input name="q" defaultValue={sp.q} placeholder="Caută produs…" className="ml-auto w-56 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm" />
         </form>
-        <Table head={["Produs", "Preț", "Recomandat", "De cine", "Poziție", "Probleme"]}>
+        <Table head={["Produs", "Preț", "Recomandat", "De cine", "Poziție", "Probleme", "Urmărit în AI"]}>
           {list.slice(0, 100).map((p) => (
             <tr key={p.id}>
-              <Td><a href={p.url} target="_blank" rel="noopener" className="font-medium hover:underline">{p.title}</a><span className="block text-xs text-muted">{[p.brand, p.category].filter(Boolean).join(" · ")}</span></Td>
+              <Td><a href={p.url} target="_blank" rel="noopener" className="font-medium hover:underline">{p.title}</a><span className="block text-xs text-muted">{[p.popularityRank && `Top vânzări #${p.popularityRank}`, p.brand, p.category].filter(Boolean).join(" · ")}</span></Td>
               <Td className="num whitespace-nowrap">{money(p.price ? parseFloat(p.price) : null, p.currency)}</Td>
               <Td className="num">{p.mentions ? `${p.mentions}×` : <span className="text-muted">–</span>}</Td>
               <Td><div className="flex flex-wrap gap-1">{p.providers.map((x) => <Badge key={x}>{providerLabel(x)}</Badge>)}</div></Td>
@@ -65,6 +69,17 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
                   {!p.inStock && <Badge tone="warn">Fără stoc</Badge>}
                   {missing(p).length > 0 && <Badge tone="warn">Lipsește: {missing(p).join(", ")}</Badge>}
                 </div>
+              </Td>
+              <Td className="text-right">
+                <form action={trackProduct} className="inline-flex items-center justify-end gap-2">
+                  <input type="hidden" name="projectId" value={project.id} />
+                  <input type="hidden" name="productId" value={p.id} />
+                  <input type="hidden" name="on" value={tracked.get(p.id) === "ales" ? "0" : "1"} />
+                  {tracked.get(p.id) === "automat" && <Badge>Automat</Badge>}
+                  {tracked.get(p.id) === "ales"
+                    ? <><Badge tone="good">Ales de tine</Badge><Button variant="ghost" size="sm">Scoate</Button></>
+                    : p.inStock && <Button variant="secondary" size="sm">{tracked.has(p.id) ? "Păstrează" : "Urmărește"}</Button>}
+                </form>
               </Td>
             </tr>
           ))}
