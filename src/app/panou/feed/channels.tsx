@@ -20,7 +20,7 @@ type Output = Awaited<ReturnType<typeof outputsOf>>[number];
 const EXT: Record<string, string> = { openai: ".csv", emag: ".csv" };
 export const feedUrl = (o: { token: string; channel: string }) => `${process.env.APP_URL ?? "http://localhost:3000"}/feed/${o.token}${EXT[o.channel] ?? ""}`;
 
-const MISSING: Record<string, string> = { brand: "fără marcă", gtin_mpn: "fără EAN și fără cod de producător", product_category: "fără categorie" };
+const MISSING: Record<string, string> = { brand: "fără marcă", brand_invalid: "cu marcă nevalidă în magazin (trimisă fără marcă)", gtin_mpn: "fără EAN și fără cod de producător", product_category: "fără categorie" };
 
 function Status({ o, busy }: { o: Output | undefined; busy: boolean }) {
   if (!o?.active) return <Badge>Oprit</Badge>;

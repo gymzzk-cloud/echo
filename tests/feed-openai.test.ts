@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OPENAI_COLUMNS, categoryPath, cleanGtin, missingOpenAiSettings, openAiRow, plainText, renderOpenAiCsv } from "../src/core/feed-channels/openai";
+import { OPENAI_COLUMNS, categoryPath, cleanBrand, cleanGtin, missingOpenAiSettings, openAiRow, plainText, renderOpenAiCsv } from "../src/core/feed-channels/openai";
 import { detectPolicyLinks, effectivePolicy } from "../src/core/feed-channels/policy-links";
 import type { FeedProduct } from "../src/core/feed";
 
@@ -60,6 +60,28 @@ describe("feed ChatGPT (OpenAI)", () => {
     expect(lines[2]).toContain('"Set ""Pro"", 3 piese"');
     expect(stats).toEqual({ total: 3, included: 2, excluded: { "fără preț": 1 }, missing: { brand: 1, gtin_mpn: 1 } });
   });
+  it("marca: păstrează numele reale, golește valorile pe care OpenAI le respinge", () => {
+    expect(cleanBrand("Bosch")).toBe("Bosch");
+    expect(cleanBrand("  De&#39;Longhi ")).toBe("De'Longhi");
+    expect(cleanBrand("3M")).toBe("3M");
+    expect(cleanBrand("Yahoo!")).toBe("Yahoo!");
+    expect(cleanBrand("Bosch®")).toBe("Bosch");
+    expect(cleanBrand("<b>Samsung</b>")).toBe("Samsung");
+    expect(cleanBrand("Brand\u0000X\u200b")).toBe("BrandX");
+    for (const bad of ["-", "...", "N/A", "n/a", "Generic", "Fără brand", "fara brand", "Egyéb", "12345", "?!", "www.magazin.ro", "https://x.ro"]) expect(cleanBrand(bad), bad).toBe("");
+    expect(cleanBrand(null)).toBe("");
+    const long = cleanBrand("Compania Foarte Lunga De Producție Și Distribuție A Aparatelor Electrocasnice SRL");
+    expect(long.length).toBeLessThanOrEqual(70);
+    expect(long).not.toContain("…");
+    expect(long.endsWith(" ")).toBe(false);
+  });
+
+  it("marca nevalidă: rândul intră fără marcă și e numărat", () => {
+    const { stats } = renderOpenAiCsv([p({ brand: "N/A" }), p({ externalId: "SE-2", brand: "Bosch" })], store, null);
+    expect(stats.included).toBe(2);
+    expect(stats.missing).toEqual({ brand: 1, brand_invalid: 1 });
+  });
+
   it("catalog gol → doar antetul", () => {
     const { body, stats } = renderOpenAiCsv([], store, null);
     expect(body).toBe(`${OPENAI_COLUMNS.join(",")}\n`);
