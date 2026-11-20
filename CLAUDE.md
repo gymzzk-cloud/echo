@@ -83,7 +83,9 @@ O sarcină e gata doar când:
 - Pagina află starea prin `busyKinds(projectId)` / `syncingConnections(ids)` din `src/core/jobs.ts`.
 - **Serverul refuză dublurile oricum**: `enqueue()` nu adaugă un job identic (același tip și aceleași date) dacă unul e deja la coadă sau în lucru. Butonul ascuns e doar pentru claritate, protecția reală e pe server.
 - Un job mai vechi de 30 de minute e considerat blocat, ca butonul să revină după un restart.
-- Orice funcție nouă care pornește lucru în fundal respectă aceste trei puncte.
+- **Starea se actualizează singură, fără reîncărcarea paginii**: `JobWatcher` (din `src/components/job-watcher.tsx`, pus o dată în layout-ul panoului) întreabă `/api/panou/jobs` la 4 secunde cât timp ceva e la coadă sau în lucru, arată „În lucru: …”, iar la final arată „… gata la HH:MM” sau eroarea și reîncarcă datele paginii, ca butonul să revină. Când nu e nimic în lucru, nu mai întreabă.
+- O lucrare nouă care trebuie să apară acolo primește un nume în `JOB_LABELS` (`src/core/jobs.ts`) și pune `projectId` (sau `connectionId`) în datele jobului.
+- Orice funcție nouă care pornește lucru în fundal respectă aceste puncte.
 
 ## Securitate: niciodată
 
