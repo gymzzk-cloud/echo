@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { cx } from "./ui";
 
@@ -31,9 +31,10 @@ export function PanelNav({ alerts, agency, client, lang = "ro" }: { alerts: numb
           {g.items.map(([href, label]) => {
             const active = href === "/panou" ? path === href : path.startsWith(href);
             return (
-              <Link key={href} href={href} aria-current={active ? "page" : undefined}
+              <Link key={href} href={href} prefetch={false} aria-current={active ? "page" : undefined}
                 className={cx("flex items-center justify-between whitespace-nowrap rounded-lg px-3 py-2 text-[14px]", active ? "bg-side-active font-semibold text-side-fg" : "text-side-muted hover:bg-side-active hover:text-side-fg")}>
                 {tr(label)}
+                <Pending />
                 {href === "/panou" && alerts > 0 && <span className="ml-2 rounded-full bg-bad px-1.5 text-[10px] font-semibold text-white">{alerts}</span>}
               </Link>
             );
@@ -42,4 +43,10 @@ export function PanelNav({ alerts, agency, client, lang = "ro" }: { alerts: numb
       ))}
     </nav>
   );
+}
+
+/** Semn imediat la clic, cât timp pagina se încarcă (fără să mai pară că meniul „nu face nimic”). */
+function Pending() {
+  const { pending } = useLinkStatus();
+  return pending ? <span aria-hidden className="ml-2 size-3 animate-spin rounded-full border-2 border-side-muted border-t-transparent" /> : null;
 }

@@ -4,7 +4,7 @@ import { currentProject } from "@/lib/project";
 import { ActionForm } from "@/components/forms";
 import { SubmitButton } from "@/components/client";
 import { Badge, Card, Empty, Field, Input, PageHeader, Table, Td } from "@/components/ui";
-import { CHANNELS, autoLabels, buildFeed } from "@/core/feed";
+import { CHANNELS, buildFeed } from "@/core/feed";
 import { addRule, deleteRule, proposeTitles, setEditStatus, toggleChannel, toggleRule } from "@/app/actions-feed";
 import { money } from "@/lib/format";
 
@@ -20,11 +20,12 @@ export default async function FeedPage() {
   const rules = await db.select().from(schema.feedRules).where(eq(schema.feedRules.projectId, project.id)).orderBy(schema.feedRules.priority);
   const edits = await db.select({ e: schema.productEdits, p: schema.products }).from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))
     .where(and(eq(schema.products.projectId, project.id))).orderBy(desc(schema.productEdits.createdAt)).limit(200);
-  const products = await db.select().from(schema.products).where(eq(schema.products.projectId, project.id)).limit(5000);
-  const labels = await autoLabels(project.id, project.domain, products);
+  // Un singur calcul pentru tot catalogul: etichetele și previzualizarea vin din același feed.
+  const feed = await buildFeed(project.id, "google");
   const counts = new Map<string, number>();
-  for (const l of labels.values()) for (const x of l) counts.set(x, (counts.get(x) ?? 0) + 1);
-  const preview = (await buildFeed(project.id, "google")).items;
+  for (const l of feed.labels.values()) for (const x of l) counts.set(x, (counts.get(x) ?? 0) + 1);
+  const preview = feed.items;
+  const total = feed.total;
   const app = process.env.APP_URL ?? "http://localhost:3000";
   const proposed = edits.filter((x) => x.e.status === "propus");
   const pid = <input type="hidden" name="projectId" value={project.id} />;
@@ -32,7 +33,7 @@ export default async function FeedPage() {
   return (
     <>
       <PageHeader eyebrow="Reparații" title="Feed și canale" subtitle="Un singur catalog, optimizat automat pentru fiecare canal. Catalogul tău nu se modifică: regulile și titlurile aprobate se aplică doar în feed și se pot anula oricând." />
-      {products.length === 0 ? <Empty title="Nu există încă produse">Conectează catalogul din Setări magazin.</Empty> : (
+      {total === 0 ? <Empty title="Nu există încă produse">Conectează catalogul din Setări magazin.</Empty> : (
       <div className="space-y-6">
         <Card title="Etichete automate">
           <p className="mb-3 text-sm text-muted">Calculate din ce văd AI-urile, din clicuri și din prețurile altor magazine pentru același GTIN. Le primești în feed ca custom_label, pentru campanii separate.</p>
@@ -111,7 +112,7 @@ export default async function FeedPage() {
           </ActionForm>
         </Card>
 
-        <Card title={`Previzualizare feed Google (${preview.length} din ${products.length} produse)`}>
+        <Card title={`Previzualizare feed Google (${preview.length} din ${total} produse)`}>
           <Table head={["Produs", "Preț", "Etichete"]}>
             {preview.slice(0, 15).map((p) => (
               <tr key={p.id}><Td>{p.title}</Td><Td className="num whitespace-nowrap">{money(p.price, p.currency)}</Td><Td className="text-xs text-muted">{p.labels.map((l) => LABELS[l] ?? l).join(", ")}</Td></tr>
