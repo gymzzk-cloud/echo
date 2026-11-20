@@ -1,6 +1,6 @@
 # Echo (MVP + fazele 2 și 3)
 
-Echo face magazinele online din România și Ungaria vizibile în asistenții AI (ChatGPT, Gemini, Perplexity, Claude, Google AI Mode, Copilot) și oferă cumpărătorilor o căutare care întreabă toate AI-urile deodată, cu prețuri verificate.
+Echo face magazinele online din România și Ungaria vizibile în asistenții AI (ChatGPT, Gemini, Perplexity, Claude, Google AI Overviews, Google AI Mode, Copilot) și oferă cumpărătorilor o căutare care întreabă toate AI-urile deodată, cu prețuri verificate.
 
 Două părți, un singur motor:
 - **Cumpărători** (public, RO și HU): `/` căutare, `/cauta` (cu continuare: „mai ieftin”, „doar în stoc”), `/compara`, `/cont` (produse urmărite, alerte de preț și stoc, liste), `/magazin/<domeniu>` (fapte verificabile, recenzii din comenzi reale), `/index-ai`, `/cum-ordonam`.
@@ -51,7 +51,8 @@ Fără chei, toate AI-urile rulează în **mod demo** (răspunsuri simulate, det
 | Cheie | De unde |
 |---|---|
 | `OPENAI_API_KEY` | platform.openai.com |
-| `GEMINI_API_KEY` | aistudio.google.com |
+| `GEMINI_API_KEY` | aistudio.google.com → „Get API key” (planul gratuit merge; limitele sunt în `GEMINI_RPM` și `GEMINI_DAILY_LIMIT`) |
+| `SERPAPI_API_KEY` | serpapi.com → Dashboard → „Your Private API Key”, pentru Google AI Overviews (planul gratuit: 100 de căutări pe lună) |
 | `PERPLEXITY_API_KEY` | perplexity.ai/settings/api |
 | `ANTHROPIC_API_KEY` | console.anthropic.com |
 | `RESEND_API_KEY` (opțional) | resend.com, pentru emailul săptămânal |

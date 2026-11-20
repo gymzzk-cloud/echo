@@ -3,6 +3,7 @@ import { db, schema } from "@/db";
 import { normalizeText, sha256, today } from "@/lib/util";
 import { demoRun } from "./demo";
 import { cleanAnswer, runMentions } from "./extract";
+import { limitReason, limitUsage, recentRun, waitForSlot } from "./limits";
 import { LIVE } from "./live";
 import { ERROR_MODEL, PROVIDERS, type KnownProduct, type KnownStore, type Provider, type RunInput } from "./types";
 
@@ -66,16 +67,33 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
 
   const w = world ?? (await loadWorld());
   const runner = LIVE[provider];
+  const live = runner.isLive();
+  const limits = live ? runner.limits?.() ?? {} : {};
+  // Planurile cu credite puține (SerpApi): o rulare reușită de curând se refolosește, nu se plătește din nou.
+  if (limits.reuseDays && limits.reuseDays > 1) {
+    const recent = await recentRun(qh, provider, day, limits.reuseDays);
+    // Copiat pe ziua de azi, fără cost, ca rapoartele zilei să-l vadă; nu consumă credite (cost 0).
+    if (recent) {
+      const { id: _id, createdAt: _c, ...copy } = recent;
+      const [row] = await db.insert(schema.runs).values({ ...copy, runDate: day, costUsd: "0", inputTokens: 0, outputTokens: 0, latencyMs: 0 })
+        .onConflictDoUpdate({ target: [schema.runs.queryHash, schema.runs.provider, schema.runs.runDate], set: { model: copy.model, answer: copy.answer, sources: copy.sources, mentions: copy.mentions, costUsd: "0" }, setWhere: dsql`${schema.runs.model} = ${ERROR_MODEL}` })
+        .returning();
+      if (row) return row;
+    }
+  }
+  // Plafonul planului gratuit (pe zi / pe lună): nu mai întrebăm, rularea apare ca „nu am putut întreba”, cu motivul.
+  const skipReason = opts.skipReason ?? (live && (limits.perDay || limits.perMonthCredits) ? limitReason(limits, await limitUsage(provider, day)) : null);
   let out;
   try {
-    // AI-ul a eșuat de mai multe ori la rând în această rulare: nu-l mai întrebăm, păstrăm motivul.
-    if (opts.skipReason) throw new Error(opts.skipReason);
-    out = runner.isLive() ? await runner.run(input) : demoRun(provider, input, w);
+    // AI-ul a eșuat de mai multe ori la rând în această rulare sau i-am atins limita: nu-l mai întrebăm, păstrăm motivul.
+    if (skipReason) throw new Error(skipReason);
+    if (live) await waitForSlot(provider, limits.rpm);
+    out = live ? await runner.run(input) : demoRun(provider, input, w);
   } catch (e) {
     // Un AI căzut nu oprește restul: înregistrăm eroarea ca răspuns gol, fără cost.
     const msg = String(e).slice(0, 200);
     // Doar mesajul de eroare al API-ului (fără chei sau date personale), ca să se vadă în loguri.
-    if (!opts.skipReason) console.error(`AI ${provider} eroare: ${msg}`);
+    if (!skipReason) console.error(`AI ${provider} eroare: ${msg}`);
     out = { answer: `(Eroare ${provider}: ${msg})`, sources: [], model: ERROR_MODEL, mode: "live" as const, costUsd: 0, latencyMs: 0 };
   }
   const mentions = runMentions({ ...out, query: input.query }, w);

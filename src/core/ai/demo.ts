@@ -37,6 +37,7 @@ const STYLE: Record<Provider, { intro: (q: string) => string; outro: string }> =
   gemini: { intro: (q) => `Pentru „${q}”, acestea sunt alegerile cele mai populare:`, outro: "Prețurile pot varia; compară și costul livrării." },
   perplexity: { intro: () => "Pe baza recenziilor și a comparatoarelor de prețuri:", outro: "Surse: recenzii utilizatori și comparatoare de prețuri." },
   claude: { intro: (q) => `Câteva recomandări pentru „${q}”, cu magazine din România:`, outro: "Dacă îmi spui bugetul exact, pot restrânge lista." },
+  aioverview: { intro: (q) => `Prezentare generată de AI pentru „${q}”:`, outro: "Verifică prețul și livrarea pe site-ul magazinului." },
   aimode: { intro: (q) => `Rezumat AI pentru „${q}”:`, outro: "Compară ofertele și verifică recenziile înainte să cumperi." },
   copilot: { intro: (q) => `Am căutat pe web „${q}”. Iată ce am găsit:`, outro: "Pot compara două dintre ele dacă vrei." },
 };
@@ -91,7 +92,7 @@ export function demoRun(provider: Provider, input: RunInput, world: { stores: Kn
   const want = 3 + Math.floor(rnd() * 3);
 
   // Magazinele urmărite apar cu o probabilitate care diferă pe AI (simulare de vizibilitate)
-  const bias: Record<Provider, number> = { chatgpt: 0.55, gemini: 0.45, perplexity: 0.6, claude: 0.4, aimode: 0.5, copilot: 0.35 };
+  const bias: Record<Provider, number> = { chatgpt: 0.55, gemini: 0.45, perplexity: 0.6, claude: 0.4, aioverview: 0.5, aimode: 0.5, copilot: 0.35 };
   for (const c of prodCandidates) {
     if (picks.length >= want) break;
     if (used.has(c.p.domain)) continue;

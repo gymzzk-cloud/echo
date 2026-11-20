@@ -47,3 +47,8 @@ export const withinBudget = (spentUsd: number, budgetUsd: number) => {
   const left = budgetLeft(spentUsd, budgetUsd);
   return left === null || left > 0;
 };
+
+/** Data „YYYY-MM-DD” cu `n` zile înainte de `day`. */
+export function daysAgo(day: string, n: number): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) - n * 864e5).toISOString().slice(0, 10);
+}
