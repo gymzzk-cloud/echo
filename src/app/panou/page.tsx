@@ -51,7 +51,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
             <li className="flex justify-between"><span>Catalog de produse</span>{conns.some((c) => c.status === "ok") ? <Badge tone="good">{conns.reduce((s, c) => s + c.productCount, 0)} produse</Badge> : conns.length ? <Badge tone={conns.some((c) => c.status === "error") ? "bad" : "warn"}>{conns.some((c) => c.status === "error") ? "Eroare" : "În lucru"}</Badge> : <Badge tone="warn">Neconectat</Badge>}</li>
             <li className="flex justify-between"><span>Întrebări la AI-uri</span>{noAi ? <Badge>Lipsește cheia AI</Badge> : working.some((j) => j.kind === "run_project") ? <Badge tone="warn">În lucru</Badge> : <Badge>În așteptare</Badge>}</li>
           </ul>
-          {!conns.some((c) => c.status === "ok") && <p className="mt-4 text-sm text-muted">Nu am putut conecta automat catalogul. <Link href="/panou/setari" className="text-primary underline">Adaugă feed-ul de produse</Link> (Google XML sau CSV) ca să urmărim fiecare produs.</p>}
+          {!conns.some((c) => c.status === "ok") && <p className="mt-4 text-sm text-muted">Nu am putut conecta automat catalogul. <Link prefetch={false} href="/panou/setari" className="text-primary underline">Adaugă feed-ul de produse</Link> (Google XML sau CSV) ca să urmărim fiecare produs.</p>}
           {analysing
             ? <p className="mt-4 text-sm text-muted">Analiza e în lucru. Reîncarcă pagina în câteva minute.</p>
             : <><form action={runNow} className="mt-4"><input type="hidden" name="projectId" value={project.id} /><SubmitButton pendingText="Pornesc…">Pornește analiza acum</SubmitButton></form>
@@ -83,14 +83,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
 
       <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
         {/* 2. Evoluția */}
-        <Card title="Evoluție pe 30 de zile" action={<Link href="/panou/vizibilitate" className="text-xs text-primary hover:underline">Detalii</Link>}>
+        <Card title="Evoluție pe 30 de zile" action={<Link prefetch={false} href="/panou/vizibilitate" className="text-xs text-primary hover:underline">Detalii</Link>}>
           {chart.length > 1
             ? <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...comps.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} />
             : <p className="text-sm text-muted">Graficul apare după a doua zi de măsurători.</p>}
         </Card>
 
         {/* 3. Cele 3 lucruri de făcut */}
-        <Card title="3 lucruri de făcut săptămâna asta" action={<Link href="/panou/actiuni" className="text-xs text-primary hover:underline">Toate</Link>}>
+        <Card title="3 lucruri de făcut săptămâna asta" action={<Link prefetch={false} href="/panou/actiuni" className="text-xs text-primary hover:underline">Toate</Link>}>
           {top3.length === 0 ? <p className="text-sm text-muted">Nimic urgent. Bravo!</p> : (
             <ul className="space-y-4">
               {top3.map((a) => (

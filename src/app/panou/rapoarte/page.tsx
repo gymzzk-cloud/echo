@@ -29,7 +29,7 @@ export default async function Reports() {
           <ul className="divide-y divide-border">
             {list.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-                <Link href={`/panou/rapoarte/${r.id}`} className="font-medium hover:underline">{r.subject}</Link>
+                <Link prefetch={false} href={`/panou/rapoarte/${r.id}`} className="font-medium hover:underline">{r.subject}</Link>
                 <span className="text-xs text-muted">{dateShort(r.createdAt)}{r.sentTo ? ` · trimis la ${r.sentTo}` : ""}</span>
               </li>
             ))}

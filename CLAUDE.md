@@ -72,8 +72,9 @@ O sarcină e gata doar când:
 - **Calculele grele se fac în worker și se salvează** (etichete, scoruri, agregate), iar pagina doar le citește. Dacă un calcul trebuie făcut la cerere, se păstrează în cache, cu invalidare la schimbare.
 - **Fără bucle pătratice**: nicio căutare `filter`/`find` într-o listă mare în interiorul altei bucle. Se folosesc `Map`/`Set`.
 - **Interogări cu index**: orice filtru nou pe o coloană folosită des primește index, prin migrare aditivă.
-- **Meniul nu preîncarcă toate paginile** (`prefetch={false}` pe linkurile din bara laterală).
-- **Se măsoară înainte de fiecare merge** care atinge o pagină sau o interogare: `pnpm perf` (vezi `scripts/perf-pages.ts`) pe o bază cu un catalog realist (15.000 de produse). O pagină peste prag nu intră în `main`.
+- **Partea grea a unei pagini stă în `<Suspense>`**: antetul și ce e ușor apar imediat, iar tabelele calculate pe tot catalogul vin după, cu un mesaj „Calculăm…”.
+- **Linkurile din panou nu preîncarcă pagini** (`prefetch={false}` pe toate `<Link>`-urile din panou și pe `ButtonLink`): pe 0,1 procesor, fiecare preîncărcare costă cam o secundă.
+- **Se măsoară înainte de fiecare merge** care atinge o pagină sau o interogare: `pnpm perf` (vezi `scripts/perf-pages.ts`) pe o bază cu un catalog realist (15.000 de produse). O pagină peste prag nu intră în `main`. Pragul local nu garantează producția: pe Render gratuit am văzut pagini de până la 50 de ori mai lente decât local, așa că după publicare se verifică și `responseTimeMS` din logurile Render.
 - Pornirea serverului rămâne scurtă: fără procese în plus la fiecare trezire, iar workerul pornește după serverul web.
 
 ## Lucrări în fundal: fără dubluri (regulă permanentă)

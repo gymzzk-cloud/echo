@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { currentProject } from "@/lib/project";
 import { loadBase, productInsights } from "@/core/insights";
@@ -5,12 +6,26 @@ import { providerLabel } from "@/core/ai/types";
 import { Badge, Card, Empty, PageHeader, Stat, Table, Td } from "@/components/ui";
 import { money } from "@/lib/format";
 
-export default async function Products({ searchParams }: { searchParams: Promise<{ f?: string; q?: string }> }) {
+type Sp = { f?: string; q?: string };
+
+// Antetul apare imediat; tabelul (calcul pe tot catalogul) vine în Suspense, ca pagina să nu pară blocată.
+export default async function Products({ searchParams }: { searchParams: Promise<Sp> }) {
   const sp = await searchParams;
   const { project } = await currentProject();
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Produse" subtitle="Ce produse recomandă AI-urile, la ce preț și ce date le lipsesc." />
+      <Suspense key={`${sp.f ?? ""}|${sp.q ?? ""}`} fallback={<Card><p className="animate-pulse text-sm text-muted">Calculăm pentru tot catalogul…</p></Card>}>
+        <ProductsBody project={project} sp={sp} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeof currentProject>>["project"]; sp: Sp }) {
   const { rows } = await loadBase(project, 30);
   const pi = await productInsights(project, rows);
-  if (!pi.list.length) return <><PageHeader title="Produse" /><Empty title="Nu avem încă produsele tale" action={<Link className="text-sm text-primary underline" href="/panou/setari">Conectează catalogul</Link>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
+  if (!pi.list.length) return <><Empty title="Nu avem încă produsele tale" action={<Link prefetch={false} className="text-sm text-primary underline" href="/panou/setari">Conectează catalogul</Link>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
 
   const q = (sp.q ?? "").toLowerCase();
   let list = pi.list;
@@ -23,8 +38,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
   const filters = [["", "Toate"], ["recomandate", "Recomandate de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Produse" subtitle="Ce produse recomandă AI-urile, la ce preț și ce date le lipsesc." />
+    <>
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Produse recomandate de AI" value={`${pi.recommended} / ${pi.list.length}`} hint="ultimele 30 de zile" />
         <Stat label="Prețuri greșite spuse de AI" value={pi.wrongPriceCount} hint={pi.wrongPriceCount ? "verifică datele structurate" : "totul corect"} />
@@ -33,7 +47,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
 
       <Card>
         <form className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-          {filters.map(([k, l]) => <Link key={k} href={`?f=${k}${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`rounded-lg border px-3 py-1.5 ${(sp.f ?? "") === k ? "border-primary text-primary" : "border-border"}`}>{l}</Link>)}
+          {filters.map(([k, l]) => <Link prefetch={false} key={k} href={`?f=${k}${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`rounded-lg border px-3 py-1.5 ${(sp.f ?? "") === k ? "border-primary text-primary" : "border-border"}`}>{l}</Link>)}
           <input type="hidden" name="f" value={sp.f ?? ""} />
           <input name="q" defaultValue={sp.q} placeholder="Caută produs…" className="ml-auto w-56 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm" />
         </form>
@@ -68,6 +82,6 @@ export default async function Products({ searchParams }: { searchParams: Promise
           })}
         </ul>
       </Card>
-    </div>
+    </>
   );
 }

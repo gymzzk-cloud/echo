@@ -12,16 +12,16 @@ export async function PublicHeader() {
   return (
     <header className="border-b border-border bg-bg">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <Link href="/"><Logo name={BRAND.name} /></Link>
+        <Link prefetch={false} href="/"><Logo name={BRAND.name} /></Link>
         <nav className="flex items-center gap-1 text-sm">
-          <Link href="/" className="hidden rounded-md px-3 py-1.5 text-muted hover:bg-surface hover:text-fg sm:block">{t("nav.search")}</Link>
-          <Link href="/pentru-magazine" className="rounded-md px-3 py-1.5 text-muted hover:bg-surface hover:text-fg">{t("nav.forStores")}</Link>
+          <Link prefetch={false} href="/" className="hidden rounded-md px-3 py-1.5 text-muted hover:bg-surface hover:text-fg sm:block">{t("nav.search")}</Link>
+          <Link prefetch={false} href="/pentru-magazine" className="rounded-md px-3 py-1.5 text-muted hover:bg-surface hover:text-fg">{t("nav.forStores")}</Link>
           <form action={setLang}>
             <input type="hidden" name="lang" value={lang === "hu" ? "ro" : "hu"} />
             <button className="rounded-md px-2 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-fg" aria-label={lang === "hu" ? "Română" : "Magyar"}>{lang === "hu" ? "RO" : "HU"}</button>
           </form>
           <ThemeToggle />
-          <Link href={user ? "/panou" : "/login"} className="rounded-lg border border-border px-3 py-1.5 font-medium hover:bg-surface">{user ? t("nav.account") : t("nav.login")}</Link>
+          <Link prefetch={false} href={user ? "/panou" : "/login"} className="rounded-lg border border-border px-3 py-1.5 font-medium hover:bg-surface">{user ? t("nav.account") : t("nav.login")}</Link>
         </nav>
       </div>
     </header>
@@ -35,9 +35,9 @@ export async function PublicFooter() {
       <div className="mx-auto flex max-w-6xl flex-wrap justify-between gap-4 px-4 py-6 text-xs text-muted">
         <span>© {new Date().getFullYear()} {BRAND.name}. {t("footer.pay")}</span>
         <nav className="flex gap-4">
-          <Link href="/cum-ordonam" className="hover:text-fg">{t("nav.ranking")}</Link>
-          <Link href="/index-ai" className="hover:text-fg">{t("nav.index")}</Link>
-          <Link href="/pentru-magazine" className="hover:text-fg">{t("nav.forStores")}</Link>
+          <Link prefetch={false} href="/cum-ordonam" className="hover:text-fg">{t("nav.ranking")}</Link>
+          <Link prefetch={false} href="/index-ai" className="hover:text-fg">{t("nav.index")}</Link>
+          <Link prefetch={false} href="/pentru-magazine" className="hover:text-fg">{t("nav.forStores")}</Link>
         </nav>
       </div>
     </footer>
