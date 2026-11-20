@@ -195,3 +195,15 @@ describe("mărcile din catalog în răspunsuri", () => {
     expect(out).toEqual([{ brand: "MAKITA", visibility: 67, avgPosition: 1.5 }, { brand: "BOSCH", visibility: 33, avgPosition: 1 }]);
   });
 });
+
+describe("cota din recomandări e aceeași pe Acasă și pe card", () => {
+  it("socotește toate magazinele, nu doar concurenții din listă", async () => {
+    const { summarize } = await import("../src/core/projects");
+    const { shareOfRecommendations } = await import("../src/core/insights");
+    const run = (mentions: { domain: string; position: number }[]) => ({ run: { provider: "chatgpt", runDate: "2026-11-20", mentions, model: "m" }, promptId: "p", prompt: "q", category: null, intent: "produs" });
+    const rows = [run([{ domain: "emag.ro", position: 1 }, { domain: "shop.ro", position: 2 }]), run([{ domain: "dedeman.ro", position: 1 }, { domain: "trustpilot.com", position: 2 }])] as never;
+    const s = summarize(rows, "shop.ro", [], 80);
+    expect(s.total.sov).toBe(33); // 1 din 3 magazine (trustpilot nu e magazin)
+    expect(shareOfRecommendations(rows, "shop.ro").find((x) => x.me)!.pct).toBe(s.total.sov);
+  });
+});

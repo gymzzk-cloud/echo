@@ -17,6 +17,7 @@ import { saveCatalogDelivery } from "./policies";
 import { ERROR_MODEL, invalidateWorld, isDemo, loadWorld, projectUsageThisMonth, runQuery, usableProviders } from "./ai/engine";
 import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
+import { isStoreLike } from "./ai/domains";
 import { refreshPrompts } from "./tracked-prompts";
 import { TRIAL_PROVIDERS } from "./onboarding/types";
 
@@ -221,7 +222,8 @@ export function summarize(rows: Awaited<ReturnType<typeof projectRuns>>, domain:
       const ms = run.mentions as Mention[];
       const me = ms.find((m) => m.domain === domain);
       if (me) { hit++; posSum += me.position; }
-      for (const m of ms) if (m.domain === domain || competitorDomains.includes(m.domain)) { all++; if (m.domain === domain) mine++; }
+      // Cota: din toate recomandările de magazine (nu doar concurenții din listă), la fel ca pe cardul „Cota din recomandări”.
+      for (const m of ms) if (m.domain === domain || competitorDomains.includes(m.domain) || isStoreLike(m.domain)) { all++; if (m.domain === domain) mine++; }
     }
     return { visibility: Math.round((hit / rs.length) * 100), avgPosition: hit ? +(posSum / hit).toFixed(2) : null, sov: all ? Math.round((mine / all) * 100) : 0, n: rs.length };
   };

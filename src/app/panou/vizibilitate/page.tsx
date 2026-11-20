@@ -60,7 +60,7 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
         {chart.length > 1 ? <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...top.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} /> : <p className="text-sm text-muted">Graficul apare după a doua zi de măsurători.</p>}
       </Card>
 
-      <Card title="Clasament: tu și concurenții">
+      <Card title="Clasament: tu și concurenții" description={`Pe ultimele ${days} zile, din ${rows.length} răspunsuri. Pe Acasă vezi doar ultima măsurătoare, deci procentele pot fi diferite.`}>
         <Table head={["#", "Magazin", "Vizibilitate", "Mențiuni", "Poziția medie"]}>
           {board.map((b, i) => (
             <tr key={b.domain} className={b.name === "Tu" ? "bg-primary-bg/40 font-medium" : ""}>
