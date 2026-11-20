@@ -2,6 +2,7 @@
 
 > Fișierul pe care îl respectă **fiecare ecran, componentă și email**. Dacă o regulă trebuie încălcată, o schimbăm întâi aici, cu motiv, și abia apoi în cod.
 > Versiunea 0.2, 20.11.2026. Tokenurile sunt în `src/app/globals.css`, componentele în `src/components/ui.tsx`.
+> **Ghidul vizual** (fiecare regulă desenată, cu exemple Corect și Greșit): `docs/design/ghid-vizual.html`. Se deschide în browser.
 
 ## 0. Regula de aur
 
