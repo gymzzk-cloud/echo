@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 
@@ -52,31 +51,4 @@ export function SubmitButton({ children, pendingText = "Se lucrează…", classN
       {pending ? pendingText : children}
     </button>
   );
-}
-
-/**
- * Cât timp o lucrare e la coadă sau în lucru, întreabă serverul (o interogare mică) la câteva secunde.
- * Când s-a terminat, reîncarcă datele paginii: butonul revine și rezultatele apar fără refresh manual.
- */
-export function RefreshWhenDone({ projectId }: { projectId: string }) {
-  const router = useRouter();
-  useEffect(() => {
-    let stop = false;
-    let delay = 4000;
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = async () => {
-      if (stop) return;
-      if (!document.hidden) {
-        try {
-          const r = await fetch(`/api/panou/lucrari?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
-          if (r.ok && !(await r.json()).busy) { router.refresh(); return; }
-        } catch { /* rețea căzută: mai încercăm */ }
-      }
-      delay = Math.min(delay * 1.3, 15000);
-      timer = setTimeout(tick, delay);
-    };
-    timer = setTimeout(tick, delay);
-    return () => { stop = true; clearTimeout(timer); };
-  }, [projectId, router]);
-  return null;
 }

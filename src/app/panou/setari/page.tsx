@@ -6,7 +6,6 @@ import { budgetLeft, costConfig } from "@/core/ai/budget";
 import { providerLabel } from "@/core/ai/types";
 import { Badge, Button, Card, Field, FormActions, Input, PageHeader, Select } from "@/components/ui";
 import { ActionForm } from "@/components/forms";
-import { RefreshWhenDone } from "@/components/client";
 import { addCompetitor, addPrompt, connectFeed, removeCompetitor, removeConnection, syncNow, togglePrompt, uploadFeed } from "@/app/actions";
 import { FEED_HINTS } from "@/core/connectors/platforms";
 import { dateShort } from "@/lib/format";
@@ -75,7 +74,6 @@ export default async function Settings() {
       <PageHeader title="Setări" subtitle={`${project.name} · ${project.domain}${project.pathPrefix} · ${project.country === "HU" ? "Ungaria" : "România"} · ${project.currency}`} />
 
       <Card title="Catalogul de produse">
-        {syncing.size > 0 && <RefreshWhenDone projectId={project.id} />}
         {conns.length > 0 && (
           <ul className="mb-6 divide-y divide-border">
             {conns.map((c) => (

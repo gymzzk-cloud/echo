@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { StorePolicies } from "@/core/policies";
 import { Badge, Notice } from "@/components/ui";
-import { RefreshWhenDone, SubmitButton } from "@/components/client";
+import { SubmitButton } from "@/components/client";
 import { rereadPolicies } from "@/app/actions-dev";
 import { dateShort } from "@/lib/format";
 
@@ -26,7 +26,7 @@ const missing = (t: string) => <span className="text-muted">{t}</span>;
 export function StorePoliciesView({ projectId, policies, busy }: { projectId: string; policies?: StorePolicies; busy: boolean }) {
   const p = policies;
   const reread = busy
-    ? <span className="text-xs text-muted">Citirea de pe site e în lucru…<RefreshWhenDone projectId={projectId} /></span>
+    ? <span className="text-xs text-muted">Citirea de pe site e în lucru…</span>
     : <form action={rereadPolicies}><input type="hidden" name="projectId" value={projectId} /><SubmitButton pendingText="Pornesc…" className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface">Citește din nou de pe site</SubmitButton></form>;
   return (
     <div>

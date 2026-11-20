@@ -5,7 +5,7 @@ import { currentProject } from "@/lib/project";
 import { overview, trend, leaderboard, whoRecommends, shareOfRecommendations } from "@/core/insights";
 import { PROVIDERS, providerLabel } from "@/core/ai/types";
 import { Badge, ButtonLink, Card, Delta, Empty, Notice, Table, Td, impactTone } from "@/components/ui";
-import { RefreshWhenDone, SubmitButton, TrendChart } from "@/components/client";
+import { SubmitButton, TrendChart } from "@/components/client";
 import { ScoreRing } from "@/components/audit-view";
 import { markAlertsRead, runNow, setActionStatus } from "@/app/actions";
 import { dateShort } from "@/lib/format";
@@ -55,7 +55,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
           </ul>
           {!conns.some((c) => c.status === "ok") && <p className="mt-4 text-sm text-muted">Nu am putut conecta automat catalogul. <Link prefetch={false} href="/panou/setari" className="text-primary underline">Adaugă feed-ul de produse</Link> (Google XML sau CSV) ca să urmărim fiecare produs.</p>}
           {analysing
-            ? <p className="mt-4 text-sm text-muted">Analiza e în lucru. Pagina se actualizează singură când e gata.<RefreshWhenDone projectId={project.id} /></p>
+            ? <p className="mt-4 text-sm text-muted">Analiza e în lucru. Pagina se actualizează singură când e gata.</p>
             : <><form action={runNow} className="mt-4"><input type="hidden" name="projectId" value={project.id} /><SubmitButton pendingText="Pornesc…">Pornește analiza acum</SubmitButton></form>
               <p className="mt-3 text-xs text-muted">Analiza rulează în fundal; pagina se actualizează singură când e gata.</p></>}
         </Card>
@@ -83,7 +83,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
             )}
           </div>
           {analysing
-            ? <span className="text-xs text-muted">Analiza e în lucru…<RefreshWhenDone projectId={project.id} /></span>
+            ? <span className="text-xs text-muted">Analiza e în lucru…</span>
             : <form action={runNow}><input type="hidden" name="projectId" value={project.id} /><SubmitButton pendingText="Pornesc…" className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface disabled:opacity-60">Rulează acum</SubmitButton></form>}
         </div>
       </Card>

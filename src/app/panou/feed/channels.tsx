@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { CopyButton, RefreshWhenDone, SubmitButton } from "@/components/client";
+import { CopyButton, SubmitButton } from "@/components/client";
 import { Badge, Button, Card, btn, Notice, Table, Td } from "@/components/ui";
 import { CHANNELS } from "@/core/feed";
 import { busyKinds } from "@/core/jobs";
@@ -43,7 +43,7 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
   const gaps = s ? Object.entries(s.missing).filter(([, n]) => n > 0) : [];
 
   return (
-    <Card title="ChatGPT (OpenAI)" action={<>{working && <RefreshWhenDone projectId={projectId} />}<Status o={o} busy={working} /></>}>
+    <Card title="ChatGPT (OpenAI)" action={<Status o={o} busy={working} />}>
       <p className="mb-4 text-sm text-muted">Feed-ul de produse pentru ChatGPT, în formatul cerut de OpenAI (CSV). Echo îl generează singur din catalogul deja sincronizat, îl reface după fiecare sincronizare și cel puțin o dată pe zi. Magazinul nu e întrebat nimic în plus.</p>
       {!o?.active ? (
         <form action={toggleChannel}>{pid}<input type="hidden" name="channel" value="openai" /><SubmitButton className={btn("primary")} pendingText="Pornim…">Pornește feed-ul ChatGPT</SubmitButton></form>

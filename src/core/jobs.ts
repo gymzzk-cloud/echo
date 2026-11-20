@@ -72,12 +72,27 @@ export async function syncingConnections(connectionIds: string[]): Promise<Set<s
   return new Set((r as unknown as { id: string }[]).map((x) => x.id));
 }
 
+/** Numele lucrărilor pe care le vede omul (cele interne, ca `daily` sau `webhook`, nu se afișează). */
+export const JOB_LABELS: Partial<Record<JobKind, string>> = {
+  audit: "Auditul tehnic", sync: "Sincronizarea catalogului", run_project: "Analiza AI", report: "Raportul",
+  feed: "Feed-ul de produse", rivals: "Căutarea concurenților", policies: "Citirea politicilor magazinului",
+};
+
+export type JobState = { id: string; kind: JobKind; label: string; status: "queued" | "running" | "done" | "failed"; error: string | null };
+
 /**
- * Are magazinul vreo lucrare la coadă sau în lucru (inclusiv sincronizarea conexiunilor lui)?
- * O interogare mică, pentru ca pagina să se actualizeze singură când lucrarea se termină.
+ * Starea lucrărilor unui magazin, pentru actualizarea paginii fără reîncărcare:
+ * cele active acum (la coadă sau în lucru, din ultimele 30 de minute) și, pentru id-urile cerute, starea lor finală.
+ * Filtrează după magazin (projectId sau o conexiune a lui), deci nu se văd lucrările altor clienți.
  */
-export async function projectBusy(projectId: string): Promise<boolean> {
-  const r = await db.execute(dsql`select 1 from jobs where status in ('queued','running') and created_at > now() - interval '30 minutes'
-    and (payload->>'projectId' = ${projectId} or payload->>'connectionId' in (select id::text from connections where project_id = ${projectId})) limit 1`);
-  return (r as unknown as unknown[]).length > 0;
+export async function jobStates(projectId: string, connectionIds: string[], ids: string[]): Promise<JobState[]> {
+  const conns = connectionIds.length ? dsql`or payload->>'connectionId' in ${connectionIds}` : dsql``;
+  const asked = ids.length ? dsql`or id::text in ${ids}` : dsql``;
+  const r = await db.execute(dsql`select id::text as id, kind, status, last_error as error from jobs
+    where (payload->>'projectId' = ${projectId} ${conns})
+      and ((status in ('queued','running') and created_at > now() - interval '30 minutes') ${asked})
+    order by created_at desc limit 50`);
+  return (r as unknown as Omit<JobState, "label">[])
+    .filter((j) => JOB_LABELS[j.kind])
+    .map((j) => ({ ...j, label: JOB_LABELS[j.kind]!, error: j.error ? j.error.slice(0, 160) : null }));
 }
