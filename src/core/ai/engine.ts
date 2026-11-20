@@ -91,7 +91,7 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
     out = live ? await runner.run(input) : demoRun(provider, input, w);
   } catch (e) {
     // Un AI căzut nu oprește restul: înregistrăm eroarea ca răspuns gol, fără cost.
-    const msg = String(e).slice(0, 200);
+    const msg = String(e).slice(0, 400);
     // Doar mesajul de eroare al API-ului (fără chei sau date personale), ca să se vadă în loguri.
     if (!skipReason) console.error(`AI ${provider} eroare: ${msg}`);
     out = { answer: `(Eroare ${provider}: ${msg})`, sources: [], model: ERROR_MODEL, mode: "live" as const, costUsd: 0, latencyMs: 0 };
