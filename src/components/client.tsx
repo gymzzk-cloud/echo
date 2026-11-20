@@ -47,7 +47,7 @@ export function SubmitButton({ children, pendingText = "Se lucrează…", classN
   // useFormStatus din react-dom: arată starea pentru butoanele din formulare cu server actions
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={className ?? "inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-fg hover:opacity-90 disabled:opacity-60"}>
+    <button type="submit" disabled={pending} className={className ?? "inline-flex items-center justify-center h-11 rounded-lg bg-primary px-4 text-sm font-medium sm:h-10 text-primary-fg hover:opacity-90 disabled:opacity-60"}>
       {pending ? pendingText : children}
     </button>
   );

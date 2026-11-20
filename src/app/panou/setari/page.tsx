@@ -3,7 +3,7 @@ import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { activeProviders, costThisMonth } from "@/core/ai/engine";
 import { providerLabel } from "@/core/ai/types";
-import { Badge, Button, Card, Field, Input, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, Card, Field, FormActions, Input, PageHeader, Select } from "@/components/ui";
 import { ActionForm } from "@/components/forms";
 import { addCompetitor, addPrompt, connectFeed, removeCompetitor, removeConnection, syncNow, togglePrompt, uploadFeed } from "@/app/actions";
 import { FEED_HINTS } from "@/core/connectors/platforms";
@@ -29,6 +29,40 @@ export default async function Settings() {
   const providers = activeProviders();
   const hidden = <input type="hidden" name="projectId" value={project.id} />;
   const active = prompts.filter((p) => p.active).length;
+  const connectForms = (
+    <>
+      <ActionForm action={connectFeed} className="grid items-start gap-4 md:grid-cols-[200px_1fr_1fr_auto]">
+        {hidden}
+        <Field label="Platformă">
+          <Select name="kind" defaultValue="auto" className="w-full">
+            <option value="auto">Detectare automată</option>
+            <option value="feed">Link de feed sau API (XML, CSV, JSON, YAML, OpenAPI)</option>
+            <option value="shopify">Shopify</option>
+            <option value="woocommerce">WooCommerce</option>
+            <option value="gomag">Gomag (cheie API)</option>
+            <option value="merchantpro">MerchantPro (cheie API)</option>
+            <option value="prestashop">PrestaShop (cheie Webservice)</option>
+          </Select>
+        </Field>
+        <Field label="Link feed sau adresa magazinului" hint="Gol = adresa magazinului.">
+          <Input name="feed_url" type="text" inputMode="url" autoComplete="off" data-1p-ignore data-lpignore="true" placeholder="https://magazin.ro/feed/produse.xml" />
+        </Field>
+        <Field label="Cheie API (dacă e nevoie)" hint="Gomag, MerchantPro, PrestaShop sau feed/API cu cheie. Se păstrează criptată.">
+          <Input name="api_key" type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" placeholder="cheie sau cheie:secret" />
+        </Field>
+        <FormActions><Button>Conectează catalogul</Button></FormActions>
+      </ActionForm>
+      <div className="mt-6 border-t border-border pt-5">
+        <ActionForm action={uploadFeed} className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
+          {hidden}
+          <Field label="Sau încarcă un fișier de feed" hint="XML, CSV, TSV, JSON sau YAML, maxim 50 MB.">
+            <input type="file" name="file" required accept=".xml,.csv,.tsv,.txt,.json,.yaml,.yml" className="block h-11 w-full rounded-lg border border-border bg-bg px-1.5 py-1 text-sm text-muted file:mr-3 file:h-full file:rounded-md file:border-0 file:bg-surface file:px-3 file:text-sm file:font-medium file:text-fg sm:h-10" />
+          </Field>
+          <FormActions><Button variant="secondary">Importă fișierul</Button></FormActions>
+        </ActionForm>
+      </div>
+    </>
+  );
 
   return (
     <div className="space-y-6">
@@ -48,36 +82,14 @@ export default async function Settings() {
             ))}
           </ul>
         )}
-        <ActionForm action={connectFeed} className="grid gap-3 sm:grid-cols-[200px_1fr_1fr_auto] sm:items-end">
-          {hidden}
-          <Field label="Platformă">
-            <Select name="kind" defaultValue="auto" className="w-full">
-              <option value="auto">Detectare automată</option>
-              <option value="feed">Link de feed sau API (XML, CSV, JSON, YAML, OpenAPI)</option>
-              <option value="shopify">Shopify</option>
-              <option value="woocommerce">WooCommerce</option>
-              <option value="gomag">Gomag (cheie API)</option>
-              <option value="merchantpro">MerchantPro (cheie API)</option>
-              <option value="prestashop">PrestaShop (cheie Webservice)</option>
-            </Select>
-          </Field>
-          <Field label="Link feed sau adresa magazinului" hint="Gol = adresa magazinului.">
-            <Input name="url" placeholder="https://magazin.ro/feed/produse.xml" />
-          </Field>
-          <Field label="Cheie API (dacă e nevoie)" hint="Gomag, MerchantPro, PrestaShop sau feed/API cu cheie. Se păstrează criptată.">
-            <Input name="secret" type="password" autoComplete="off" placeholder="cheie sau cheie:secret" />
-          </Field>
-          <Button>Conectează</Button>
-        </ActionForm>
-        <div className="mt-6 border-t border-border pt-5">
-          <ActionForm action={uploadFeed} className="flex flex-wrap items-end gap-3">
-            {hidden}
-            <Field label="Sau încarcă un fișier de feed" hint="XML, CSV, TSV, JSON sau YAML, maxim 50 MB.">
-              <input type="file" name="file" required accept=".xml,.csv,.tsv,.txt,.json,.yaml,.yml" className="block text-sm file:mr-3 file:rounded-lg file:border file:border-border file:bg-bg file:px-3 file:py-2 file:text-sm" />
-            </Field>
-            <Button variant="secondary">Importă</Button>
-          </ActionForm>
-        </div>
+        {conns.length > 0 ? (
+          <details className="group">
+            <summary className="inline-flex h-11 cursor-pointer list-none items-center rounded-lg border border-border bg-bg px-4 text-sm font-medium hover:bg-surface sm:h-10 [&::-webkit-details-marker]:hidden">
+              <span className="group-open:hidden">Schimbă sursa</span><span className="hidden group-open:inline">Ascunde</span>
+            </summary>
+            <div className="mt-5">{connectForms}</div>
+          </details>
+        ) : connectForms}
         <details className="mt-4 text-xs text-muted"><summary className="cursor-pointer">Unde găsesc feed-ul sau cheia pe platforma mea?</summary><ul className="mt-2 space-y-1">{Object.values(FEED_HINTS).map((h) => <li key={h}>{h}</li>)}</ul></details>
       </Card>
 
@@ -91,22 +103,22 @@ export default async function Settings() {
             </li>
           ))}
         </ul>
-        <ActionForm action={addCompetitor} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <ActionForm action={addCompetitor} className="grid items-start gap-4 md:grid-cols-[1fr_1fr_auto]">
           {hidden}
-          <Field label="Adresa"><Input name="url" placeholder="concurent.ro" required /></Field>
+          <Field label="Adresa"><Input name="url" autoComplete="off" placeholder="concurent.ro" required /></Field>
           <Field label="Nume (opțional)"><Input name="name" placeholder="Concurent" /></Field>
-          <Button variant="secondary">Adaugă</Button>
+          <FormActions><Button variant="secondary">Adaugă concurent</Button></FormActions>
         </ActionForm>
       </Card>
 
       <Card title={`Căutări urmărite (${active} active din ${limit})`}>
         <p className="mb-3 text-xs text-muted">Căutările pe care le punem fiecărui AI, scrise cum caută un client: numele produsului, codul sau EAN-ul, tipul de produs. Le alegem din catalogul tău real (produse în stoc, din categoriile mari, cu mărci diferite) și le reîmprospătăm după fiecare sincronizare. Poți opri oricare sau adăuga căutarea ta.</p>
         {!prompts.some((p) => p.suggested && p.intent !== "brand") && <p className="mb-3 rounded-lg border border-border px-3 py-2 text-xs text-muted">Conectează catalogul real (mai sus) ca să propunem căutări pe produsele tale.</p>}
-        <ActionForm action={addPrompt} className="mb-4 grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
+        <ActionForm action={addPrompt} className="mb-4 grid items-start gap-4 md:grid-cols-[1fr_200px_auto]">
           {hidden}
           <Field label="Căutare nouă"><Input name="text" placeholder="Bosch GSB 18V-55 sau 4053423841923" required /></Field>
           <Field label="Tip"><Select name="intent" className="w-full">{Object.entries(INTENT_NEW).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
-          <Button variant="secondary">Adaugă</Button>
+          <FormActions><Button variant="secondary">Adaugă căutarea</Button></FormActions>
         </ActionForm>
         <ul className="divide-y divide-border">
           {prompts.map((p) => (
