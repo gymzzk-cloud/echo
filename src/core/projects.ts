@@ -8,7 +8,7 @@ import { daysAgo, decrypt, domainOf, encrypt, parseStoreUrl, today } from "@/lib
 import { runAudit, type AuditResult } from "./audit";
 import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogItem, type ConnectorKind } from "./connectors";
 import { nextSyncAt } from "./connectors/polite";
-import { invalidateWorld, isDemo, loadWorld, runQuery } from "./ai/engine";
+import { invalidateWorld, isDemo, loadWorld, runQuery, usableProviders } from "./ai/engine";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { refreshPrompts } from "./tracked-prompts";
 
@@ -155,7 +155,7 @@ export async function runProject(projectId: string) {
   const world = await loadWorld();
   const seen: Mention[] = [];
   for (const pr of ps) {
-    const runs = await Promise.all(PROVIDERS.map((prov) => runQuery(prov.id, { query: pr.text, language: p.language as "ro" | "hu", country: p.country as "RO" | "HU" }, world)));
+    const runs = await Promise.all(usableProviders().map((prov) => runQuery(prov.id, { query: pr.text, language: p.language as "ro" | "hu", country: p.country as "RO" | "HU" }, world)));
     await db.insert(schema.promptRuns).values(runs.filter(Boolean).map((r) => ({ promptId: pr.id, runId: r.id }))).onConflictDoNothing();
     for (const r of runs) if (r) seen.push(...(r.mentions as Mention[]));
   }

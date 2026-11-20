@@ -46,6 +46,11 @@ export function activeProviders(): { id: Provider; live: boolean }[] {
   return PROVIDERS.map((p) => ({ id: p.id, live: LIVE[p.id].isLive() }));
 }
 export const isDemo = () => activeProviders().every((p) => !p.live);
+/**
+ * AI-urile pe care le întrebăm efectiv: doar cele cu cheie. Răspunsurile simulate (modul DEMO)
+ * apar numai cu ALLOW_DEMO_AI=1, ca să nu amestecăm date inventate cu cele reale.
+ */
+export const usableProviders = () => PROVIDERS.filter((p) => LIVE[p.id].isLive() || process.env.ALLOW_DEMO_AI === "1");
 
 /** Rulează (sau ia din cache-ul zilei) o întrebare pe un AI. */
 export async function runQuery(provider: Provider, input: RunInput, world?: World) {
@@ -79,7 +84,7 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
 /** Rulează o întrebare pe toate AI-urile în paralel. */
 export async function runAll(input: RunInput) {
   const w = await loadWorld();
-  return Promise.all(PROVIDERS.map((p) => runQuery(p.id, input, w)));
+  return Promise.all(usableProviders().map((p) => runQuery(p.id, input, w)));
 }
 
 export async function costThisMonth() {
