@@ -53,10 +53,11 @@ export async function generateFeedFiles(projectId: string) {
     .from(schema.feedOutputs).where(and(eq(schema.feedOutputs.projectId, projectId), eq(schema.feedOutputs.active, true)));
   if (!outputs.length) return 0;
   const stamp = await feedStamp(projectId);
-  const key = (channel: string, st: FeedOutputSettings | null) => sha256(`${stamp}|${channel}|${JSON.stringify(effectivePolicy(st))}`);
+  const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
+  const site = project.storeInfo?.policies; // retur citit de pe site (src/core/policies), când feed-ul nu are pagina sau termenul
+  const key = (channel: string, st: FeedOutputSettings | null) => sha256(`${stamp}|${channel}|${JSON.stringify(effectivePolicy(st, site))}`);
   const todo = outputs.map((o) => ({ ...o, next: key(o.channel, o.settings) })).filter((o) => o.next !== o.stamp);
   if (!todo.length) return 0;
-  const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
   const store = { name: project.name, domain: project.domain, pathPrefix: project.pathPrefix, country: project.country };
   for (const o of todo) {
     if (o.channel !== "openai") continue;
@@ -74,7 +75,7 @@ export async function generateFeedFiles(projectId: string) {
     db.select().from(schema.feedRules).where(eq(schema.feedRules.projectId, projectId)).orderBy(schema.feedRules.priority),
   ]);
   const files = todo.map((o) => {
-    const writer = feedWriter(o.channel, store, o.channel === "openai" ? effectivePolicy(o.settings ?? null) : o.settings);
+    const writer = feedWriter(o.channel, store, o.channel === "openai" ? effectivePolicy(o.settings ?? null, site) : o.settings);
     const gz = createGzip({ level: 6 });
     const chunks: Buffer[] = [];
     gz.on("data", (c: Buffer) => chunks.push(c));

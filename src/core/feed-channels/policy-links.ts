@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import { politeFetch } from "../connectors/polite";
 import type { FeedOutputSettings } from "@/db/schema";
+import type { StorePolicies } from "../policies/extract";
 
 /**
  * Paginile de retur, confidențialitate și termeni, găsite automat în linkurile de pe prima pagină a magazinului
@@ -48,10 +49,13 @@ export async function withDetectedPolicyLinks(s: FeedOutputSettings | null, stor
   }
 }
 
-/** Ce intră în feed: adresa scrisă de magazin are prioritate, altfel cea găsită automat. */
-export const effectivePolicy = (s: FeedOutputSettings | null): FeedOutputSettings => ({
-  returnWindowDays: s?.returnWindowDays,
-  returnPolicyUrl: s?.returnPolicyUrl || s?.detected?.returnPolicyUrl,
+/**
+ * Ce intră în feed: adresa scrisă de magazin are prioritate, altfel cea găsită automat.
+ * `site` = condițiile citite de pe site (src/core/policies): pagina de retur și termenul în zile, când feed-ul nu le are.
+ */
+export const effectivePolicy = (s: FeedOutputSettings | null, site?: StorePolicies | null): FeedOutputSettings => ({
+  returnWindowDays: s?.returnWindowDays ?? site?.returns?.days,
+  returnPolicyUrl: s?.returnPolicyUrl || s?.detected?.returnPolicyUrl || site?.returns?.url,
   privacyPolicyUrl: s?.privacyPolicyUrl || s?.detected?.privacyPolicyUrl,
   termsUrl: s?.termsUrl || s?.detected?.termsUrl,
 });

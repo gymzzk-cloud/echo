@@ -31,11 +31,12 @@ function Status({ o, busy }: { o: Output | undefined; busy: boolean }) {
 
 /** Cardul ChatGPT: pornești canalul, Echo generează feed-ul în fundal și îți dă adresa de lipit în ChatGPT Merchants. */
 export async function ChatGptCard({ projectId }: { projectId: string }) {
-  const [outputs, busy] = await Promise.all([outputsOf(projectId), busyKinds(projectId)]);
+  const [outputs, busy, [proj]] = await Promise.all([outputsOf(projectId), busyKinds(projectId),
+    db.select({ storeInfo: schema.projects.storeInfo }).from(schema.projects).where(eq(schema.projects.id, projectId)).limit(1)]);
   const o = outputs.find((x) => x.channel === "openai");
   const working = busy.has("feed");
   const pid = <input type="hidden" name="projectId" value={projectId} />;
-  const missing = missingOpenAiSettings(effectivePolicy(o?.settings ?? null));
+  const missing = missingOpenAiSettings(effectivePolicy(o?.settings ?? null, proj?.storeInfo?.policies));
   const det = o?.settings?.detected;
   const s = o?.stats;
   const excluded = s ? Object.entries(s.excluded).filter(([, n]) => n > 0) : [];
@@ -94,7 +95,8 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
 
 /** Celelalte canale: pornit/oprit, starea fișierului generat și adresa cu buton de copiere. */
 export async function ChannelsCard({ projectId }: { projectId: string }) {
-  const [outputs, busy] = await Promise.all([outputsOf(projectId), busyKinds(projectId)]);
+  const [outputs, busy, [proj]] = await Promise.all([outputsOf(projectId), busyKinds(projectId),
+    db.select({ storeInfo: schema.projects.storeInfo }).from(schema.projects).where(eq(schema.projects.id, projectId)).limit(1)]);
   const pid = <input type="hidden" name="projectId" value={projectId} />;
   return (
     <Card title="Alte canale">

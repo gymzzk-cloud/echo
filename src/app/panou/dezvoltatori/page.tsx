@@ -7,9 +7,9 @@ import { Badge, Card, Field, Input, PageHeader, Table, Td } from "@/components/u
 import { WEBHOOK_EVENTS } from "@/core/platform";
 import { recentMcpCalls } from "@/core/mcp";
 import { dateShort } from "@/lib/format";
-import { addWebhook, createApiKey, deleteWebhook, revokeApiKey, saveStoreInfo, testWebhook } from "@/app/actions-dev";
-
-const ta = "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm";
+import { addWebhook, createApiKey, deleteWebhook, revokeApiKey, saveMcpEnabled, testWebhook } from "@/app/actions-dev";
+import { StorePoliciesView } from "@/components/store-policies";
+import { busyKinds } from "@/core/jobs";
 
 export default async function Developers() {
   const { org, project, role } = await currentProject();
@@ -18,7 +18,7 @@ export default async function Developers() {
   const hooks = await db.select().from(schema.webhooks).where(eq(schema.webhooks.orgId, org.id));
   const calls = await recentMcpCalls(project.id);
   const app = process.env.APP_URL ?? "http://localhost:3000";
-  const info = project.storeInfo ?? {};
+  const busy = await busyKinds(project.id);
   return (
     <>
       <PageHeader eyebrow="Cont" title="API și MCP" subtitle="Agenții AI pot citi direct catalogul tău verificat prin MCP. Sistemele tale pot citi datele Echo prin API și pot primi evenimente prin webhook." />
@@ -26,15 +26,12 @@ export default async function Developers() {
         <Card title="Serverul MCP al magazinului" className="lg:col-span-2">
           <p className="mb-2 text-sm">Adresa: <code className="break-all">{app}/mcp/magazin/{project.domain}{project.pathPrefix}</code> {project.mcpEnabled ? <Badge tone="good">pornit</Badge> : <Badge>oprit</Badge>}</p>
           <p className="mb-4 text-xs text-muted">Unelte: cauta_in_catalog, pret_si_stoc, livrare_si_retur, intrebari_frecvente, link_cumparare. Se adaugă în ChatGPT (Developer mode → Connectors), Claude (Settings → Connectors) sau orice client MCP. Serverul pentru cumpărători, peste toate magazinele verificate: <code>{app}/mcp</code>.</p>
-          <ActionForm action={saveStoreInfo} className="grid gap-3 md:grid-cols-3">
+          <ActionForm action={saveMcpEnabled} className="mb-6 flex flex-wrap items-center gap-3">
             <input type="hidden" name="projectId" value={project.id} />
-            <Field label="Livrare"><textarea name="delivery" rows={3} defaultValue={info.delivery ?? ""} className={ta} placeholder="ex. Curier 1–2 zile lucrătoare, gratuit peste 300 lei." /></Field>
-            <Field label="Retur"><textarea name="returns" rows={3} defaultValue={info.returns ?? ""} className={ta} placeholder="ex. 30 de zile, ridicare gratuită." /></Field>
-            <Field label="Plată"><textarea name="payment" rows={3} defaultValue={info.payment ?? ""} className={ta} placeholder="ex. Card, ramburs, transfer, rate." /></Field>
-            <div className="md:col-span-3"><Field label="Întrebări frecvente" hint="Întrebarea pe primul rând, răspunsul dedesubt, un rând gol între ele."><textarea name="faq" rows={5} defaultValue={(info.faq ?? []).map((f) => `${f.q}\n${f.a}`).join("\n\n")} className={ta} /></Field></div>
-            <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" name="mcpEnabled" defaultChecked={project.mcpEnabled} /> Serverul MCP al magazinului este pornit</label>
-            <div><SubmitButton className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg">Salvează</SubmitButton></div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="mcpEnabled" defaultChecked={project.mcpEnabled} /> Serverul MCP al magazinului este pornit</label>
+            <SubmitButton className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg">Salvează</SubmitButton>
           </ActionForm>
+          <StorePoliciesView projectId={project.id} policies={project.storeInfo?.policies} busy={busy.has("policies")} />
         </Card>
 
         <Card title="Ce întreabă agenții (MCP)">

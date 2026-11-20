@@ -1,13 +1,14 @@
-import { and, eq, inArray, desc, sql as dsql } from "drizzle-orm";
+import { eq, inArray, desc } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { catalogSearch } from "./search";
 import { trustForDomain, reviewStats } from "./trust";
+import { deliveryFromCatalog } from "./policies";
 
 /**
  * Servere MCP (Model Context Protocol, transport Streamable HTTP, fără sesiune):
  *  - /mcp: pentru cumpărători și agenți AI, peste toate magazinele verificate;
  *  - /mcp/magazin/{domeniu}[/{subfolder}]: serverul unui singur magazin (catalog, preț, stoc, livrare, retur, întrebări).
- * Răspunsurile vin doar din date verificate: catalogul sincronizat și ce a completat magazinul.
+ * Răspunsurile vin doar din date verificate: catalogul sincronizat și condițiile citite automat de pe site-ul magazinului.
  */
 type Tool = { name: string; description: string; inputSchema: Record<string, unknown>; run: (args: Record<string, unknown>) => Promise<unknown> };
 type Rpc = { jsonrpc: "2.0"; id?: string | number | null; method: string; params?: Record<string, unknown> };
@@ -55,18 +56,8 @@ export function buyerTools(): Tool[] {
   ];
 }
 
-/** Dacă magazinul n-a completat livrarea, o rezumăm din catalog (termenele și costurile cele mai des întâlnite). */
-async function deliveryFromCatalog(projectId: string) {
-  const rows = await db.select({ d: schema.products.delivery, n: dsql<number>`count(*)::int` }).from(schema.products)
-    .where(and(eq(schema.products.projectId, projectId), dsql`${schema.products.delivery} is not null`))
-    .groupBy(schema.products.delivery).orderBy(dsql`count(*) desc`).limit(3);
-  if (!rows.length) return null;
-  const total = rows.reduce((a, r) => a + r.n, 0);
-  return "Din catalog: " + rows.map((r) => `${r.d} (${Math.round((r.n / total) * 100)}% din produse)`).join("; ") + ". Termenul exact apare la fiecare produs.";
-}
-
 export function storeTools(project: typeof schema.projects.$inferSelect): Tool[] {
-  const info = project.storeInfo ?? {};
+  const pol = project.storeInfo?.policies;
   return [
     { name: "cauta_in_catalog", description: `Caută în catalogul ${project.name} (${project.domain}). Preț și stoc verificate.`,
       inputSchema: { type: "object", properties: { intrebare: { type: "string" }, buget_max: { type: "number" } }, required: ["intrebare"] },
@@ -74,14 +65,30 @@ export function storeTools(project: typeof schema.projects.$inferSelect): Tool[]
     { name: "pret_si_stoc", description: "Prețul și stocul actual pentru un produs al magazinului.",
       inputSchema: { type: "object", properties: { product_id: { type: "string" } }, required: ["product_id"] },
       run: async (a) => { const r = await productById(str(a.product_id)); return r && r.s.id === project.id ? productOut(r) : { eroare: "Produs inexistent în acest magazin." }; } },
-    { name: "livrare_si_retur", description: "Condițiile de livrare, retur și plată, așa cum le-a declarat magazinul.",
-      inputSchema: { type: "object", properties: {} },
-      run: async () => ({ livrare: info.delivery ?? (await deliveryFromCatalog(project.id)) ?? "Nedeclarat.", retur: info.returns ?? "Conform legii: 14 zile pentru produsele cumpărate online.", plata: info.payment ?? "Nedeclarat.", site: `https://${project.domain}${project.pathPrefix}` }) },
-    { name: "intrebari_frecvente", description: "Răspunsurile magazinului la întrebările frecvente.",
+    { name: "livrare_si_retur", description: "Livrarea (termenul și stocul pe produs, din catalog), returul și plata, citite de pe site-ul magazinului. Cu product_id, răspunde pentru acel produs.",
+      inputSchema: { type: "object", properties: { product_id: { type: "string", description: "Opțional: produsul pentru care vrei termenul de livrare" } } },
+      run: async (a) => {
+        const r = a.product_id ? await productById(str(a.product_id)) : null;
+        const produs = r && r.s.id === project.id ? { titlu: r.p.title, in_stoc: r.p.inStock, termen_livrare: r.p.delivery ?? "nespecificat în catalog" } : undefined;
+        return {
+          livrare: {
+            ...(produs ? { produs } : {}),
+            termene_din_catalog: pol?.catalogDelivery ?? (await deliveryFromCatalog(project.id)) ?? "Catalogul nu are termene de livrare.",
+            conditii: pol?.delivery?.text ?? null, transport_gratuit_peste: pol?.delivery?.freeOver ?? null, pagina: pol?.delivery?.url ?? null,
+          },
+          retur: pol?.returns
+            ? { zile: pol.returns.days ?? null, conditii: pol.returns.text, pagina: pol.returns.url }
+            : { zile: 14, conditii: "Magazinul nu are o pagină de retur pe care s-o fi putut citi. Legea dă 14 zile pentru produsele cumpărate online.", pagina: null },
+          plata: pol?.payment ? { metode: pol.payment.methods, conditii: pol.payment.text ?? null, pagina: pol.payment.url ?? null } : "Nu am găsit metodele de plată pe site.",
+          verificat_pe_site: pol?.checkedAt ?? null,
+          site: `https://${project.domain}${project.pathPrefix}`,
+        };
+      } },
+    { name: "intrebari_frecvente", description: "Întrebările frecvente ale magazinului, citite de pe site-ul lui.",
       inputSchema: { type: "object", properties: { intrebare: { type: "string" } } },
       run: async (a) => {
         const q = str(a.intrebare).toLowerCase();
-        const faq = info.faq ?? [];
+        const faq = pol?.faq?.items ?? [];
         return q ? faq.filter((f) => q.split(/\s+/).some((w) => w.length > 3 && (f.q + f.a).toLowerCase().includes(w))).slice(0, 5) : faq.slice(0, 20);
       } },
     { name: "link_cumparare", description: "Linkul care pune produsul în coș pe site-ul magazinului.",

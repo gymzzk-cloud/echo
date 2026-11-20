@@ -118,7 +118,6 @@ async function demoExtras(ids: string[]) {
     for (let d = 0; d < 7; d++) for (const [bot, path] of bots) await db.insert(schema.botVisits).values({ projectId, day: daysAgo(d), bot, path, status: bot === "ClaudeBot" ? 403 : 200, hits: 1 + Math.floor(rnd() * 20) }).onConflictDoNothing();
     await db.insert(schema.feedOutputs).values([{ projectId, channel: "google", token: randomToken(24) }, { projectId, channel: "openai", token: randomToken(24) }]).onConflictDoNothing();
     await proposeTitleEdits(projectId);
-    await db.update(schema.projects).set({ storeInfo: { delivery: "Curier în 1–2 zile lucrătoare, gratuit peste 300 lei (date de test).", returns: "30 de zile, ridicare gratuită (date de test).", payment: "Card, ramburs, transfer bancar.", faq: [{ q: "Emiteți factură pe firmă?", a: "Da, completezi CUI-ul la comandă." }] } }).where(eq(schema.projects.id, projectId));
   }
   // Cont de cumpărător de test, cu produse urmărite și o alertă
   const BUYER = "cumparator@echo.local";
