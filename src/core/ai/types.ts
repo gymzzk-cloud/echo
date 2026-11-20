@@ -27,7 +27,7 @@ export type RunOutput = {
 
 /** Ce știm despre lume când extragem mențiunile sau simulăm (modul demo). */
 export type KnownStore = { domain: string; name: string };
-export type KnownProduct = { domain: string; title: string; price: number | null; url: string; category: string | null };
+export type KnownProduct = { domain: string; title: string; price: number | null; url: string; category: string | null; codes?: string[] };
 
 export interface Runner {
   id: Provider;

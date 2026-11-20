@@ -126,6 +126,7 @@ export const products = pgTable("products", {
   category: text("category"),
   imageUrl: text("image_url"),
   gtin: text("gtin"),
+  mpn: text("mpn"), // codul producătorului / SKU, cum îl caută clienții
   description: text("description"),
   delivery: text("delivery"), // ex. „1-2 zile lucrătoare · transport 20 RON”, din feed
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -148,7 +149,8 @@ export const prompts = pgTable("prompts", {
   projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   text: text("text").notNull(),
   category: text("category"),
-  intent: text("intent").notNull().default("general"), // general | brand | comparatie | cumparare
+  intent: text("intent").notNull().default("general"), // produs | cod | categorie | brand | general (vechi: comparatie, cumparare)
+  productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }), // produsul căutat, pentru „apare sau nu”
   language: text("language").notNull().default("ro"),
   active: boolean("active").notNull().default(true),
   suggested: boolean("suggested").notNull().default(true),

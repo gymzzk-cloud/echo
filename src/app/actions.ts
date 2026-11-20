@@ -11,6 +11,8 @@ import { decrypt, parseStoreUrl } from "@/lib/util";
 import { verifyTotp } from "@/lib/totp";
 import { enqueue, syncingConnections } from "@/core/jobs";
 import { connectStore, importFeedFile, runAuditRow } from "@/core/projects";
+import { refreshPrompts } from "@/core/tracked-prompts";
+import { promptLimit } from "@/core/prompts";
 import { claimStore, noteAuditRequest, recentAudit } from "@/core/stores";
 import { invalidateWorld } from "@/core/ai/engine";
 import type { ConnectorKind } from "@/core/connectors";
@@ -249,14 +251,25 @@ export async function removeCompetitor(form: FormData) {
   revalidatePath("/panou/setari");
 }
 
+const PromptInput = z.object({
+  text: z.string().trim().min(3, "Căutarea trebuie să aibă între 3 și 300 de caractere.").max(300, "Căutarea trebuie să aibă între 3 și 300 de caractere."),
+  intent: z.enum(["produs", "cod", "categorie", "brand", "general"]).catch("produs"),
+});
+
 export async function addPrompt(_: FormState, form: FormData): Promise<FormState> {
   const projectId = String(form.get("projectId"));
-  const { project } = await ownProject(projectId);
-  const text = String(form.get("text") ?? "").trim();
-  if (text.length < 5 || text.length > 300) return { error: "Întrebarea trebuie să aibă între 5 și 300 de caractere." };
-  await db.insert(schema.prompts).values({ projectId, text, language: project.language, suggested: false, intent: String(form.get("intent") ?? "general") });
+  const { project, org } = await ownProject(projectId);
+  const parsed = PromptInput.safeParse({ text: form.get("text") ?? "", intent: form.get("intent") ?? "produs" });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Căutare invalidă." };
+  const manual = await db.select({ id: schema.prompts.id }).from(schema.prompts)
+    .where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.suggested, false), eq(schema.prompts.active, true)));
+  const limit = promptLimit(org.plan);
+  if (manual.length >= limit) return { error: `Planul tău urmărește cel mult ${limit} căutări. Oprește una ca să adaugi alta.` };
+  await db.insert(schema.prompts).values({ projectId, text: parsed.data.text, language: project.language, suggested: false, intent: parsed.data.intent });
+  // Căutările adăugate de mână intră în limită: scoatem una dintre cele propuse, dacă e nevoie.
+  await refreshPrompts(projectId);
   revalidatePath("/panou/setari");
-  return { ok: "Întrebare adăugată. Intră în următoarea rulare." };
+  return { ok: "Căutare adăugată. Intră în următoarea rulare." };
 }
 
 export async function togglePrompt(form: FormData) {

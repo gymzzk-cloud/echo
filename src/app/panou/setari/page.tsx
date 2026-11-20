@@ -9,18 +9,23 @@ import { addCompetitor, addPrompt, connectFeed, removeCompetitor, removeConnecti
 import { FEED_HINTS } from "@/core/connectors/platforms";
 import { dateShort } from "@/lib/format";
 import { syncingConnections } from "@/core/jobs";
+import { promptLimit } from "@/core/prompts";
 
-const INTENT: Record<string, string> = { general: "Generală", brand: "Despre magazin", comparatie: "Comparație", cumparare: "Cumpărare" };
+// Tipurile noi (produs, cod, categorie) sunt primele; cele vechi rămân doar ca etichete pentru căutările adăugate înainte.
+const INTENT_NEW: Record<string, string> = { produs: "Nume produs", cod: "Cod / EAN", categorie: "Tip de produs", brand: "Despre magazin", general: "Altă căutare" };
+const INTENT: Record<string, string> = { ...INTENT_NEW, comparatie: "Comparație", cumparare: "Cumpărare" };
 
 export default async function Settings() {
   const { project } = await currentProject();
-  const [conns, comps, prompts, cost] = await Promise.all([
+  const [conns, comps, prompts, cost, org] = await Promise.all([
     db.select().from(schema.connections).where(eq(schema.connections.projectId, project.id)).orderBy(desc(schema.connections.createdAt)),
     db.select().from(schema.competitors).where(eq(schema.competitors.projectId, project.id)),
     db.select().from(schema.prompts).where(eq(schema.prompts.projectId, project.id)).orderBy(desc(schema.prompts.createdAt)),
     costThisMonth(),
+    db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, project.orgId)),
   ]);
   const syncing = await syncingConnections(conns.map((c) => c.id));
+  const limit = promptLimit(org[0]?.plan ?? "trial");
   const providers = activeProviders();
   const hidden = <input type="hidden" name="projectId" value={project.id} />;
   const active = prompts.filter((p) => p.active).length;
@@ -94,12 +99,13 @@ export default async function Settings() {
         </ActionForm>
       </Card>
 
-      <Card title={`Întrebări urmărite (${active} active)`}>
-        <p className="mb-3 text-xs text-muted">Întrebările pe care le punem zilnic fiecărui AI. Le-am propus din catalogul tău; adaugă-le pe cele pe care le pun clienții tăi.</p>
+      <Card title={`Căutări urmărite (${active} active din ${limit})`}>
+        <p className="mb-3 text-xs text-muted">Căutările pe care le punem fiecărui AI, scrise cum caută un client: numele produsului, codul sau EAN-ul, tipul de produs. Le alegem din catalogul tău real (produse în stoc, din categoriile mari, cu mărci diferite) și le reîmprospătăm după fiecare sincronizare. Poți opri oricare sau adăuga căutarea ta.</p>
+        {!prompts.some((p) => p.suggested && p.intent !== "brand") && <p className="mb-3 rounded-lg border border-border px-3 py-2 text-xs text-muted">Conectează catalogul real (mai sus) ca să propunem căutări pe produsele tale.</p>}
         <ActionForm action={addPrompt} className="mb-4 grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
           {hidden}
-          <Field label="Întrebare nouă"><Input name="text" placeholder="Ce bormașină îmi recomanzi sub 500 de lei?" required /></Field>
-          <Field label="Tip"><Select name="intent" className="w-full">{Object.entries(INTENT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
+          <Field label="Căutare nouă"><Input name="text" placeholder="Bosch GSB 18V-55 sau 4053423841923" required /></Field>
+          <Field label="Tip"><Select name="intent" className="w-full">{Object.entries(INTENT_NEW).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
           <Button variant="secondary">Adaugă</Button>
         </ActionForm>
         <ul className="divide-y divide-border">
