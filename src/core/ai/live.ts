@@ -1,10 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Provider, Runner, RunInput, RunOutput } from "./types";
+import { costConfig } from "./budget";
 
 /**
  * Adaptoarele reale. Trimitem întrebarea exact cum ar scrie-o un cumpărător,
  * fără instrucțiuni în plus, doar cu locația aproximativă (RO/HU), ca să măsurăm ce vede omul real.
  * Prețurile per 1M tokeni sunt estimative și se pot ajusta din variabile de mediu.
+ *
+ * Cost mic (vezi CLAUDE.md, „Costuri AI”): modelul cel mai ieftin care caută pe web,
+ * efort de gândire redus, răspuns plafonat (AI_MAX_OUTPUT_TOKENS) și cel mult 2 căutări pe întrebare.
+ * Întrebarea nu primește instrucțiuni în plus: ar costa tokeni și ar strica măsurătoarea.
  */
 
 const env = (k: string, d = "") => process.env[k] ?? d;
@@ -32,7 +37,10 @@ export const chatgpt: Runner = {
     const data = await postJson("https://api.openai.com/v1/responses", {
       model,
       input: input.query,
-      tools: [{ type: "web_search", user_location: { type: "approximate", country: input.country } }],
+      tools: [{ type: "web_search", search_context_size: "low", user_location: { type: "approximate", country: input.country } }],
+      reasoning: { effort: env("OPENAI_REASONING_EFFORT", "low") },
+      // La modelele cu gândire, plafonul include și gândirea: îi lăsăm loc în plus.
+      max_output_tokens: costConfig().maxOutputTokens + 1500,
     }, { authorization: `Bearer ${env("OPENAI_API_KEY")}` });
     let answer = "";
     const sources: { url: string; title?: string }[] = [];
@@ -47,7 +55,7 @@ export const chatgpt: Runner = {
     }
     const u = data.usage ?? {};
     const cost = ((u.input_tokens ?? 0) * price("OPENAI_IN_PER_M", 0.25) + (u.output_tokens ?? 0) * price("OPENAI_OUT_PER_M", 2)) / 1e6 + 0.01;
-    return { answer, sources, model, mode: "live", costUsd: cost, latencyMs: Date.now() - t0 };
+    return { answer, sources, model, mode: "live", costUsd: cost, latencyMs: Date.now() - t0, inputTokens: u.input_tokens ?? 0, outputTokens: u.output_tokens ?? 0 };
   },
 };
 
@@ -60,7 +68,7 @@ export const gemini: Runner = {
     const model = env("GEMINI_MODEL", "gemini-2.5-flash");
     const data = await postJson(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      { contents: [{ role: "user", parts: [{ text: input.query }] }], tools: [{ google_search: {} }] },
+      { contents: [{ role: "user", parts: [{ text: input.query }] }], tools: [{ google_search: {} }], generationConfig: { maxOutputTokens: costConfig().maxOutputTokens, thinkingConfig: { thinkingBudget: 0 } } },
       { "x-goog-api-key": env("GEMINI_API_KEY") },
     );
     const cand = data.candidates?.[0] ?? {};
@@ -72,7 +80,7 @@ export const gemini: Runner = {
       .map((w: { uri: string; title?: string }) => ({ url: w.title && /\./.test(w.title) && !w.title.includes(" ") ? `https://${w.title}` : w.uri, title: w.title }));
     const u = data.usageMetadata ?? {};
     const cost = ((u.promptTokenCount ?? 0) * price("GEMINI_IN_PER_M", 0.3) + (u.candidatesTokenCount ?? 0) * price("GEMINI_OUT_PER_M", 2.5)) / 1e6 + 0.035;
-    return { answer, sources, model, mode: "live", costUsd: cost, latencyMs: Date.now() - t0 };
+    return { answer, sources, model, mode: "live", costUsd: cost, latencyMs: Date.now() - t0, inputTokens: u.promptTokenCount ?? 0, outputTokens: u.candidatesTokenCount ?? 0 };
   },
 };
 
@@ -86,18 +94,23 @@ export const perplexity: Runner = {
     const data = await postJson("https://api.perplexity.ai/chat/completions", {
       model,
       messages: [{ role: "user", content: input.query }],
-      web_search_options: { user_location: { country: input.country } },
+      max_tokens: costConfig().maxOutputTokens,
+      web_search_options: { search_context_size: "low", user_location: { country: input.country } },
     }, { authorization: `Bearer ${env("PERPLEXITY_API_KEY")}` });
     const answer = data.choices?.[0]?.message?.content ?? "";
     const sources = (data.search_results ?? []).map((s: { url: string; title?: string }) => ({ url: s.url, title: s.title }));
     if (!sources.length) for (const url of data.citations ?? []) sources.push({ url });
     const u = data.usage ?? {};
     const cost = ((u.prompt_tokens ?? 0) + (u.completion_tokens ?? 0)) * price("PERPLEXITY_PER_M", 1) / 1e6 + 0.005;
-    return { answer, sources, model, mode: "live", costUsd: cost, latencyMs: Date.now() - t0 };
+    return { answer, sources, model, mode: "live", costUsd: cost, latencyMs: Date.now() - t0, inputTokens: u.prompt_tokens ?? 0, outputTokens: u.completion_tokens ?? 0 };
   },
 };
 
 // ── Claude (Messages API cu web search) ────────────────────────────────────
+// Implicit Claude Haiku 5.5 (de ~40 de ori mai ieftin decât Opus 5.5). Haiku folosește varianta de bază a căutării
+// web și nu are fallback pe server la refuz; modelele mari primesc căutarea nouă și fallback-ul.
+const CLAUDE_PRICES: Record<string, [number, number]> = { haiku: [0.1, 0.5], sonnet: [2, 10], opus: [4, 20] };
+const claudeTier = (model: string) => (model.includes("haiku") ? "haiku" : model.includes("sonnet") ? "sonnet" : "opus");
 let anthropic: Anthropic | null = null;
 export const claude: Runner = {
   id: "claude",
@@ -105,16 +118,21 @@ export const claude: Runner = {
   async run(input) {
     const t0 = Date.now();
     anthropic ??= new Anthropic();
-    const model = env("ANTHROPIC_MODEL", "claude-opus-5-5");
-    // Fallback la refuz activat implicit ("default"); efort redus: e o căutare, nu o analiză.
+    const model = env("ANTHROPIC_MODEL", "claude-haiku-5-5");
+    const tier = claudeTier(model);
+    const location = { type: "approximate" as const, country: input.country };
     const res = await anthropic.beta.messages.create({
       model,
-      max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      output_config: { effort: "low" },
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3, user_location: { type: "approximate", country: input.country } }],
+      max_tokens: costConfig().maxOutputTokens,
+      output_config: { effort: "low" }, // e o căutare, nu o analiză
       messages: [{ role: "user", content: input.query }],
-      fallbacks: "default",
+      ...(tier === "haiku"
+        ? { tools: [{ type: "web_search_20250305" as const, name: "web_search" as const, max_uses: 2, user_location: location }] }
+        : {
+            tools: [{ type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 2, user_location: location }],
+            betas: ["server-side-fallback-2026-07-01"],
+            fallbacks: "default" as const,
+          }),
     });
     let answer = "";
     const sources: { url: string; title?: string }[] = [];
@@ -126,9 +144,10 @@ export const claude: Runner = {
     }
     if (res.stop_reason === "refusal") answer = answer || "(Claude a refuzat întrebarea.)";
     const u = res.usage;
-    const cost = (u.input_tokens * price("ANTHROPIC_IN_PER_M", 4) + u.output_tokens * price("ANTHROPIC_OUT_PER_M", 20)) / 1e6
+    const [pin, pout] = CLAUDE_PRICES[tier];
+    const cost = (u.input_tokens * price("ANTHROPIC_IN_PER_M", pin) + u.output_tokens * price("ANTHROPIC_OUT_PER_M", pout)) / 1e6
       + (u.server_tool_use?.web_search_requests ?? 0) * 0.01;
-    return { answer, sources, model: res.model, mode: "live", costUsd: cost, latencyMs: Date.now() - t0 };
+    return { answer, sources, model: res.model, mode: "live", costUsd: cost, latencyMs: Date.now() - t0, inputTokens: u.input_tokens, outputTokens: u.output_tokens };
   },
 };
 

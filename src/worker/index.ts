@@ -1,4 +1,4 @@
-import { and, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { finishJob, enqueue, pickJob, pendingJobs } from "@/core/jobs";
 import { allProjectIds, auditProject, runAuditRow, runProject, syncCatalog, dueConnections } from "@/core/projects";
@@ -7,6 +7,7 @@ import { today } from "@/lib/util";
 import { checkWatches } from "@/core/watches";
 import { deliverWebhook } from "@/core/platform";
 import { isDemo } from "@/core/ai/engine";
+import { costConfig, isRunDue } from "@/core/ai/budget";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -34,9 +35,11 @@ async function schedule() {
   // Fără chei AI nu rulăm întrebările (nu vrem răspunsuri simulate), decât cu ALLOW_DEMO_AI=1.
   const aiAllowed = !isDemo() || process.env.ALLOW_DEMO_AI === "1";
   for (const projectId of await allProjectIds()) {
-    const done = await db.select().from(schema.dailyStats)
-      .where(and(eq(schema.dailyStats.projectId, projectId), eq(schema.dailyStats.day, today()))).limit(1);
-    if (aiAllowed && !done.length && !(await pendingJobs(["run_project"], "projectId", projectId))) {
+    // Întrebările la AI-uri rulează automat doar la termen (AI_RUN_EVERY_DAYS, implicit 7 zile), nu zilnic:
+    // costă tokeni, iar răspunsurile nu se schimbă de la o zi la alta. „Rulează acum” rămâne la îndemână.
+    const [last] = await db.select({ day: schema.dailyStats.day }).from(schema.dailyStats)
+      .where(eq(schema.dailyStats.projectId, projectId)).orderBy(desc(schema.dailyStats.day)).limit(1);
+    if (aiAllowed && isRunDue(last?.day, today(), costConfig().runEveryDays) && !(await pendingJobs(["run_project"], "projectId", projectId))) {
       await enqueue("run_project", { projectId });
     }
     // Audit săptămânal

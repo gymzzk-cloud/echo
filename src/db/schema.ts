@@ -172,6 +172,8 @@ export const runs = pgTable("runs", {
   sources: jsonb("sources").$type<{ url: string; title?: string }[]>().notNull().default([]),
   mentions: jsonb("mentions").$type<Mention[]>().notNull().default([]),
   costUsd: numeric("cost_usd", { precision: 10, scale: 5 }).notNull().default("0"),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
   latencyMs: integer("latency_ms"),
   runDate: date("run_date").notNull(),
   createdAt: createdAt(),

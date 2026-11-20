@@ -8,7 +8,8 @@ import { daysAgo, decrypt, domainOf, encrypt, parseStoreUrl, today } from "@/lib
 import { runAudit, type AuditResult } from "./audit";
 import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogItem, type ConnectorKind } from "./connectors";
 import { nextSyncAt } from "./connectors/polite";
-import { invalidateWorld, isDemo, loadWorld, runQuery, usableProviders } from "./ai/engine";
+import { invalidateWorld, isDemo, loadWorld, projectUsageThisMonth, runQuery, usableProviders } from "./ai/engine";
+import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { refreshPrompts } from "./tracked-prompts";
 
@@ -154,10 +155,18 @@ export async function runProject(projectId: string) {
   const ps = await db.select().from(schema.prompts).where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.active, true)));
   const world = await loadWorld();
   const seen: Mention[] = [];
+  const { monthlyBudgetUsd } = costConfig();
+  let spent = (await projectUsageThisMonth(projectId)).usd;
   for (const pr of ps) {
+    // Plafonul lunar: ne oprim înainte să-l depășim și anunțăm o singură dată pe zi.
+    if (!withinBudget(spent, monthlyBudgetUsd)) {
+      await alert(projectId, "ai_budget", "warn", `Am atins bugetul lunar pentru AI (${monthlyBudgetUsd} USD). Restul întrebărilor rulează luna viitoare sau după ce mărești bugetul.`, true);
+      break;
+    }
     const runs = await Promise.all(usableProviders().map((prov) => runQuery(prov.id, { query: pr.text, language: p.language as "ro" | "hu", country: p.country as "RO" | "HU" }, world)));
     await db.insert(schema.promptRuns).values(runs.filter(Boolean).map((r) => ({ promptId: pr.id, runId: r.id }))).onConflictDoNothing();
     for (const r of runs) if (r) seen.push(...(r.mentions as Mention[]));
+    spent = (await projectUsageThisMonth(projectId)).usd;
   }
   await registerAiStores(seen);
   await suggestCompetitors(projectId);

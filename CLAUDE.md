@@ -82,11 +82,18 @@ O sarcină e gata doar când:
 - Nu rulăm migrări distructive fără backup și fără un plan de revenire.
 - Nu trimitem date personale în prompturile către AI-uri.
 
-## Costuri AI
+## Costuri AI (regulă permanentă: cât mai puțini tokeni)
 
-- Orice cod nou care apelează un AI trece prin `packages/ai-runners`, care înregistrează costul pe client.
-- Folosim cel mai ieftin model care face treaba (extragerea are model mic, analiza are model mare).
-- Rezultatele identice se cache-uiesc. Întrebările comune pe categorie se rulează o singură dată pe zi.
+- Orice cod nou care apelează un AI trece prin adaptoarele din `src/core/ai/` și prin `runQuery`, care salvează costul și tokenii fiecărei rulări.
+- **Model ieftin implicit**: ChatGPT `gpt-5-mini` cu gândire `low`, Claude `claude-haiku-5-5`, Gemini Flash fără gândire, Perplexity `sonar`. Un model mare doar unde s-a arătat că e nevoie, prin variabila de mediu a adaptorului.
+- **Răspuns plafonat**: `AI_MAX_OUTPUT_TOKENS` (implicit 2000), cel mult 2 căutări web pe întrebare, context de căutare „low”.
+- **Întrebarea pleacă exact cum o scrie clientul**, fără instrucțiuni în plus: ar costa tokeni și ar strica măsurătoarea.
+- **Nicio întrebare plătită de două ori**: aceeași întrebare pe același AI rulează o singură dată pe zi și e folosită de toate magazinele care o urmăresc.
+- **La termen, nu la fiecare clic**: rularea automată se face o dată la `AI_RUN_EVERY_DAYS` zile (implicit 7). „Rulează acum” nu plătește din nou întrebările deja puse azi.
+- **Buget lunar per magazin**: `AI_MONTHLY_BUDGET_USD` (implicit 5, 0 = fără plafon). La atingerea lui rularea se oprește și magazinul primește o alertă.
+- **AI-urile fără cheie nu sunt întrebate** și nu primesc răspunsuri simulate (decât cu `ALLOW_DEMO_AI=1`, doar pentru demo).
+- Consumul (întrebări, tokeni, cost, buget rămas) se vede în Setări → „AI-uri și costuri”.
+- Următorul pas: rulările programate prin Batch API (OpenAI și Anthropic, ~50% mai ieftin), cu ADR, pentru că schimbă fluxul worker-ului (rezultatele vin în câteva ore).
 
 ## Testare
 
