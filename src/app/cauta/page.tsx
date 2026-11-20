@@ -4,7 +4,9 @@ import { PublicFooter, PublicHeader } from "@/components/public-header";
 import { AiDots, Badge, Card, Notice } from "@/components/ui";
 import { search } from "@/core/search";
 import { isDemo } from "@/core/ai/engine";
-import { PROVIDERS, providerLabel } from "@/core/ai/types";
+import { ERROR_MODEL, PROVIDERS, providerLabel } from "@/core/ai/types";
+import { cleanAnswer } from "@/core/ai/extract";
+import { failureReason } from "@/core/ai/errors";
 import { money } from "@/lib/format";
 import { watchProduct } from "@/app/actions-cont";
 import { redirect } from "next/navigation";
@@ -148,7 +150,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                     <span className="font-medium">{providerLabel(run.provider)}</span>
                     <span className="text-xs text-muted">{(run.mentions as unknown[]).length} magazine · {run.mode === "demo" ? "demo" : "live"}</span>
                   </summary>
-                  <pre className="mt-3 max-h-80 overflow-auto font-sans text-xs leading-relaxed text-muted">{run.answer.replace(/\*\*/g, "")}</pre>
+                  <pre className="mt-3 max-h-80 overflow-auto font-sans text-xs leading-relaxed text-muted">{run.model === ERROR_MODEL ? `Nu am putut întreba acum: ${failureReason(run.answer)}.` : cleanAnswer(run.answer).replace(/\*\*/g, "")}</pre>
                   {(run.sources as { url: string }[]).length > 0 && (
                     <div className="mt-2 text-xs text-muted">Surse: {(run.sources as { url: string; title?: string }[]).slice(0, 6).map((s) => s.title ?? s.url).join(", ")}</div>
                   )}

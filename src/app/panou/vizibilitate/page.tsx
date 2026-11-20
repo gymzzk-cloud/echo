@@ -15,13 +15,14 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
   const { project } = await currentProject();
   const base = await loadBase(project, days);
   const rows = sp.ai ? base.rows.filter((r) => r.run.provider === sp.ai) : base.rows;
-  if (!base.rows.length) return <><PageHeader title="Vizibilitate" /><Empty title="Încă nu avem răspunsuri de la AI-uri">Prima rulare pornește automat după înregistrare. Revino în câteva minute.</Empty></>;
+  if (!base.rows.length && !base.failed.length) return <><PageHeader title="Vizibilitate" /><Empty title="Încă nu avem răspunsuri de la AI-uri">Prima rulare pornește automat după înregistrare. Revino în câteva minute.</Empty></>;
 
   const board = leaderboard(rows, project.domain, base.competitors);
   const top = board.filter((b) => b.name !== "Tu").slice(0, 4);
   const chart = trend(rows, project.domain, top.map((c) => c.domain));
   const rivals = rankRivals(rows, project.domain);
-  const prompts = perPrompt(rows.filter((r) => r.run.runDate >= daysAgo(days)), project.domain);
+  const failed = sp.ai ? base.failed.filter((r) => r.run.provider === sp.ai) : base.failed;
+  const prompts = perPrompt(rows.filter((r) => r.run.runDate >= daysAgo(days)), project.domain, failed);
   const link = (q: Record<string, string | undefined>) => "?" + new URLSearchParams(Object.entries({ zile: String(days), ai: sp.ai, ...q }).filter(([, v]) => v) as [string, string][]).toString();
 
   return (
@@ -58,18 +59,23 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
       </Card>
 
       <Card title={`Pe fiecare întrebare (${prompts.length})`}>
-        <p className="mb-4 text-xs text-muted">Ultimul răspuns de la fiecare AI. Numărul e poziția ta în răspuns; „–” înseamnă că lipsești. Deschide rândul ca să vezi cine apare în locul tău.</p>
+        <p className="mb-4 text-xs text-muted">Ultimul răspuns de la fiecare AI. Numărul e poziția ta în răspuns; „–” înseamnă că lipsești; „!” înseamnă că AI-ul nu a putut fi întrebat (motivul e în rând) și nu se socotește. Deschide rândul ca să vezi cine apare în locul tău.</p>
         <div className="divide-y divide-border">
           {prompts.map((p) => {
             const hits = PROVIDERS.filter((x) => p.byProvider[x.id]?.me).length;
+            const asked = PROVIDERS.filter((x) => p.byProvider[x.id] && !p.byProvider[x.id].failure).length;
             return (
               <details key={p.id} className="group py-3">
                 <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
                   <span className="min-w-0 flex-1 text-sm font-medium">{p.prompt}{p.category && <span className="ml-2 text-xs font-normal text-muted">{p.category}</span>}</span>
                   <span className="flex gap-1">
-                    {PROVIDERS.map((x) => { const b = p.byProvider[x.id]; return <Badge key={x.id} tone={!b ? "muted" : b.me ? "good" : "bad"}>{x.label.slice(0, 3)} {b?.me ? `#${b.me}` : "–"}</Badge>; })}
+                    {PROVIDERS.map((x) => {
+                      const b = p.byProvider[x.id];
+                      if (b?.failure) return <Badge key={x.id} tone="warn"><span title={`Nu am putut întreba: ${b.failure}`}>{x.label.slice(0, 3)} !</span></Badge>;
+                      return <Badge key={x.id} tone={!b ? "muted" : b.me ? "good" : "bad"}>{x.label.slice(0, 3)} {b?.me ? `#${b.me}` : "–"}</Badge>;
+                    })}
                   </span>
-                  <span className="w-16 text-right text-xs text-muted">{hits}/{PROVIDERS.length}</span>
+                  <span className="w-16 text-right text-xs text-muted">{asked ? `${hits}/${asked}` : "–"}</span>
                 </summary>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {PROVIDERS.map((x) => {
@@ -77,8 +83,10 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
                     if (!b) return null;
                     return (
                       <div key={x.id} className="rounded-lg border border-border p-3 text-xs">
-                        <div className="mb-1 flex justify-between font-medium"><span>{providerLabel(x.id)}</span><span className="text-muted">Primele: {b.top.join(", ") || "–"}</span></div>
-                        <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-sans leading-relaxed text-muted">{b.answer.replace(/\*\*/g, "")}</pre>
+                        <div className="mb-1 flex justify-between font-medium"><span>{providerLabel(x.id)}</span>{!b.failure && <span className="text-muted">Primele: {b.top.join(", ") || "–"}</span>}</div>
+                        {b.failure
+                          ? <p className="text-warn">Nu am putut întreba {providerLabel(x.id)}: {b.failure}. Nu știm dacă te-ar fi recomandat, așa că nu intră în scor.</p>
+                          : <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-sans leading-relaxed text-muted">{b.answer.replace(/\*\*/g, "")}</pre>}
                       </div>
                     );
                   })}

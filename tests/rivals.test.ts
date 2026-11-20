@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isStoreLike, pickAutoRivals, rankRivals, type RivalRow } from "@/core/rivals";
-import { extractMentions, runMentions, sourceLabel } from "@/core/ai/extract";
+import { brandLabel, cleanAnswer, extractMentions, runMentions, sourceLabel } from "@/core/ai/extract";
+import { failureReason } from "@/core/ai/errors";
 
 const row = (promptId: string, provider: string, mentions: { domain: string; position: number; name?: string }[]): RivalRow =>
   ({ promptId, run: { provider, runDate: "2026-11-20", mentions } });
@@ -108,5 +109,57 @@ describe("runMentions", () => {
     const answer = '(Eroare chatgpt: Error: HTTP 401: { "message": "Incorrect API key provided. You can find your API key at https://platform.openai.com/account/api-keys." })';
     expect(runMentions({ answer, sources: [], model: "eroare" }, { stores: [], products: [] })).toEqual([]);
     expect(extractMentions(answer, [], { stores: [], products: [] }).map((m) => m.domain)).toContain("platform.openai.com");
+  });
+});
+
+describe("același magazin pe alt domeniu", () => {
+  const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }, { domain: "scule.ro", name: "Scule RO Shop" }], products: [] };
+  it("shopexpert.ro și shop-expert.ro în text contează ca shopexpert.com", () => {
+    const ms = extractMentions("Recenzii pentru shopexpert.ro / shop-expert.ro, apoi firmadeaur.ro.", [], world);
+    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com", "firmadeaur.ro"]);
+  });
+  it("numele de marcă scris în text („ShopExpert”) e recunoscut", () => {
+    const ms = extractMentions("Clienții ShopExpert spun că livrarea e rapidă.", [], world);
+    expect(ms[0]?.domain).toBe("shopexpert.com");
+  });
+  it("marca din domeniu nu se potrivește pe un cuvânt obișnuit (scule electrice)", () => {
+    const ms = extractMentions("Cele mai bune scule electrice pentru acasă.", [], world);
+    expect(ms.some((m) => m.domain === "scule.ro")).toBe(false);
+  });
+  it("sursa citată pe alt domeniu al magazinului e același magazin", () => {
+    const ms = extractMentions("Iată câteva opțiuni.", [{ url: "https://www.shopexpert.ro/x" }], world);
+    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com"]);
+  });
+  it("rankRivals nu socotește propria marcă drept concurent", () => {
+    const rows = [{ promptId: "p", run: { provider: "chatgpt", runDate: "2026-11-20", mentions: [{ domain: "shopexpert.ro", position: 1 }, { domain: "dedeman.ro", position: 2 }] } }];
+    expect(rankRivals(rows, "shopexpert.com").rivals.map((r) => r.domain)).toEqual(["dedeman.ro"]);
+  });
+  it("brandLabel", () => {
+    expect(brandLabel("shopexpert.com")).toBe("shopexpert");
+    expect(brandLabel("www.shop-expert.ro")).toBe("shopexpert");
+    expect(brandLabel("magazin.com.ro")).toBe("magazin");
+  });
+});
+
+describe("marcajele de citare ChatGPT", () => {
+  it("sunt scoase din text", () => {
+    expect(cleanAnswer("Livrare rapidă. citeturn828342search6turn828342search1\nRetur 14 zile")).toBe("Livrare rapidă.\nRetur 14 zile");
+  });
+});
+
+describe("motivul unei rulări eșuate", () => {
+  it.each([
+    ["(Eroare claude: BadRequestError: 400 {\"message\":\"tools.0.web_search_20250305: Country code RO is not supported.\"})", "AI-ul a respins setările cererii (o reparăm noi)"],
+    ["(Eroare chatgpt: Error: HTTP 401: Incorrect API key provided)", "cheia API nu e validă"],
+    ["(Eroare claude: 429 rate_limit_error)", "limita de cereri a contului AI e depășită"],
+    ["(Eroare claude: Your credit balance is too low)", "contul AI nu mai are credit"],
+    ["(Eroare gemini: TimeoutError: The operation was aborted due to timeout)", "AI-ul nu a răspuns la timp"],
+  ])("%s", (a, want) => expect(failureReason(a)).toBe(want));
+});
+
+describe("domeniul propriu are întâietate", () => {
+  it("chiar dacă alt domeniu al mărcii a ajuns la concurenți", () => {
+    const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }, { domain: "shopexpert.ro", name: "Shopexpert" }], products: [], ownDomains: ["shopexpert.com"] };
+    expect(extractMentions("Vezi shopexpert.ro.", [], world).map((m) => m.domain)).toEqual(["shopexpert.com"]);
   });
 });

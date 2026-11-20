@@ -151,6 +151,8 @@ export async function ensurePrompts(projectId: string) {
 }
 
 // ── Rulare zilnică pentru un proiect ───────────────────────────────────────
+/** După atâtea erori la rând, un AI nu mai e întrebat în aceeași rulare. */
+const MAX_STRIKES = 3;
 export async function runProject(projectId: string) {
   // Doar baza de date, fără AI: scoate produsele ieșite din stoc, completează până la limită. Rulează și fără chei.
   await refreshPrompts(projectId);
@@ -164,13 +166,22 @@ export async function runProject(projectId: string) {
   let spent = (await projectUsageThisMonth(projectId)).usd;
   let asked = 0;
   let failed = 0;
+  const strikes = new Map<string, { n: number; msg: string }>();
   for (const pr of ps) {
     // Plafonul lunar: ne oprim înainte să-l depășim și anunțăm o singură dată pe zi.
     if (!withinBudget(spent, monthlyBudgetUsd)) {
       await alert(projectId, "ai_budget", "warn", `Am atins bugetul lunar pentru AI (${monthlyBudgetUsd} USD). Restul întrebărilor rulează luna viitoare sau după ce mărești bugetul.`, true);
       break;
     }
-    const runs = await Promise.all(usableProviders().map((prov) => runQuery(prov.id, { query: pr.text, language: p.language as "ro" | "hu", country: p.country as "RO" | "HU" }, world)));
+    const runs = await Promise.all(usableProviders().map((prov) => runQuery(prov.id, { query: pr.text, language: p.language as "ro" | "hu", country: p.country as "RO" | "HU" }, world,
+      { skipReason: (strikes.get(prov.id)?.n ?? 0) >= MAX_STRIKES ? strikes.get(prov.id)!.msg : undefined })));
+    // Un AI care greșește de câteva ori la rând (cheie greșită, parametru respins) nu mai e întrebat în această rulare:
+    // fără zeci de erori și fără timp pierdut. Întrebările rămase primesc același motiv, ca să se vadă în panou.
+    for (const r of runs) {
+      if (!r) continue;
+      if (r.model === ERROR_MODEL) strikes.set(r.provider, { n: (strikes.get(r.provider)?.n ?? 0) + 1, msg: (strikes.get(r.provider)?.msg ?? r.answer.replace(/^\(Eroare [a-z]+: |\)$/g, "")) });
+      else strikes.delete(r.provider);
+    }
     await db.insert(schema.promptRuns).values(runs.filter(Boolean).map((r) => ({ promptId: pr.id, runId: r.id }))).onConflictDoNothing();
     for (const r of runs) if (r) seen.push(...(r.mentions as Mention[]));
     spent = (await projectUsageThisMonth(projectId)).usd;
@@ -221,18 +232,21 @@ export async function computeStats(projectId: string) {
     .where(and(eq(schema.dailyStats.projectId, projectId), eq(schema.dailyStats.provider, "all"))).orderBy(desc(schema.dailyStats.day)).limit(2);
   const values = [
     { projectId, day, provider: "all", visibility: s.total.visibility, avgPosition: s.total.avgPosition?.toString() ?? null, shareOfVoice: s.total.sov, score: s.score },
-    ...s.perProvider.map((x) => ({ projectId, day, provider: x.provider, visibility: x.visibility, avgPosition: x.avgPosition?.toString() ?? null, shareOfVoice: x.sov, score: x.visibility })),
+    ...s.perProvider.filter((x) => x.n > 0).map((x) => ({ projectId, day, provider: x.provider, visibility: x.visibility, avgPosition: x.avgPosition?.toString() ?? null, shareOfVoice: x.sov, score: x.visibility })),
   ];
   for (const v of values) {
     await db.insert(schema.dailyStats).values(v).onConflictDoUpdate({ target: [schema.dailyStats.projectId, schema.dailyStats.day, schema.dailyStats.provider], set: { visibility: v.visibility, avgPosition: v.avgPosition, shareOfVoice: v.shareOfVoice, score: v.score } });
   }
+  // Un AI fără niciun răspuns real azi (doar erori) nu are scor pentru azi: ștergem un rând scris mai devreme.
+  const unchecked = s.perProvider.filter((x) => x.n === 0).map((x) => x.provider);
+  if (unchecked.length) await db.delete(schema.dailyStats).where(and(eq(schema.dailyStats.projectId, projectId), eq(schema.dailyStats.day, day), inArray(schema.dailyStats.provider, unchecked)));
   // Alerte: comparăm cu ziua precedentă înregistrată
   const before = prev.find((x) => x.day !== day);
   if (before) {
     const prevPer = await db.select().from(schema.dailyStats).where(and(eq(schema.dailyStats.projectId, projectId), eq(schema.dailyStats.day, before.day)));
     for (const x of s.perProvider) {
       const old = prevPer.find((r) => r.provider === x.provider);
-      if (!old) continue;
+      if (!old || x.n === 0) continue;
       if (old.visibility > 0 && x.visibility === 0) await alert(projectId, "lost_provider", "bad", `Ai ieșit din recomandările ${providerLabel(x.provider)}.`);
       else if (old.visibility === 0 && x.visibility > 0) await alert(projectId, "won_provider", "good", `${providerLabel(x.provider)} a început să te recomande.`);
       else if (x.visibility - old.visibility <= -20) await alert(projectId, "drop", "warn", `Vizibilitatea la ${providerLabel(x.provider)} a scăzut de la ${old.visibility}% la ${x.visibility}%.`);

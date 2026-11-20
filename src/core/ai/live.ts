@@ -122,16 +122,17 @@ export const claude: Runner = {
     anthropic ??= new Anthropic({ apiKey: env("ANTHROPIC_API_KEY") });
     const model = env("ANTHROPIC_MODEL", "claude-haiku-5-5");
     const tier = claudeTier(model);
-    const location = { type: "approximate" as const, country: input.country };
+    // Fără user_location: căutarea web Claude respinge țara RO („Country code RO is not supported”, 400).
+    // Întrebarea e oricum în limba clientului, deci răspunsul rămâne local.
     const res = await anthropic.beta.messages.create({
       model,
       max_tokens: costConfig().maxOutputTokens,
       output_config: { effort: "low" }, // e o căutare, nu o analiză
       messages: [{ role: "user", content: input.query }],
       ...(tier === "haiku"
-        ? { tools: [{ type: "web_search_20250305" as const, name: "web_search" as const, max_uses: 2, user_location: location }] }
+        ? { tools: [{ type: "web_search_20250305" as const, name: "web_search" as const, max_uses: 2 }] }
         : {
-            tools: [{ type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 2, user_location: location }],
+            tools: [{ type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 2 }],
             betas: ["server-side-fallback-2026-07-01"],
             fallbacks: "default" as const,
           }),

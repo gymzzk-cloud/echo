@@ -5,7 +5,7 @@ import { daysAgo } from "@/lib/util";
 import { runMentions } from "./ai/extract";
 import { invalidateWorld, loadWorld } from "./ai/engine";
 import { projectRuns } from "./project-runs";
-import { pickAutoRivals, rankRivals } from "./rivals";
+import { isOwnBrand, pickAutoRivals, rankRivals } from "./rivals";
 
 /** Fereastra în care căutăm concurenții: ultimele 30 de zile de răspunsuri. */
 export const RIVALS_WINDOW_DAYS = 30;
@@ -20,6 +20,14 @@ export async function detectRivals(projectId: string) {
   if (!p) return { added: [] as string[] };
   const rows = await projectRuns(projectId, daysAgo(RIVALS_WINDOW_DAYS));
 
+  // Adăugat automat din greșeală: propriul magazin pe alt domeniu (ex. shopexpert.ro pentru shopexpert.com). Îl scoatem
+  // înainte de recitire, ca mențiunile lui să fie socotite ale magazinului.
+  const ownAuto = await db.select({ id: schema.competitors.id, domain: schema.competitors.domain }).from(schema.competitors)
+    .where(and(eq(schema.competitors.projectId, projectId), eq(schema.competitors.suggested, true)));
+  const mine = ownAuto.filter((c) => isOwnBrand(c.domain, p.domain));
+  for (const c of mine) await db.delete(schema.competitors).where(eq(schema.competitors.id, c.id));
+  if (mine.length) invalidateWorld();
+
   // Răspunsurile vechi au fost citite cu regulile de atunci: le recitim cu cele noi (doar text, fără tokeni).
   const world = await loadWorld();
   const fresh = new Map<string, Mention[]>();
@@ -32,10 +40,11 @@ export async function detectRivals(projectId: string) {
   for (const r of rows) r.run.mentions = fresh.get(r.run.id)!;
 
   const report = rankRivals(rows, p.domain);
-  const [existing, dismissed] = await Promise.all([
+  const [all, dismissed] = await Promise.all([
     db.select().from(schema.competitors).where(eq(schema.competitors.projectId, projectId)),
     db.select({ domain: schema.competitorDismissals.domain }).from(schema.competitorDismissals).where(eq(schema.competitorDismissals.projectId, projectId)),
   ]);
+  const existing = all;
   const picks = pickAutoRivals(report.rivals, {
     tracked: existing.map((c) => c.domain),
     dismissed: dismissed.map((d) => d.domain),

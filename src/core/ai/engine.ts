@@ -2,7 +2,7 @@ import { and, eq, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { normalizeText, sha256, today } from "@/lib/util";
 import { demoRun } from "./demo";
-import { runMentions } from "./extract";
+import { cleanAnswer, runMentions } from "./extract";
 import { LIVE } from "./live";
 import { ERROR_MODEL, PROVIDERS, type KnownProduct, type KnownStore, type Provider, type RunInput } from "./types";
 
@@ -55,7 +55,7 @@ export const isDemo = () => activeProviders().every((p) => !p.live);
 export const usableProviders = () => PROVIDERS.filter((p) => LIVE[p.id].isLive() || process.env.ALLOW_DEMO_AI === "1");
 
 /** Rulează (sau ia din cache-ul zilei) o întrebare pe un AI. */
-export async function runQuery(provider: Provider, input: RunInput, world?: World) {
+export async function runQuery(provider: Provider, input: RunInput, world?: World, opts: { skipReason?: string } = {}) {
   const qh = sha256(`${input.language}|${input.country}|${normalizeText(input.query)}`);
   const day = today();
   const existing = await db.select().from(schema.runs)
@@ -68,22 +68,24 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
   const runner = LIVE[provider];
   let out;
   try {
+    // AI-ul a eșuat de mai multe ori la rând în această rulare: nu-l mai întrebăm, păstrăm motivul.
+    if (opts.skipReason) throw new Error(opts.skipReason);
     out = runner.isLive() ? await runner.run(input) : demoRun(provider, input, w);
   } catch (e) {
     // Un AI căzut nu oprește restul: înregistrăm eroarea ca răspuns gol, fără cost.
     const msg = String(e).slice(0, 200);
     // Doar mesajul de eroare al API-ului (fără chei sau date personale), ca să se vadă în loguri.
-    console.error(`AI ${provider} eroare: ${msg}`);
+    if (!opts.skipReason) console.error(`AI ${provider} eroare: ${msg}`);
     out = { answer: `(Eroare ${provider}: ${msg})`, sources: [], model: ERROR_MODEL, mode: "live" as const, costUsd: 0, latencyMs: 0 };
   }
   const mentions = runMentions({ ...out, query: input.query }, w);
   const [row] = await db.insert(schema.runs).values({
     queryHash: qh, query: input.query, language: input.language, provider, model: out.model, mode: out.mode,
-    answer: out.answer, sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs, runDate: day,
+    answer: cleanAnswer(out.answer), sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs, runDate: day,
   }).onConflictDoUpdate({
     target: [schema.runs.queryHash, schema.runs.provider, schema.runs.runDate],
     // Suprascriem doar o rulare cu eroare; una reușită (scrisă între timp de alt job) rămâne.
-    set: { model: out.model, mode: out.mode, answer: out.answer, sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs },
+    set: { model: out.model, mode: out.mode, answer: cleanAnswer(out.answer), sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs },
     setWhere: dsql`${schema.runs.model} = ${ERROR_MODEL}`,
   }).returning();
   if (row) return row;

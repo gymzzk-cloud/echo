@@ -3,18 +3,23 @@ import { db, schema } from "@/db";
 import type { Mention } from "@/db/schema";
 import { daysAgo, domainOf } from "@/lib/util";
 import { projectRuns, summarize, latestAudit } from "./projects";
-import { PROVIDERS } from "./ai/types";
+import { ERROR_MODEL, PROVIDERS } from "./ai/types";
+import { failureReason } from "./ai/errors";
+import { cleanAnswer } from "./ai/extract";
 
 type Project = typeof schema.projects.$inferSelect;
 export type Rows = Awaited<ReturnType<typeof projectRuns>>;
 
 export async function loadBase(project: Project, days = 30) {
-  const [rows, competitors, audit] = await Promise.all([
-    projectRuns(project.id, daysAgo(days)),
+  const [all, competitors, audit] = await Promise.all([
+    projectRuns(project.id, daysAgo(days), { withErrors: true }),
     db.select().from(schema.competitors).where(eq(schema.competitors.projectId, project.id)),
     latestAudit(project.id),
   ]);
-  return { rows, competitors, audit };
+  // Rulările eșuate nu intră în cifre (nu știm ce ar fi răspuns AI-ul); le păstrăm doar ca să arătăm motivul.
+  const rows = all.filter((r) => r.run.model !== ERROR_MODEL);
+  const failed = all.filter((r) => r.run.model === ERROR_MODEL);
+  return { rows, failed, competitors, audit };
 }
 
 /** Evoluția zilnică: vizibilitatea ta și a concurenților (% întrebări în care apare fiecare). */
@@ -40,10 +45,11 @@ export function leaderboard(rows: Rows, domain: string, competitors: { domain: s
 }
 
 /** Pe fiecare întrebare: în ce AI-uri apari și cine apare în locul tău. */
-export function perPrompt(rows: Rows, domain: string) {
-  const map = new Map<string, { prompt: string; category: string | null; intent: string; byProvider: Record<string, { me: number | null; top: string[]; runId: string; answer: string }> }>();
+export function perPrompt(rows: Rows, domain: string, failed: Rows = []) {
+  const map = new Map<string, { prompt: string; category: string | null; intent: string; byProvider: Record<string, { me: number | null; top: string[]; runId: string; answer: string; failure: string | null }> }>();
   const latest = new Map<string, Rows[number]>();
-  for (const r of rows) {
+  // Pe aceeași zi o rulare reușită o înlocuiește pe cea eșuată, deci „cea mai recentă” e cea de afișat.
+  for (const r of [...failed, ...rows]) {
     const k = `${r.promptId}|${r.run.provider}`;
     const prev = latest.get(k);
     if (!prev || prev.run.runDate < r.run.runDate) latest.set(k, r);
@@ -51,7 +57,8 @@ export function perPrompt(rows: Rows, domain: string) {
   for (const r of latest.values()) {
     const e = map.get(r.promptId) ?? { prompt: r.prompt, category: r.category, intent: r.intent, byProvider: {} };
     const ms = r.run.mentions as Mention[];
-    e.byProvider[r.run.provider] = { me: ms.find((m) => m.domain === domain)?.position ?? null, top: ms.slice(0, 3).map((m) => m.name ?? m.domain), runId: r.run.id, answer: r.run.answer };
+    const failure = r.run.model === ERROR_MODEL ? failureReason(r.run.answer) : null;
+    e.byProvider[r.run.provider] = { me: failure ? null : ms.find((m) => m.domain === domain)?.position ?? null, top: ms.slice(0, 3).map((m) => m.name ?? m.domain), runId: r.run.id, answer: cleanAnswer(r.run.answer), failure };
     map.set(r.promptId, e);
   }
   return [...map.entries()].map(([id, v]) => ({ id, ...v }));
@@ -116,7 +123,7 @@ export function sourceInsights(rows: Rows, domain: string, competitorDomains: st
 }
 
 export async function overview(project: Project) {
-  const { rows, competitors, audit } = await loadBase(project, 30);
+  const { rows, failed, competitors, audit } = await loadBase(project, 30);
   const stats = await db.select().from(schema.dailyStats).where(and(eq(schema.dailyStats.projectId, project.id), gte(schema.dailyStats.day, daysAgo(30)))).orderBy(desc(schema.dailyStats.day));
   const all = stats.filter((s) => s.provider === "all");
   const latest = all[0] ?? null;
@@ -125,11 +132,16 @@ export async function overview(project: Project) {
   const perProvider = PROVIDERS.map((p) => {
     const cur = stats.find((s) => s.day === latestDay && s.provider === p.id);
     const old = stats.find((s) => s.day === weekAgo?.day && s.provider === p.id);
-    return { provider: p.id, visibility: cur?.visibility ?? 0, avgPosition: cur?.avgPosition ? parseFloat(cur.avgPosition) : null, delta: cur && old && old.day !== cur.day ? cur.visibility - old.visibility : null };
+    return { provider: p.id, checked: !!cur, visibility: cur?.visibility ?? 0, avgPosition: cur?.avgPosition ? parseFloat(cur.avgPosition) : null, delta: cur && old && old.day !== cur.day ? cur.visibility - old.visibility : null };
   });
   const today7 = rows.filter((r) => r.run.runDate >= daysAgo(7));
   const sum = summarize(today7, project.domain, competitors.map((c) => c.domain), audit?.score ?? null);
-  return { rows, competitors, audit, latest, weekAgo, perProvider, sum };
+  // AI-urile care n-au putut fi verificate în ultima zi cu rulări (doar erori), cu motivul.
+  const lastDay = [...rows, ...failed].map((r) => r.run.runDate).sort().at(-1);
+  const answered = new Set(rows.filter((r) => r.run.runDate === lastDay).map((r) => r.run.provider));
+  const unchecked = new Map<string, string>();
+  for (const r of failed) if (r.run.runDate === lastDay && !answered.has(r.run.provider)) unchecked.set(r.run.provider, failureReason(r.run.answer));
+  return { rows, competitors, audit, latest, weekAgo, perProvider, sum, unchecked: [...unchecked.entries()].map(([provider, reason]) => ({ provider, reason })) };
 }
 
 const VENDOR: Record<string, string> = { chatgpt: "OpenAI", gemini: "Google", perplexity: "Perplexity", claude: "Anthropic", aimode: "Google", copilot: "Microsoft" };

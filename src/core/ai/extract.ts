@@ -19,6 +19,25 @@ export function sourceLabel(domain: string): string | null {
   return label.length >= 4 && !GENERIC_LABELS.has(label) && !/^\d+$/.test(label) ? label : null;
 }
 
+/** Marca din domeniu, fără cratime: „shopexpert.com”, „shopexpert.ro”, „shop-expert.ro” → „shopexpert”; „x.com.ro” → „x”. */
+export function brandLabel(domain: string) {
+  const parts = domain.toLowerCase().replace(/^www\./, "").split(".");
+  if (parts.length > 2 && ["com", "co", "org", "net"].includes(parts[parts.length - 2])) parts.pop();
+  return (parts.length > 1 ? parts[parts.length - 2] : parts[0]).replace(/-/g, "");
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const wordRe = (w: string) => new RegExp(`(^|[^a-z0-9ăâîșț])${escapeRe(w)}([^a-z0-9ăâîșț]|$)`, "i");
+
+/** Prima apariție a cuvântului `w` în text; cu `proper`, doar dacă începe cu majusculă. -1 dacă lipsește. */
+function firstWord(text: string, w: string, proper = false) {
+  for (const m of text.matchAll(new RegExp(wordRe(w).source, "gi"))) {
+    const at = m.index! + m[1].length;
+    if (!proper || /\p{Lu}/u.test(text[at])) return at;
+  }
+  return -1;
+}
+
 function parseNum(s: string) {
   let n = s.replace(/\s/g, "");
   if (/,\d{1,2}$/.test(n)) n = n.replace(/\./g, "").replace(",", ".");
@@ -29,40 +48,52 @@ function parseNum(s: string) {
 export function extractMentions(
   answer: string,
   sources: { url: string; title?: string }[],
-  world: { stores: KnownStore[]; products: KnownProduct[] },
+  world: { stores: KnownStore[]; products: KnownProduct[]; ownDomains?: string[] },
   query?: string,
 ): Mention[] {
-  const text = answer;
-  const lower = text.toLowerCase();
+  // Marcajele de citare ale ChatGPT („\ue200cite\ue202turn0search1\ue201”) nu sunt text.
+  const text = cleanAnswer(answer);
   const hits = new Map<string, { idx: number; name?: string }>();
+  // Același magazin pe alt domeniu (shopexpert.ro, shop-expert.ro pentru shopexpert.com) e același magazin.
+  // Domeniile magazinelor din Echo au întâietate: un concurent salvat greșit (shopexpert.ro) nu „fură” mențiunea.
+  const own = new Set(world.ownDomains ?? []);
+  const known = new Set(world.stores.map((s) => s.domain));
+  const ownBrand = new Map<string, string>();
+  for (const d of own) if (!ownBrand.has(brandLabel(d))) ownBrand.set(brandLabel(d), d);
+  const byBrand = new Map<string, string>();
+  for (const s of world.stores) if (!byBrand.has(brandLabel(s.domain))) byBrand.set(brandLabel(s.domain), s.domain);
+  const alias = (d: string) => (own.has(d) ? d : ownBrand.get(brandLabel(d)) ?? (known.has(d) ? d : byBrand.get(brandLabel(d)) ?? d));
 
   for (const m of text.matchAll(DOMAIN_RE)) {
-    const d = m[1].toLowerCase().replace(/^www\./, "");
+    const d = alias(m[1].toLowerCase().replace(/^www\./, ""));
     if (IGNORE.has(d) || d.length < 5) continue;
     if (!hits.has(d) || hits.get(d)!.idx > m.index!) hits.set(d, { idx: m.index! });
   }
   for (const s of world.stores) {
-    const name = s.name.toLowerCase();
-    if (name.length < 3) continue;
-    const re = new RegExp(`(^|[^a-z0-9ăâîșț])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9ăâîșț]|$)`, "i");
-    const i = lower.search(re);
-    if (i >= 0 && (!hits.has(s.domain) || hits.get(s.domain)!.idx > i)) hits.set(s.domain, { idx: i, name: s.name });
+    // Numele magazinului („ShopExpert RO”) și marca din domeniu („ShopExpert” pentru shopexpert.com).
+    // Marca din domeniu contează doar ca nume propriu (cu majusculă): „scule.ro” nu e „scule electrice”.
+    const label = brandLabel(s.domain);
+    const names: [string, boolean][] = [[s.name.toLowerCase(), false], ...(label.length >= 5 && !GENERIC_LABELS.has(label) ? [[label, true] as [string, boolean]] : [])];
+    for (const [name, proper] of names) {
+      if (name.length < 3) continue;
+      const i = firstWord(text, name, proper);
+      const d = alias(s.domain);
+      if (i >= 0 && (!hits.has(d) || hits.get(d)!.idx > i)) hits.set(d, { idx: i, name: d === s.domain ? s.name : hits.get(d)?.name });
+    }
   }
 
   // Magazine necunoscute încă, citate ca sursă și numite în text („la Dedeman găsești…”): le recunoaștem
   // după numele din domeniu. Sărim peste numele care sunt în căutare (de obicei marca produsului, ex. bosch.ro).
   const q = (query ?? "").toLowerCase();
   for (const s of sources) {
-    const d = domainOf(s.url);
+    const raw = domainOf(s.url);
+    const d = raw && alias(raw);
     if (!d || IGNORE.has(d) || hits.has(d)) continue;
     const label = sourceLabel(d);
     if (!label || q.includes(label)) continue;
-    const re = new RegExp(`(^|[^a-z0-9ăâîșț])${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9ăâîșț]|$)`, "i");
     // Doar ca nume propriu (cu majusculă), ca „scule.ro” să nu se potrivească pe „scule electrice”.
-    for (const m of text.matchAll(new RegExp(re.source, "gi"))) {
-      const at = m.index! + m[1].length;
-      if (/\p{Lu}/u.test(text[at])) { hits.set(d, { idx: at, name: text.slice(at, at + label.length) }); break; }
-    }
+    const at = firstWord(text, label, true);
+    if (at >= 0) hits.set(d, { idx: at, name: text.slice(at, at + label.length) });
   }
 
   const ordered = [...hits.entries()].sort((a, b) => a[1].idx - b[1].idx);
@@ -87,11 +118,20 @@ export function extractMentions(
 
   // Magazine cunoscute care apar doar ca sursă citată (nu în text): poziție după cele din text
   for (const s of sources) {
-    const d = domainOf(s.url);
+    const raw = domainOf(s.url);
+    const d = raw && alias(raw);
     if (!d || IGNORE.has(d) || mentions.some((m) => m.domain === d)) continue;
-    if (world.stores.some((k) => k.domain === d)) mentions.push({ domain: d, position: mentions.length + 1 });
+    if (known.has(d)) mentions.push({ domain: d, position: mentions.length + 1 });
   }
   return mentions;
+}
+
+/**
+ * Textul răspunsului fără marcajele interne de citare ale ChatGPT (caractere din zona privată Unicode,
+ * ex. „\ue200cite\ue202turn0search1\ue201”). Se aplică la salvare și la afișare.
+ */
+export function cleanAnswer(answer: string) {
+  return answer.replace(/\ue200[^\ue201]*\ue201/g, "").replace(/[\ue000-\uf8ff]/g, "").replace(/[ \t]+([.,;:!?])/g, "$1").replace(/[ \t]+\n/g, "\n");
 }
 
 /**
@@ -100,7 +140,7 @@ export function extractMentions(
  */
 export function runMentions(
   run: { answer: string; sources: { url: string; title?: string }[]; model: string | null; query?: string },
-  world: { stores: KnownStore[]; products: KnownProduct[] },
+  world: { stores: KnownStore[]; products: KnownProduct[]; ownDomains?: string[] },
 ): Mention[] {
   return run.model === ERROR_MODEL ? [] : extractMentions(run.answer, run.sources, world, run.query);
 }
