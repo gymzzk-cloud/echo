@@ -8,7 +8,7 @@ import { daysAgo, decrypt, domainOf, encrypt, parseStoreUrl, today } from "@/lib
 import { runAudit, type AuditResult } from "./audit";
 import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogItem, type ConnectorKind } from "./connectors";
 import { nextSyncAt } from "./connectors/polite";
-import { invalidateWorld, loadWorld, runQuery } from "./ai/engine";
+import { invalidateWorld, isDemo, loadWorld, runQuery } from "./ai/engine";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { suggestPrompts } from "./prompts";
 
@@ -151,6 +151,8 @@ export async function ensurePrompts(projectId: string) {
 
 // ── Rulare zilnică pentru un proiect ───────────────────────────────────────
 export async function runProject(projectId: string) {
+  // Fără chei AI nu inventăm răspunsuri: modul DEMO rulează doar dacă e cerut explicit (seed-ul demo).
+  if (isDemo() && process.env.ALLOW_DEMO_AI !== "1") return;
   const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
   const ps = await db.select().from(schema.prompts).where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.active, true)));
   const world = await loadWorld();
