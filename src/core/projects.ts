@@ -18,6 +18,7 @@ import { ERROR_MODEL, invalidateWorld, isDemo, loadWorld, projectUsageThisMonth,
 import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { refreshPrompts } from "./tracked-prompts";
+import { TRIAL_PROVIDERS } from "./onboarding/types";
 
 type Project = typeof schema.projects.$inferSelect;
 const MARKETPLACES = new Set(["emag.ro", "emag.hu", "altex.ro", "flanco.ro", "arukereso.hu", "compari.ro"]);
@@ -161,11 +162,15 @@ export async function ensurePrompts(projectId: string) {
 /** După atâtea erori la rând, un AI nu mai e întrebat în aceeași rulare. */
 const MAX_STRIKES = 3;
 export async function runProject(projectId: string) {
+  const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
+  const [org] = await db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, p.orgId));
+  // Testul gratuit (onboarding, fără plan): întrebările sunt cele confirmate de client, doar pe AI-urile ieftine.
+  const trial = !!p.onboarding && org?.plan === "trial";
   // Doar baza de date, fără AI: scoate produsele ieșite din stoc, completează până la limită. Rulează și fără chei.
-  await refreshPrompts(projectId);
+  if (!trial) await refreshPrompts(projectId);
   // Fără chei AI nu inventăm răspunsuri: modul DEMO rulează doar dacă e cerut explicit (seed-ul demo).
   if (isDemo() && process.env.ALLOW_DEMO_AI !== "1") return;
-  const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
+  const providers = usableProviders().filter((prov) => !trial || (TRIAL_PROVIDERS as readonly string[]).includes(prov.id));
   const ps = await db.select().from(schema.prompts).where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.active, true)));
   const world = await loadWorld();
   const seen: Mention[] = [];
@@ -180,7 +185,10 @@ export async function runProject(projectId: string) {
       await alert(projectId, "ai_budget", "warn", `Am atins bugetul lunar pentru AI (${monthlyBudgetUsd} USD). Restul întrebărilor rulează luna viitoare sau după ce mărești bugetul.`, true);
       break;
     }
-    const runs = await Promise.all(usableProviders().map((prov) => runQuery(prov.id, { query: pr.text, language: p.language as "ro" | "hu", country: p.country as "RO" | "HU" }, world,
+    // Limba întrebării decide piața (un magazin poate urmări și întrebări în maghiară).
+    const lang = (pr.language === "hu" || pr.language === "ro" ? pr.language : p.language) as "ro" | "hu";
+    const country = (lang === p.language ? p.country : lang === "hu" ? "HU" : "RO") as "RO" | "HU";
+    const runs = await Promise.all(providers.map((prov) => runQuery(prov.id, { query: pr.text, language: lang, country }, world,
       { skipReason: (strikes.get(prov.id)?.n ?? 0) >= MAX_STRIKES ? strikes.get(prov.id)!.msg : undefined })));
     // Un AI care greșește de câteva ori la rând (cheie greșită, parametru respins) nu mai e întrebat în această rulare:
     // fără zeci de erori și fără timp pierdut. Întrebările rămase primesc același motiv, ca să se vadă în panou.

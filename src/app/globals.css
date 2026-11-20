@@ -8,24 +8,20 @@
   --side: #13231f; --side-fg: #e4ecea; --side-muted: #93a6a1; --side-active: #24332f;
   --ai1: #2f6f5e; --ai2: #3b63c4; --ai3: #b5643a; --ai4: #1c8a9a;
   --chart-2: #8a9a96; --chart-3: #5b6d68; --chart-4: #c3ceca; --chart-5: #3d4d49;
+  --sea: #eaf2f0; --land: #d5dfdc;
+  /* Fundalul siglei magazinului: alb și în tema întunecată, ca siglele cu text închis să se vadă. */
+  --logo-bg: #ffffff;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #16211e; --surface: #0f1715; --border: #24332f; --text: #e4ecea; --text-muted: #93a6a1;
-    --primary: #4cc3ad; --primary-fg: #0f1715; --good: #5fcf8e; --warn: #e3a35a; --bad: #e37d7d;
-    --good-bg: #143322; --warn-bg: #3a2a17; --bad-bg: #3a1a1a; --primary-bg: #16332d;
-    --side: #0b1210; --side-fg: #e4ecea; --side-muted: #93a6a1; --side-active: #1c2a26;
-    --chart-2: #7d908b; --chart-3: #a9bab5; --chart-4: #4a5c57; --chart-5: #d0dbd8;
-    color-scheme: dark;
-  }
-}
+/* Tema implicită e cea luminoasă (cerută de ZoZo, 20.11.2026); întunecată doar din comutatorul din antet. */
 :root[data-theme="dark"] {
   --bg: #16211e; --surface: #0f1715; --border: #24332f; --text: #e4ecea; --text-muted: #93a6a1;
   --primary: #4cc3ad; --primary-fg: #0f1715; --good: #5fcf8e; --warn: #e3a35a; --bad: #e37d7d;
   --good-bg: #143322; --warn-bg: #3a2a17; --bad-bg: #3a1a1a; --primary-bg: #16332d;
   --side: #0b1210; --side-fg: #e4ecea; --side-muted: #93a6a1; --side-active: #1c2a26;
     --chart-2: #7d908b; --chart-3: #a9bab5; --chart-4: #4a5c57; --chart-5: #d0dbd8;
+  --sea: #0c1513; --land: #22312d;
+  --logo-bg: #f4f7f6;
   color-scheme: dark;
 }
 
@@ -34,6 +30,7 @@
   --color-fg: var(--text); --color-muted: var(--text-muted); --color-primary: var(--primary); --color-primary-fg: var(--primary-fg);
   --color-good: var(--good); --color-warn: var(--warn); --color-bad: var(--bad);
   --color-good-bg: var(--good-bg); --color-warn-bg: var(--warn-bg); --color-bad-bg: var(--bad-bg); --color-primary-bg: var(--primary-bg);
+  --color-sea: var(--sea); --color-land: var(--land); --color-logo-bg: var(--logo-bg);
   --color-side: var(--side); --color-side-fg: var(--side-fg); --color-side-muted: var(--side-muted); --color-side-active: var(--side-active);
   --font-display: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -48,3 +45,19 @@ body { font-family: var(--font-sans); font-size: 14px; -webkit-font-smoothing: a
 .num { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
 pre { white-space: pre-wrap; word-break: break-word; }
+
+/* Testul gratuit (onboarding): mișcări scurte, oprite pentru cine cere mai puțină mișcare. */
+@keyframes ob-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes ob-pop { 0% { opacity: 0; transform: scale(.85); } 70% { transform: scale(1.04); } 100% { opacity: 1; transform: none; } }
+@keyframes ob-blink { 50% { opacity: 0; } }
+@keyframes ob-ring { 0% { r: 7; opacity: .9; } 100% { r: 22; opacity: 0; } }
+@keyframes ob-grow { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes ob-flash { from { background: var(--primary-bg); } to { background: transparent; } }
+.ob-in { animation: ob-in .45s cubic-bezier(.2,.7,.2,1) both; }
+.ob-pop { animation: ob-pop .35s ease both; }
+.ob-caret { display: inline-block; width: 2px; height: 1em; background: var(--primary); margin-left: 1px; vertical-align: -2px; animation: ob-blink 1s steps(2) infinite; }
+.ob-pulse { animation: ob-ring 1.6s ease-out infinite; }
+.ob-grow { transform-origin: bottom; animation: ob-grow .9s cubic-bezier(.2,.7,.2,1) both; }
+.ob-flash { animation: ob-flash 1.2s ease both; }
+.ob-geo path { stroke: var(--sea); stroke-width: 1.2; stroke-linejoin: round; transition: fill .35s ease; }
+@media (prefers-reduced-motion: reduce) { .ob-in, .ob-pop, .ob-grow, .ob-flash { animation: none; } .ob-pulse { display: none; } }

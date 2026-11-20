@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { finishJob, enqueue, pickJob, pendingJobs, requeueInterrupted } from "@/core/jobs";
 import { allProjectIds, auditProject, runAuditRow, runProject, syncCatalog, dueConnections } from "@/core/projects";
@@ -46,12 +46,15 @@ async function handle(kind: string, payload: Record<string, string>) {
 async function schedule() {
   // Fără chei AI nu rulăm întrebările (nu vrem răspunsuri simulate), decât cu ALLOW_DEMO_AI=1.
   const aiAllowed = !isDemo() || process.env.ALLOW_DEMO_AI === "1";
+  // Magazinele în testul gratuit (onboarding, fără plan) nu primesc rulări automate: au avut o singură rulare, la cerere.
+  const trial = new Set((await db.execute<{ id: string }>(sql`select p.id::text as id from projects p join orgs o on o.id = p.org_id
+    where p.onboarding is not null and o.plan = 'trial'`) as unknown as { id: string }[]).map((r) => r.id));
   for (const projectId of await allProjectIds()) {
     // Întrebările la AI-uri rulează automat doar la termen (AI_RUN_EVERY_DAYS, implicit 7 zile), nu zilnic:
     // costă tokeni, iar răspunsurile nu se schimbă de la o zi la alta. „Rulează acum” rămâne la îndemână.
     const [last] = await db.select({ day: schema.dailyStats.day }).from(schema.dailyStats)
       .where(eq(schema.dailyStats.projectId, projectId)).orderBy(desc(schema.dailyStats.day)).limit(1);
-    if (aiAllowed && isRunDue(last?.day, today(), costConfig().runEveryDays) && !(await pendingJobs(["run_project"], "projectId", projectId))) {
+    if (aiAllowed && !trial.has(projectId) && isRunDue(last?.day, today(), costConfig().runEveryDays) && !(await pendingJobs(["run_project"], "projectId", projectId))) {
       await enqueue("run_project", { projectId });
     }
     // Audit săptămânal

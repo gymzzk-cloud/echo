@@ -70,9 +70,6 @@ const registerSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email().max(200),
   password: z.string().min(10, "Parola trebuie să aibă cel puțin 10 caractere.").max(200),
-  storeName: z.string().min(2).max(100),
-  storeUrl: z.string().min(4).max(300),
-  country: z.enum(["RO", "HU"]).default("RO"),
 });
 
 export async function register(_: FormState, form: FormData): Promise<FormState> {
@@ -82,17 +79,13 @@ export async function register(_: FormState, form: FormData): Promise<FormState>
   const email = d.email.toLowerCase();
   const exists = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email)).limit(1);
   if (exists.length) return { error: "Există deja un cont cu acest email." };
-  let info;
-  try { info = parseStoreUrl(d.storeUrl); } catch { return { error: "Adresa magazinului nu pare validă." }; }
-
+  // Contul se face doar cu email și parolă; magazinul îl adaugă la primul pas al testului gratuit (/start).
   const [user] = await db.insert(schema.users).values({ email, name: d.name, passwordHash: await hashPassword(d.password) }).returning();
-  const [org] = await db.insert(schema.orgs).values({ name: d.storeName }).returning();
+  const [org] = await db.insert(schema.orgs).values({ name: d.name }).returning();
   await db.insert(schema.memberships).values({ orgId: org.id, userId: user.id, role: "owner" });
-  const projectId = await createProject(org.id, d.storeName, info, d.country);
-  await log(org.id, user.id, "register", { domain: info.domain });
+  await log(org.id, user.id, "register");
   await createSession(user.id);
-  (await cookies()).set("echo_project", projectId, { httpOnly: true, sameSite: "lax", path: "/" });
-  redirect("/panou?bun-venit=1");
+  redirect("/start");
 }
 
 async function createProject(orgId: string, name: string, info: ReturnType<typeof parseStoreUrl>, country: "RO" | "HU") {

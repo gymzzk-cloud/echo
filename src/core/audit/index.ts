@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { parseStoreUrl } from "@/lib/util";
+import { extractHomeCatalog, type HomeCatalog } from "../onboarding/home";
 
 /**
  * Auditul tehnic: verifică dacă AI-urile pot citi și înțelege magazinul.
@@ -46,6 +47,7 @@ export type AuditResult = {
   platform?: string;
   error?: string;
   reusedFacts?: string[]; // date stabile luate din verificarea anterioară (site-ul nu le-a mai arătat acum)
+  home?: HomeCatalog; // categoriile, mărcile și produsele de pe prima pagină (propunere pentru profilul din onboarding)
 };
 export type StoreFacts = {
   title?: string;
@@ -266,6 +268,7 @@ export async function runAudit(inputUrl: string): Promise<AuditResult> {
   const nodes = jsonLdNodes($);
   result.platform = detectPlatform(page.body, page.headers);
   result.facts = extractFacts($, page.body, nodes);
+  result.home = extractHomeCatalog($, nodes, home);
 
   // 3. Date: Organization / WebSite
   const hasOrg = nodes.some((n) => hasType(n, "Organization") || hasType(n, "OnlineStore") || hasType(n, "Store") || hasType(n, "LocalBusiness"));
