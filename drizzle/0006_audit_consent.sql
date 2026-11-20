@@ -1,0 +1,1 @@
+ALTER TABLE "audits" ADD COLUMN "marketing_consent" boolean DEFAULT false NOT NULL;
