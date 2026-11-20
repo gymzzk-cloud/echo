@@ -40,6 +40,7 @@ export default async function Reputation() {
                 <span className="min-w-0 flex-1 text-sm">„{c.text}”</span>
                 <span className="flex flex-wrap gap-1"><Badge tone={c.tone === "pozitiv" ? "good" : c.tone === "negativ" ? "bad" : "muted"}>{c.tone === "pozitiv" ? "Pozitiv" : c.tone === "negativ" ? "Negativ" : "Neutru"}</Badge>{c.providers.map((p) => <Badge key={p}>{providerLabel(p)}</Badge>)}</span>
               </div>
+              {c.sources.length > 0 && <p className="mt-1 text-xs text-muted">Sursa: {c.sources.join(", ")}</p>}
               {c.contradicts && <div className="mt-2"><Notice tone="warn"><b className="font-semibold">Greșit, se poate corecta:</b> {c.contradicts}</Notice></div>}
             </li>
           ))}

@@ -18,11 +18,12 @@ import { ERROR_MODEL, invalidateWorld, isDemo, loadWorld, projectUsageThisMonth,
 import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { isStoreLike } from "./ai/domains";
+import { classifySource, sourceActionTitle } from "./source-kind";
+import { catalogBrands, ownedDomains } from "./store-context";
 import { refreshPrompts } from "./tracked-prompts";
 import { TRIAL_PROVIDERS } from "./onboarding/types";
 
 type Project = typeof schema.projects.$inferSelect;
-const MARKETPLACES = new Set(["emag.ro", "emag.hu", "altex.ro", "flanco.ro", "arukereso.hu", "compari.ro"]);
 export { projectRuns };
 
 export const projectBase = (p: Project) => `https://${p.domain}${p.pathPrefix}`;
@@ -298,7 +299,7 @@ const EFFORT: Record<string, "mic" | "mediu" | "mare"> = { robots: "mic", firewa
 async function upsertAction(projectId: string, a: { key: string; title: string; why: string; howTo?: string; fixKind?: string; impact: string; effort: string }, baseline: number | null) {
   // Idempotent: rulat de două ori dă același rând; titlul și detaliul se actualizează (ex. timpul de răspuns măsurat acum).
   await db.insert(schema.actions).values({ projectId, ...a, baselineVisibility: baseline })
-    .onConflictDoUpdate({ target: [schema.actions.projectId, schema.actions.key], set: { title: a.title, why: a.why } });
+    .onConflictDoUpdate({ target: [schema.actions.projectId, schema.actions.key], set: { title: a.title, why: a.why, howTo: a.howTo ?? null } });
 }
 
 export async function generateActions(projectId: string) {
@@ -313,27 +314,33 @@ export async function generateActions(projectId: string) {
       await upsertAction(projectId, { key: `audit:${c.id}`, title: PROBLEM_TITLES[c.id] ?? c.title, why: c.detail, fixKind: c.fixKind, impact: IMPACT[c.id] ?? "mediu", effort: EFFORT[c.id] ?? "mediu" }, baseline);
     }
   }
-  // Surse unde apar concurenții, dar nu tu
+  // Surse unde apar concurenții, dar nu tu: doar cele pe care magazinul le poate influența (source-kind.ts).
   const rows = await projectRuns(projectId, daysAgo(14));
   const comps = (await db.select().from(schema.competitors).where(eq(schema.competitors.projectId, projectId))).map((c) => c.domain);
+  const ctx = { domain: p.domain, competitors: new Set(comps), brands: await catalogBrands(projectId), owned: await ownedDomains(p) };
   const gap = new Map<string, number>();
   for (const { run } of rows) {
     const ms = run.mentions as Mention[];
     const meIn = ms.some((m) => m.domain === p.domain);
-    const compIn = ms.some((m) => comps.includes(m.domain));
+    const compIn = ms.some((m) => ctx.competitors.has(m.domain));
     if (meIn || !compIn) continue;
     for (const s of run.sources as { url: string }[]) {
       const d = domainOf(s.url);
-      if (!d || d === p.domain || comps.includes(d)) continue;
+      if (!d) continue;
       gap.set(d, (gap.get(d) ?? 0) + 1);
     }
   }
-  for (const [d, n] of [...gap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+  const sources = [...gap.entries()].map(([d, n]) => ({ d, n, info: classifySource(d, ctx) })).filter((x) => x.info.actionable)
+    .sort((a, b) => b.n - a.n).slice(0, 5);
+  // Propunerile vechi, încă neatinse, care nu mai sunt pe listă (producători, magazine, site-urile tale): le scoatem.
+  const keep = sources.map((x) => `source:${x.d}`);
+  await db.delete(schema.actions).where(and(eq(schema.actions.projectId, projectId), eq(schema.actions.status, "noua"), dsql`${schema.actions.key} like 'source:%'`,
+    keep.length ? dsql`${schema.actions.key} not in (${dsql.join(keep.map((k) => dsql`${k}`), dsql`, `)})` : dsql`true`));
+  for (const { d, n, info } of sources) {
     await upsertAction(projectId, {
-      key: `source:${d}`, title: `Fă-te prezent pe ${d}`,
-      why: `AI-urile au citat ${d} de ${n} ori în răspunsuri unde au apărut concurenții tăi, dar tu nu.`,
-      howTo: MARKETPLACES.has(d) ? `Listează produsele principale pe ${d}, cu titluri și specificații complete.` : `Contactează ${d} pentru o recenzie, un articol sau o listare. Oferă un produs de test sau un cod de reducere pentru cititori.`,
-      fixKind: "source", impact: n >= 5 ? "mare" : "mediu", effort: "mediu",
+      key: `source:${d}`, title: sourceActionTitle(d, info.kind),
+      why: `AI-urile au citat ${d} (${info.kind}) de ${n} ori în răspunsuri unde au apărut concurenții tăi, dar tu nu.`,
+      howTo: info.advice, fixKind: "source", impact: n >= 5 ? "mare" : "mediu", effort: "mediu",
     }, baseline);
   }
   // Produse care nu apar niciodată, deși sunt în categoriile întrebate
