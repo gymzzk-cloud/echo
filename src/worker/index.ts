@@ -9,6 +9,7 @@ import { deliverWebhook } from "@/core/platform";
 import { isDemo } from "@/core/ai/engine";
 import { costConfig, isRunDue } from "@/core/ai/budget";
 import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
+import { projectsDueForPolicies, refreshPolicies } from "@/core/policies";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -27,6 +28,7 @@ async function handle(kind: string, payload: Record<string, string>) {
       return r;
     }
     case "rivals": return detectRivals(payload.projectId);
+    case "policies": return refreshPolicies(payload.projectId);
     case "watches": return checkWatches();
     case "webhook": return deliverWebhook(payload.webhookId, payload.payload);
     default: throw new Error(`Job necunoscut: ${kind}`);
@@ -52,6 +54,10 @@ async function schedule() {
   // Concurenții care apar mai bine ca tine: o dată pe zi, din răspunsurile deja salvate (fără apeluri AI).
   for (const projectId of await projectsDueForRivals()) {
     if (!(await pendingJobs(["rivals", "run_project"], "projectId", projectId))) await enqueue("rivals", { projectId });
+  }
+  // Condițiile magazinului (retur, plată, livrare, întrebări frecvente) de pe site: o dată pe lună, câte 5 magazine pe ciclu.
+  for (const projectId of (await projectsDueForPolicies()).slice(0, 5)) {
+    if (!(await pendingJobs(["policies"], "projectId", projectId))) await enqueue("policies", { projectId });
   }
   // Cataloage: doar conexiunile ajunse la termen (12h + decalaj stabil per magazin), max 5 pe ciclu,
   // ca să nu lovim multe magazine deodată. Sincronizarea face cerere condiționată (304 = nimic de descărcat).

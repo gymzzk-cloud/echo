@@ -1,6 +1,7 @@
 import {
   pgTable, uuid, text, timestamp, integer, boolean, jsonb, numeric, date, uniqueIndex, index, primaryKey,
 } from "drizzle-orm/pg-core";
+import type { StorePolicies } from "../core/policies/extract";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -81,12 +82,13 @@ export const projects = pgTable("projects", {
   commissionPct: numeric("commission_pct", { precision: 5, scale: 2 }).notNull().default("3"), // comision pe vânzările aduse de Echo
   mcpEnabled: boolean("mcp_enabled").notNull().default(true),
   agentPolicy: jsonb("agent_policy").$type<AgentPolicy>(),
-  storeInfo: jsonb("store_info").$type<StoreInfo>(), // livrare, retur, întrebări frecvente: răspunsurile MCP ale magazinului
+  storeInfo: jsonb("store_info").$type<StoreInfo>(), // condițiile citite automat de pe site: răspunsurile MCP ale magazinului
   rivalsCheckedAt: timestamp("rivals_checked_at", { withTimezone: true }), // ultima căutare automată de concurenți în răspunsurile AI
   createdAt: createdAt(),
 }, (t) => [index("projects_org_idx").on(t.orgId), index("projects_domain_idx").on(t.domain)]);
 
-export type StoreInfo = { delivery?: string; returns?: string; payment?: string; faq?: { q: string; a: string }[] };
+/** Condițiile magazinului citite automat de pe site (retur, plată, livrare, întrebări frecvente); nu se completează de mână. */
+export type StoreInfo = { policies?: StorePolicies };
 
 export type AgentPolicy = {
   allowedAgents: string[];          // ex. ["ChatGPT", "Claude", "Gemini", "Perplexity"]

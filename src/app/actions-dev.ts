@@ -60,16 +60,18 @@ export async function testWebhook(form: FormData) {
   done();
 }
 
-export async function saveStoreInfo(_: FormState, form: FormData): Promise<FormState> {
+export async function saveMcpEnabled(_: FormState, form: FormData): Promise<FormState> {
   const { project } = await ownProject(String(form.get("projectId")));
-  const faq = String(form.get("faq") ?? "").split(/\n\s*\n/).map((b) => {
-    const [q, ...a] = b.trim().split("\n");
-    return { q: (q ?? "").replace(/^[-*?\s]+/, "").slice(0, 200), a: a.join(" ").trim().slice(0, 1000) };
-  }).filter((x) => x.q && x.a).slice(0, 40);
-  await db.update(schema.projects).set({
-    mcpEnabled: form.get("mcpEnabled") === "on",
-    storeInfo: { delivery: String(form.get("delivery") ?? "").slice(0, 1000) || undefined, returns: String(form.get("returns") ?? "").slice(0, 1000) || undefined, payment: String(form.get("payment") ?? "").slice(0, 500) || undefined, faq },
-  }).where(eq(schema.projects.id, project.id));
+  await db.update(schema.projects).set({ mcpEnabled: form.get("mcpEnabled") === "on" }).where(eq(schema.projects.id, project.id));
   done();
-  return { ok: "Salvat. Agenții AI primesc aceste răspunsuri prin serverul MCP al magazinului." };
+  return { ok: "Salvat." };
+}
+
+/** Recitește acum condițiile de pe site (retur, plată, livrare, întrebări). Lucrarea merge în coadă; dublurile sunt refuzate de enqueue. */
+export async function rereadPolicies(form: FormData) {
+  const { project } = await ownProject(String(form.get("projectId")));
+  const last = project.storeInfo?.policies?.checkedAt;
+  // Cel mult o recitire la 10 minute: nu încărcăm site-ul magazinului la fiecare clic.
+  if (!last || Date.now() - new Date(last).getTime() > 10 * 60e3) await enqueue("policies", { projectId: project.id });
+  done();
 }

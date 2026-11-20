@@ -10,6 +10,7 @@ import { daysAgo, decrypt, domainOf, encrypt, parseStoreUrl, today } from "@/lib
 import { runAudit, type AuditResult } from "./audit";
 import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogItem, type ConnectorKind } from "./connectors";
 import { nextSyncAt } from "./connectors/polite";
+import { saveCatalogDelivery } from "./policies";
 import { ERROR_MODEL, invalidateWorld, isDemo, loadWorld, projectUsageThisMonth, runQuery, usableProviders } from "./ai/engine";
 import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
@@ -56,6 +57,7 @@ export async function syncCatalog(connectionId: string) {
     await db.update(schema.connections).set({ ...base, productCount: items.length }).where(eq(schema.connections.id, c.id));
     await db.update(schema.projects).set({ platform: c.kind }).where(eq(schema.projects.id, p.id));
     invalidateWorld();
+    await saveCatalogDelivery(p.id);
     await ensurePrompts(p.id);
     return items.length;
   } catch (e) {

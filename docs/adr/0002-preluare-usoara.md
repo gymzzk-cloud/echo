@@ -13,6 +13,7 @@ Orice cod nou care ia date de la un magazin respectă aceste reguli:
 3. **Doar când e nevoie**: sincronizare la `CATALOG_SYNC_HOURS` (implicit 12h), cu decalaj stabil 0–2h per magazin ca să nu cadă toate la aceeași oră. Workerul pune maximum 5 sincronizări pe ciclu.
 4. **După erori, mai rar**: x2, apoi x4 (plafon), resetat la primul succes.
 5. **Refolosim ce știm**: auditul gratuit e refolosit 24h, datele stabile (CUI, firmă) 90 de zile. Căutarea și MCP-ul citesc din baza noastră, nu din magazin.
+6. **Condițiile magazinului (retur, plată, livrare, întrebări frecvente)** se citesc automat de pe site, fără AI (`src/core/policies`): pagina principală, cel mult un sitemap și câte o pagină de condiții, o dată la `POLICY_REFRESH_DAYS` (implicit 30 de zile, + decalaj 0–72h per magazin; după o eroare, reîncercare peste 3 zile, păstrând datele vechi). Termenul de livrare pe produs vine din catalog. Magazinul nu completează nimic de mână.
 
 ## Consecințe
 Prețurile și stocul pot fi întârziate până la ~14h. Magazinul poate cere o sincronizare manuală din panou când are nevoie urgent.
