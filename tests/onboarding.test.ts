@@ -1,0 +1,127 @@
+import { describe, expect, it } from "vitest";
+import * as cheerio from "cheerio";
+import { buildTrialPrompts } from "@/core/onboarding/prompts";
+import { brandShare, computeTeaser, type TeaserRun } from "@/core/onboarding/teaser";
+import { extractHomeCatalog, homeLogo } from "@/core/onboarding/home";
+import { advance, cleanDomain, cleanList, TRIAL_QUESTIONS } from "@/core/onboarding/types";
+
+const base = { storeName: "ShopExpert", categories: ["Scule electrice", "Grădină"], brands: ["Makita", "Bosch"], products: ["Makita DHP485Z", "Bosch GSR 12V"], focus: "buy" as const, markets: ["RO" as const] };
+
+describe("buildTrialPrompts", () => {
+  it("dă exact numărul de întrebări al testului, fără dubluri", () => {
+    const q = buildTrialPrompts(base);
+    expect(q.length).toBeLessThanOrEqual(TRIAL_QUESTIONS);
+    expect(q.length).toBeGreaterThan(10);
+    expect(new Set(q.map((x) => x.text.toLowerCase())).size).toBe(q.length);
+  });
+  it("e determinist: aceleași date dau aceleași întrebări", () => {
+    expect(buildTrialPrompts(base)).toEqual(buildTrialPrompts(base));
+  });
+  it("profil gol: doar întrebările despre magazin", () => {
+    const q = buildTrialPrompts({ ...base, categories: [], brands: [], products: [] });
+    expect(q.every((x) => x.source === "magazin")).toBe(true);
+    expect(q.length).toBeGreaterThan(0);
+  });
+  it("Ungaria: întrebări în maghiară doar din nume de produse și mărci, cel mult o treime", () => {
+    const q = buildTrialPrompts({ ...base, markets: ["RO", "HU"] });
+    const hu = q.filter((x) => x.language === "hu");
+    expect(hu.length).toBeGreaterThan(0);
+    expect(hu.length).toBeLessThanOrEqual(Math.ceil(q.length / 3) + 1);
+    expect(hu.some((x) => /scule|grădină/i.test(x.text))).toBe(false);
+  });
+  it("doar Ungaria: nicio întrebare în română", () => {
+    expect(buildTrialPrompts({ ...base, markets: ["HU"] }).every((x) => x.language === "hu")).toBe(true);
+  });
+  it("orașul adaugă întrebări locale", () => {
+    expect(buildTrialPrompts({ ...base, city: "Cluj-Napoca" }).some((x) => x.source === "local" && x.text.includes("Cluj-Napoca"))).toBe(true);
+  });
+  it("accentul schimbă proporțiile", () => {
+    const research = buildTrialPrompts({ ...base, focus: "research" }).filter((x) => x.intent === "informativ").length;
+    const buy = buildTrialPrompts({ ...base, focus: "buy" }).filter((x) => x.intent === "informativ").length;
+    expect(research).toBeGreaterThanOrEqual(buy);
+  });
+});
+
+const run = (promptId: string, provider: string, mentions: [string, number][]): TeaserRun =>
+  ({ promptId, provider, mentions: mentions.map(([domain, position]) => ({ domain, position, name: domain })) as TeaserRun["mentions"] });
+
+describe("computeTeaser", () => {
+  it("fără răspunsuri: zero, fără împărțire la zero", () => {
+    const t = computeTeaser([], ["shopexpert.com"], "ShopExpert");
+    expect(t.visibility).toBe(0);
+    expect(t.avgPosition).toBeNull();
+    expect(t.rank).toBe(1);
+    expect(t.table).toHaveLength(1);
+  });
+  it("numără adresele tale (inclusiv cele secundare) ca tine, nu ca concurent", () => {
+    const t = computeTeaser([
+      run("a", "chatgpt", [["dedeman.ro", 1], ["shopexpert.com", 2]]),
+      run("a", "gemini", [["shop-expert.ro", 1]]),
+      run("b", "chatgpt", [["dedeman.ro", 1], ["emag.ro", 2]]),
+      run("b", "gemini", [["emag.ro", 1]]),
+    ], ["shopexpert.com", "shop-expert.ro"], "ShopExpert");
+    expect(t.myHits).toBe(2);
+    expect(t.visibility).toBe(50);
+    expect(t.avgPosition).toBe(1.5);
+    expect(t.missingPrompts).toBe(1);
+    expect(t.table.some((r) => r.domain === "shop-expert.ro")).toBe(false);
+  });
+  it("tu apari mereu în tabel, cu locul real, chiar dacă nu ești în primii 5", () => {
+    const others = ["a.ro", "b.ro", "c.ro", "d.ro", "e.ro", "f.ro"];
+    const t = computeTeaser([run("p", "chatgpt", others.map((d, i) => [d, i + 1]))], ["shopexpert.com"], "ShopExpert", 5);
+    expect(t.table).toHaveLength(5);
+    expect(t.table[4].me).toBe(true);
+    expect(t.rank).toBe(7);
+  });
+});
+
+describe("brandShare", () => {
+  it("găsește marca ca cuvânt întreg, fără potriviri parțiale", () => {
+    const r = brandShare(["Recomand Makita și Bosch.", "Boschetti nu e o marcă de scule."], ["Makita", "Bosch"]);
+    expect(r).toEqual([{ brand: "Makita", visibility: 50 }, { brand: "Bosch", visibility: 50 }]);
+  });
+  it("fără răspunsuri: listă goală", () => expect(brandShare([], ["Makita"])).toEqual([]));
+});
+
+describe("extractHomeCatalog", () => {
+  it("citește meniul, mărcile și produsele, fără paginile de cont sau coș", () => {
+    const $ = cheerio.load(`<nav><a href="/">Acasă</a><a href="/scule">Scule electrice</a><a href="/gradina">Grădină</a><a href="/cos">Coș</a><a href="/contact">Contact</a></nav>
+      <a href="/brand/makita">Makita</a><div class="product-card__title">Makita DHP485Z mașină de găurit</div>`);
+    const h = extractHomeCatalog($, [{ "@type": "Product", name: "Bosch GSR 12V", brand: { name: "Bosch" } }]);
+    expect(h.categories).toEqual(["Scule electrice", "Grădină"]);
+    expect(h.brands).toEqual(["Bosch", "Makita"]);
+    expect(h.products).toEqual(["Bosch GSR 12V", "Makita DHP485Z mașină de găurit"]);
+  });
+  it("pagină goală: liste goale, fără siglă", () => expect(extractHomeCatalog(cheerio.load(""), [])).toEqual({ categories: [], brands: [], products: [], logo: null }));
+});
+
+describe("homeLogo", () => {
+  const url = "https://www.magazin.ro/ro/";
+  it("preferă Organization.logo din datele structurate", () => {
+    expect(homeLogo(cheerio.load(`<header><img class="logo" src="/a.png"></header>`), [{ "@type": "Organization", logo: { url: "https://cdn.magazin.ro/logo.svg" } }], url)).toBe("https://cdn.magazin.ro/logo.svg");
+  });
+  it("apoi imaginea din antet, cu adresa relativă făcută absolută", () => {
+    expect(homeLogo(cheerio.load(`<header><a class="site-logo" href="/"><img src="img/logo.png"></a></header>`), [], url)).toBe("https://www.magazin.ro/ro/img/logo.png");
+  });
+  it("altfel iconița mare; ignoră data: și javascript:", () => {
+    const $ = cheerio.load(`<head><link rel="icon" href="data:image/png;base64,AAA"><link rel="apple-touch-icon" href="javascript:alert(1)"><link rel="icon" sizes="32x32" href="/fav.png"></head>`);
+    expect(homeLogo($, [], url)).toBe("https://www.magazin.ro/fav.png");
+  });
+  it("fără siglă: null", () => expect(homeLogo(cheerio.load("<p>x</p>"), [], url)).toBeNull());
+});
+
+describe("cleanList / cleanDomain / advance", () => {
+  it("cleanList: taie spațiile, scoate dublurile și respectă limita", () => {
+    expect(cleanList(" Makita ,makita\nBosch;  DeWalt ", 2)).toEqual(["Makita", "Bosch"]);
+    expect(cleanList(["a", "ok"])).toEqual(["ok"]);
+  });
+  it("cleanDomain: din adresă scrisă de om", () => {
+    expect(cleanDomain("https://www.Shop-Expert.ro/hu?x=1")).toBe("shop-expert.ro");
+    expect(cleanDomain("nu e domeniu")).toBeNull();
+  });
+  it("advance: merge înainte, nu dă înapoi când clientul revine la un pas", () => {
+    expect(advance("scan", "scan")).toBe("identity");
+    expect(advance("markets", "identity")).toBe("markets");
+    expect(advance("result", "result")).toBe("result");
+  });
+});

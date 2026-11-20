@@ -45,7 +45,7 @@ Reguli:
 - **Verde, galben și roșu de stare doar pentru stare**, niciodată decorativ. Starea are mereu și text sau simbol (▲ +4, ✕, „Lipsești”), pentru daltoniști.
 - Concurenții în grafice: nuanțe de gri (tokenuri `--chart-2..4`, de adăugat la prima folosire), tu: `--primary`.
 - Contrast minim WCAG AA: 4,5:1 pentru text, 3:1 pentru chenarele câmpurilor și grafice.
-- Modul luminos și cel întunecat sunt egale ca importanță. Orice ecran se verifică în amândouă. Comutatorul din antet are prioritate față de setarea sistemului.
+- Modul luminos și cel întunecat sunt egale ca importanță. Orice ecran se verifică în amândouă. **Implicit e modul luminos** (și când sistemul e pe întunecat); întunecatul se alege din comutatorul din antet.
 
 ## 3. Tipografie
 

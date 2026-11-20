@@ -20,7 +20,7 @@ export function ThemeToggle() {
     let v: string | null = null;
     try { v = localStorage.getItem("theme"); } catch {}
     if (v) document.documentElement.dataset.theme = v;
-    setT(v ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+    setT(v ?? "light"); // implicit luminos; întunecat doar la alegere
   }, []);
   const next = t === "dark" ? "light" : "dark";
   return (
