@@ -60,6 +60,7 @@ async function candidateModels(): Promise<string[]> {
  * ca să nu pierdem cereri pe modele fără cotă gratuită.
  */
 let working: { model: string; grounded: boolean } | null = null;
+const skipped = new Set<string>();
 
 /**
  * Cotă gratuită terminată pe zi sau inexistentă („limit: 0”) pentru modelul/funcția cerută. Nu trece cu o reîncercare,
@@ -144,7 +145,13 @@ export const gemini: Runner = {
         // Model supraîncărcat (503 după reîncercări) sau care nu răspunde la timp: tot următorul model.
         const unavailable = /HTTP 5\d\d|TimeoutError|timed out|aborted due to timeout/i.test(msg);
         if (a.grounded && (isQuotaExhausted(msg) || isGroundingRefused(msg))) groundingBlocked = true;
-        if (isQuotaExhausted(msg) || (a.grounded && isGroundingRefused(msg)) || /HTTP 404/.test(msg) || unavailable) { lastError = e; continue; }
+        if (isQuotaExhausted(msg) || (a.grounded && isGroundingRefused(msg)) || /HTTP 404/.test(msg) || unavailable) {
+          // O dată pe variantă și proces: de ce am sărit-o (mesajul API-ului, fără chei), ca să se vadă în loguri.
+          const tag = `${a.model}${a.grounded ? "+search" : ""}`;
+          if (!skipped.has(tag)) { skipped.add(tag); console.log(`AI gemini: sărim ${a.model}${a.grounded ? " cu căutare" : " fără căutare"}: ${msg.slice(0, 300)}`); }
+          lastError = e;
+          continue;
+        }
         throw e;
       }
       if (!working || working.model !== a.model || working.grounded !== a.grounded) console.log(`AI gemini: folosim ${a.model}${a.grounded ? " cu căutare Google" : " fără căutare"}`);

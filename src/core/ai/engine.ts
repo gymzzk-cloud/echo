@@ -49,7 +49,8 @@ export async function loadWorld(): Promise<World> {
   const w: World = {
     stores: [...stores.values()],
     products: prods.map(({ gtin, mpn, ...p }) => ({ ...p, price: p.price ? parseFloat(p.price) : null, codes: [gtin, mpn].filter((c): c is string => !!c).map((c) => normalizeText(c)) })),
-    ownDomains: projects.map((p) => p.domain),
+    // Adresele confirmate în onboarding (redirecționări, domenii vechi) contează tot ca magazinul tău.
+    ownDomains: projects.flatMap((p) => [p.domain, ...(p.onboarding?.aliases ?? [])]),
   };
   worldCache = { at: Date.now(), w };
   return w;

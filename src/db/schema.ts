@@ -2,6 +2,7 @@ import {
   customType, pgTable, uuid, text, timestamp, integer, boolean, jsonb, numeric, date, uniqueIndex, index, primaryKey,
 } from "drizzle-orm/pg-core";
 import type { StorePolicies } from "../core/policies/extract";
+import type { Onboarding } from "../core/onboarding/types";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -84,6 +85,7 @@ export const projects = pgTable("projects", {
   agentPolicy: jsonb("agent_policy").$type<AgentPolicy>(),
   storeInfo: jsonb("store_info").$type<StoreInfo>(), // condițiile citite automat de pe site: răspunsurile MCP ale magazinului
   rivalsCheckedAt: timestamp("rivals_checked_at", { withTimezone: true }), // ultima căutare automată de concurenți în răspunsurile AI
+  onboarding: jsonb("onboarding").$type<Onboarding>(), // testul gratuit de la prima logare; gol = magazin obișnuit
   createdAt: createdAt(),
 }, (t) => [index("projects_org_idx").on(t.orgId), index("projects_domain_idx").on(t.domain)]);
 
