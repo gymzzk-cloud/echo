@@ -77,6 +77,7 @@ Reguli:
 | Insignă (badge), cip de filtrare | fără / 1 px | complet rotunjit (`rounded-full`) | niciuna |
 | Notificare în pagină (Notice) | fără, doar fundal de stare | 8 px | niciuna |
 | Card în card (ex. o acțiune în lista „3 lucruri”) | 1 px `border-border` | 8 px | niciuna |
+| Notificare plutitoare („În lucru: …”, `JobWatcher`) | 1 px `border-border` | 8 px | `shadow-lg`, singura umbră permisă (plutește peste pagină) |
 
 - Nu punem card în card în card. Cel mult două niveluri.
 - Nu amestecăm `rounded-xl`, `rounded-2xl` și `rounded-md` pe același tip de element.

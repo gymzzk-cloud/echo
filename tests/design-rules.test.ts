@@ -23,7 +23,7 @@ const RULES: { name: string; re: RegExp; skipPrimitives?: boolean }[] = [
   { name: "mărime de text în afara scării (12/14/16/20/24/30/48)", re: /\btext-\[\d+px\]/ },
   { name: "spațiu în afara scării de 4 px (doar 1, 2, 3, 4, 6, 8, 12, 16)", re: /\b-?(?:p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|gap-x|gap-y|space-y|space-x)-(?:0\.5|1\.5|2\.5|3\.5|5|7|9|10|11)\b/ },
   { name: "colțuri în afara regulilor (§5: rounded-xl card, rounded-lg câmp/buton, rounded-full insignă)", re: /\brounded-(?:md|sm|2xl|3xl|\[)/ },
-  { name: "umbră (§5: fără umbre)", re: /\bshadow(?:-\w+)?\b/ },
+  { name: "umbră (§5: fără umbre; doar notificarea plutitoare are shadow-lg)", re: /\bshadow(?!-lg\b)(?:-\w+)?\b/ },
 ];
 
 describe("DESIGN.md: reguli verificabile în cod", () => {
