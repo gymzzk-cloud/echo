@@ -6,6 +6,7 @@ import { buildWeeklyReport, sendReport } from "@/core/report";
 import { today } from "@/lib/util";
 import { checkWatches } from "@/core/watches";
 import { deliverWebhook } from "@/core/platform";
+import { isDemo } from "@/core/ai/engine";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -30,10 +31,12 @@ async function handle(kind: string, payload: Record<string, string>) {
 }
 
 async function schedule() {
+  // Fără chei AI nu rulăm întrebările (nu vrem răspunsuri simulate), decât cu ALLOW_DEMO_AI=1.
+  const aiAllowed = !isDemo() || process.env.ALLOW_DEMO_AI === "1";
   for (const projectId of await allProjectIds()) {
     const done = await db.select().from(schema.dailyStats)
       .where(and(eq(schema.dailyStats.projectId, projectId), eq(schema.dailyStats.day, today()))).limit(1);
-    if (!done.length && !(await pendingJobs(["run_project"], "projectId", projectId))) {
+    if (aiAllowed && !done.length && !(await pendingJobs(["run_project"], "projectId", projectId))) {
       await enqueue("run_project", { projectId });
     }
     // Audit săptămânal
