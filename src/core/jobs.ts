@@ -8,9 +8,30 @@ import { db, schema } from "@/db";
  */
 export type JobKind = "audit" | "sync" | "run_project" | "report" | "daily" | "watches" | "webhook";
 
+/**
+ * Pune o lucrare la coadă. Dacă exact aceeași lucrare (același tip și aceleași date) e deja la coadă
+ * sau în lucru (pornită în ultimele 30 de minute), nu mai adăugăm alta: întoarcem jobul existent.
+ * Așa clicurile repetate nu umplu coada și nu încarcă magazinul de mai multe ori.
+ */
 export async function enqueue(kind: JobKind, payload: Record<string, unknown> = {}, runAt = new Date()) {
+  const same = await db.execute(dsql`select id from jobs where kind = ${kind} and status in ('queued','running')
+    and payload = ${JSON.stringify(payload)}::jsonb and created_at > now() - interval '30 minutes' limit 1`);
+  const existing = (same as unknown as { id: string }[])[0];
+  if (existing) return existing.id;
   const [j] = await db.insert(schema.jobs).values({ kind, payload, runAt }).returning({ id: schema.jobs.id });
   return j.id;
+}
+
+/**
+ * Ce lucrări are un magazin acum la coadă sau în lucru (audit, run_project, report, sync…).
+ * Paginile ascund butonul care ar porni din nou aceeași lucrare. Joburile mai vechi de 30 de minute
+ * sunt considerate blocate (ex. worker repornit), ca butonul să nu dispară la nesfârșit.
+ */
+export async function busyKinds(projectId: string, connectionIds: string[] = []): Promise<Set<JobKind>> {
+  const conns = connectionIds.length ? dsql`or payload->>'connectionId' in ${connectionIds}` : dsql``;
+  const r = await db.execute(dsql`select distinct kind from jobs where status in ('queued','running')
+    and created_at > now() - interval '30 minutes' and (payload->>'projectId' = ${projectId} ${conns})`);
+  return new Set((r as unknown as { kind: JobKind }[]).map((x) => x.kind));
 }
 
 export async function pickJob() {
