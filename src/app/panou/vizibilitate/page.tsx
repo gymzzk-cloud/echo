@@ -1,5 +1,5 @@
 import { currentProject } from "@/lib/project";
-import { loadBase, leaderboard, perPrompt, trend } from "@/core/insights";
+import { brandMentions, catalogBrands, loadBase, leaderboard, perPrompt, trend } from "@/core/insights";
 import { PROVIDERS, providerLabel } from "@/core/ai/types";
 import { Badge, Card, Chips, Empty, PageHeader, SubCard, Table, TextLink, Td } from "@/components/ui";
 import { TrendChart } from "@/components/client";
@@ -14,7 +14,7 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const days = [7, 30, 90].includes(Number(sp.zile)) ? Number(sp.zile) : 30;
   const { project } = await currentProject();
-  const base = await loadBase(project, days);
+  const [base, brands] = await Promise.all([loadBase(project, days), catalogBrands(project.id)]);
   const rows = sp.ai ? base.rows.filter((r) => r.run.provider === sp.ai) : base.rows;
   if (!base.rows.length && !base.failed.length) return <><PageHeader eyebrow="Vizibilitate" title="Vizibilitate AI" /><Empty title="Încă nu avem răspunsuri de la AI-uri">Prima rulare pornește automat după înregistrare. Revino în câteva minute.</Empty></>;
 
@@ -22,6 +22,7 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
   const top = board.filter((b) => b.name !== "Tu").slice(0, 4);
   const chart = trend(rows, project.domain, top.map((c) => c.domain));
   const rivals = rankRivals(rows, project.domain);
+  const topBrands = brandMentions(rows, brands);
   const failed = sp.ai ? base.failed.filter((r) => r.run.provider === sp.ai) : base.failed;
   const prompts = perPrompt(rows.filter((r) => r.run.runDate >= daysAgo(days)), project.domain, failed);
   const link = (q: Record<string, string | undefined>) => "?" + new URLSearchParams(Object.entries({ zile: String(days), ai: sp.ai, ...q }).filter(([, v]) => v) as [string, string][]).toString();
@@ -38,6 +39,22 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
       </div>
 
       <RivalsCard report={rivals} projectId={project.id} projectName={project.name} competitors={base.competitors} />
+
+      {topBrands.length > 0 && (
+        <Card title="Mărcile din catalogul tău, în răspunsurile AI">
+          <p className="mb-4 text-xs text-muted">Ce mărci de produs numesc AI-urile la întrebările tale: în câte răspunsuri apar și pe ce loc, în medie, între mărci. Nu sunt concurenți, sunt mărcile pe care le vinzi.</p>
+          <Table head={["#", "Marcă", "Vizibilitate", "Poziția medie"]}>
+            {topBrands.map((b, i) => (
+              <tr key={b.brand}>
+                <Td className="num text-muted">{i + 1}</Td>
+                <Td>{b.brand}</Td>
+                <Td><div className="flex items-center gap-2"><div className="h-2 w-24 rounded-full bg-surface"><div className="h-2 rounded-full bg-muted" style={{ width: `${b.visibility}%` }} /></div><span className="num">{b.visibility}%</span></div></Td>
+                <Td className="num">#{b.avgPosition}</Td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+      )}
 
       <Card title="Evoluția vizibilității">
         {chart.length > 1 ? <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...top.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} /> : <p className="text-sm text-muted">Graficul apare după a doua zi de măsurători.</p>}

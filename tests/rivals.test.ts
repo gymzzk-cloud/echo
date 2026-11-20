@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isStoreLike, pickAutoRivals, rankRivals, type RivalRow } from "@/core/rivals";
 import { brandLabel, cleanAnswer, extractMentions, runMentions, sourceLabel } from "@/core/ai/extract";
 import { failureReason } from "@/core/ai/errors";
+import { inMarket } from "@/core/ai/domains";
 
 const row = (promptId: string, provider: string, mentions: { domain: string; position: number; name?: string }[]): RivalRow =>
   ({ promptId, run: { provider, runDate: "2026-11-20", mentions } });
@@ -108,15 +109,14 @@ describe("runMentions", () => {
   it("o rulare cu eroare nu are mențiuni (linkul din eroare nu e magazin)", () => {
     const answer = '(Eroare chatgpt: Error: HTTP 401: { "message": "Incorrect API key provided. You can find your API key at https://platform.openai.com/account/api-keys." })';
     expect(runMentions({ answer, sources: [], model: "eroare" }, { stores: [], products: [] })).toEqual([]);
-    expect(extractMentions(answer, [], { stores: [], products: [] }).map((m) => m.domain)).toContain("platform.openai.com");
   });
 });
 
 describe("același magazin pe alt domeniu", () => {
   const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }, { domain: "scule.ro", name: "Scule RO Shop" }], products: [] };
   it("shopexpert.ro și shop-expert.ro în text contează ca shopexpert.com", () => {
-    const ms = extractMentions("Recenzii pentru shopexpert.ro / shop-expert.ro, apoi firmadeaur.ro.", [], world);
-    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com", "firmadeaur.ro"]);
+    const ms = extractMentions("Recenzii pentru shopexpert.ro / shop-expert.ro, apoi dedeman.ro.", [], world, undefined, "RO");
+    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com", "dedeman.ro"]);
   });
   it("numele de marcă scris în text („ShopExpert”) e recunoscut", () => {
     const ms = extractMentions("Clienții ShopExpert spun că livrarea e rapidă.", [], world);
@@ -161,5 +161,37 @@ describe("domeniul propriu are întâietate", () => {
   it("chiar dacă alt domeniu al mărcii a ajuns la concurenți", () => {
     const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }, { domain: "shopexpert.ro", name: "Shopexpert" }], products: [], ownDomains: ["shopexpert.com"] };
     expect(extractMentions("Vezi shopexpert.ro.", [], world).map((m) => m.domain)).toEqual(["shopexpert.com"]);
+  });
+});
+
+describe("piața magazinului", () => {
+  const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }], products: [], ownDomains: ["shopexpert.com"] };
+  it("shopexpert.dk (Danemarca) nu e ShopExpert România, nici după nume", () => {
+    const ms = extractMentions("Pe Trustpilot, ShopExpert (shopexpert.dk) are nota 4,5.", [{ url: "https://dk.trustpilot.com/review/shopexpert.dk" }], world, undefined, "RO");
+    expect(ms).toEqual([]);
+  });
+  it("numele contează dacă apare și domeniul de pe piața ta", () => {
+    const ms = extractMentions("ShopExpert (shopexpert.ro) livrează în 1-2 zile; există și shopexpert.dk.", [], world, undefined, "RO");
+    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com"]);
+  });
+  it("directoarele de firme și site-urile de recenzii nu sunt magazine", () => {
+    const ms = extractMentions("Date despre firmă pe firmadeaur.ro și citymaps.ro; recenzii pe trustpilot.com. Cumpără de la dedeman.ro.", [], world, undefined, "RO");
+    expect(ms.map((m) => m.domain)).toEqual(["dedeman.ro"]);
+    expect(ms[0].position).toBe(1);
+  });
+  it("inMarket", () => {
+    expect(inMarket("emag.ro", "RO")).toBe(true);
+    expect(inMarket("emag.hu", "RO")).toBe(false);
+    expect(inMarket("toolstation.com", "RO")).toBe(true);
+    expect(inMarket("shopexpert.dk", "RO")).toBe(false);
+  });
+});
+
+describe("mărcile din catalog în răspunsuri", () => {
+  it("vizibilitate și poziție între mărci", async () => {
+    const { brandMentions } = await import("@/core/insights");
+    const r = (answer: string) => ({ run: { model: "x", answer } }) as never;
+    const out = brandMentions([r("Bosch GSR și Makita DDF sunt bune."), r("Makita e preferată."), r("Nimic aici.")], ["BOSCH", "MAKITA", "DEWALT"]);
+    expect(out).toEqual([{ brand: "MAKITA", visibility: 67, avgPosition: 1.5 }, { brand: "BOSCH", visibility: 33, avgPosition: 1 }]);
   });
 });

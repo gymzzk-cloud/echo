@@ -10,7 +10,7 @@ import { ScoreRing } from "@/components/audit-view";
 import { markAlertsRead, runNow, setActionStatus } from "@/app/actions";
 import { dateShort } from "@/lib/format";
 import { busyKinds } from "@/core/jobs";
-import { isDemo } from "@/core/ai/engine";
+import { activeProviders, isDemo } from "@/core/ai/engine";
 
 // Tu: culoarea de marcă; concurenții: nuanțe de gri (DESIGN §9).
 const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"];
@@ -40,6 +40,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
   const recommending = o.perProvider.filter((p) => p.visibility > 0).length;
   // Doar AI-urile care au răspuns efectiv; cele cu eroare nu se socotesc ca „nu te recomandă”.
   const checked = o.perProvider.filter((p) => p.checked).length;
+  const live = new Set(activeProviders().filter((p) => p.live).map((p) => p.id));
+  const unchecked = new Map(o.unchecked.map((u) => [u.provider, u.reason]));
   const who = whoRecommends(o.rows, project.domain, o.audit, prods);
   const share = shareOfRecommendations(o.rows.filter((r) => r.run.runDate >= (o.latest?.day ?? "")), project.domain);
   const perQ = who[0]?.total ?? 0;
@@ -143,7 +145,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
                 return (
                   <tr key={w.provider}>
                     <Td>{providerLabel(w.provider)}</Td>
-                    <Td className={`num whitespace-nowrap font-semibold ${w.hits ? "text-good" : "text-bad"}`}>{w.hits ? "✓" : "✕"} {w.hits} din {w.total}</Td>
+                    {w.total === 0
+                      ? <Td className="text-muted">{!live.has(w.provider) ? "neconfigurat" : unchecked.get(w.provider) ? `nu a putut fi întrebat (${unchecked.get(w.provider)})` : "nu a rulat încă"}</Td>
+                      : <Td className={`num whitespace-nowrap font-semibold ${w.hits ? "text-good" : "text-bad"}`}>{w.hits ? "✓" : "✕"} {w.hits} din {w.total}</Td>}
                     <Td>{w.instead ?? "–"}</Td>
                     <Td>{w.problem ? <span className={w.problem === "robot blocat" ? "text-bad" : "text-warn"}>{w.problem}</span> : "–"}</Td>
                     <Td><Delta value={pp?.delta ?? null} suffix=" pp" /></Td>

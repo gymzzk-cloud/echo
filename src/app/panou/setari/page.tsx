@@ -16,7 +16,7 @@ import { promptLimit } from "@/core/prompts";
 // Tipurile noi (produs, cod, categorie) sunt primele; cele vechi rămân doar ca etichete pentru căutările adăugate înainte.
 const usd = (n: number) => `$${n.toFixed(2)}`;
 const INTENT_NEW: Record<string, string> = { produs: "Nume produs", cod: "Cod / EAN", categorie: "Tip de produs", brand: "Despre magazin", general: "Altă căutare" };
-const INTENT: Record<string, string> = { ...INTENT_NEW, comparatie: "Comparație", cumparare: "Cumpărare" };
+const INTENT: Record<string, string> = { ...INTENT_NEW, comparatie: "Comparație", cumparare: "Cumpărare", comercial: "Recomandare", informativ: "Informare" };
 
 export default async function Settings() {
   const { project } = await currentProject();
