@@ -81,12 +81,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
               <Delta value={diff} /><span>față de acum o săptămână</span>
             </div>
             <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-              <div><dt className="text-xs text-muted">Apari în răspunsuri</dt><dd className="num font-medium">{o.sum.total.visibility}%</dd></div>
-              <div><dt className="text-xs text-muted">Cotă față de concurenți</dt><dd className="num font-medium">{o.sum.total.sov}%</dd></div>
+              <div><dt className="text-xs text-muted">Apari în răspunsuri</dt><dd className="num font-medium">{o.latest.visibility}%</dd></div>
+              <div><dt className="text-xs text-muted">Cota din recomandări</dt><dd className="num font-medium">{o.latest.shareOfVoice}%</dd></div>
               <div><dt className="text-xs text-muted">Pregătire tehnică</dt><dd className="num font-medium">{o.audit ? `${o.audit.score}/100` : "–"}</dd></div>
             </dl>
             <p className="mt-2 text-xs text-muted">
-              Scorul = 50% apariții + 20% cotă + 30% pregătire tehnică.
+              Ultima măsurătoare ({o.latest.day.slice(8, 10)}.{o.latest.day.slice(5, 7)}). Scorul = 50% apariții + 20% cotă + 30% pregătire tehnică.
               {!recommending && (score ?? 0) > 0 && ` Acum ${score} vine doar din pregătirea tehnică a site-ului; crește când AI-urile încep să te recomande.`}
             </p>
             {o.unchecked.length > 0 && (
