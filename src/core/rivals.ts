@@ -11,14 +11,8 @@ import { brandLabel } from "./ai/extract";
 /** Marketplace-uri mari: sunt concurenți reali la aceleași produse, dar le marcăm separat. */
 export const MARKETPLACES = new Set(["emag.ro", "emag.hu", "altex.ro", "flanco.ro", "cel.ro", "evomag.ro", "okazii.ro", "olx.ro", "vatera.hu", "jofogas.hu", "mediagalaxy.ro", "media-markt.hu", "mediamarkt.hu"]);
 
-/** Site-uri care nu vând: comparatoare, forumuri, presă, rețele sociale, AI-uri. Nu devin concurenți. */
-const NON_STORE = /(^|[.-])(wiki|wikipedia|reddit|youtube|youtu|facebook|instagram|tiktok|twitter|linkedin|pinterest|quora|medium|github|forum|blog|news|stiri|digi24|hotnews|ziare|adevarul|libertatea|protv|mediafax|g4media|playtech|zf|wall-street|economica|index|444|telex|hvg|origo|24|portfolio|compari|pricy|arukereso|shopmania|price|pricerunner|idealo|trustpilot|anpc|google|bing|openai|chatgpt|anthropic|claude|gemini|perplexity)[.-]/;
-const NON_STORE_EXACT = new Set(["x.com", "t.co", "gov.ro", "gov.hu"]);
-
-export function isStoreLike(domain: string) {
-  if (NON_STORE_EXACT.has(domain) || /\.(gov|edu)(\.|$)/.test(domain)) return false;
-  return !NON_STORE.test(`.${domain}.`);
-}
+export { isStoreLike } from "./ai/domains";
+import { isStoreLike } from "./ai/domains";
 
 export type RivalRow = { promptId: string; run: { provider: string; runDate: string; mentions: unknown } };
 
