@@ -25,29 +25,47 @@ export function flashVersion(id: string): number | null {
   return m ? parseFloat(m[1]) : null;
 }
 
-/** Alege cel mai nou model Flash din lista cheii; la aceeași versiune, varianta stabilă înaintea celei „preview”. */
-export function pickFlashModel(models: GeminiModel[]): string | null {
+/**
+ * Modelele Flash ale cheii, în ordinea în care le încercăm: cel mai nou întâi, la aceeași versiune
+ * varianta stabilă înaintea celei „preview”, iar Flash-Lite la urmă (rezervă când Flash nu are cotă gratuită).
+ */
+export function flashCandidates(models: GeminiModel[]): string[] {
   const ids = models
     .filter((m) => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes("generateContent"))
-    .map((m) => m.name.replace(/^models\//, ""))
-    .filter((id) => flashVersion(id) !== null);
-  ids.sort((a, b) => flashVersion(b)! - flashVersion(a)! || Number(a.includes("preview")) - Number(b.includes("preview")));
-  return ids[0] ?? null;
+    .map((m) => m.name.replace(/^models\//, ""));
+  const full = ids.filter((id) => flashVersion(id) !== null);
+  full.sort((a, b) => flashVersion(b)! - flashVersion(a)! || Number(a.includes("preview")) - Number(b.includes("preview")));
+  const lite = ids.filter((id) => /^gemini-\d+(?:\.\d+)?-flash-lite$/.test(id)).sort().reverse();
+  return [...full, ...lite];
 }
+export const pickFlashModel = (models: GeminiModel[]): string | null => flashCandidates(models)[0] ?? null;
 
-let detected: { at: number; model: string } | null = null;
-async function resolveModel(): Promise<string> {
+let detected: { at: number; models: string[] } | null = null;
+async function candidateModels(): Promise<string[]> {
   const fixed = envValue("GEMINI_MODEL");
-  if (fixed) return fixed;
-  if (detected && Date.now() - detected.at < 864e5) return detected.model;
+  if (fixed) return [fixed];
+  if (detected && Date.now() - detected.at < 864e5) return detected.models;
   const r = await fetch(`${API}/models?pageSize=200`, { headers: { "x-goog-api-key": key() }, signal: AbortSignal.timeout(15000) });
   const text = await r.text();
   if (!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0, 300)}`);
-  const model = pickFlashModel((JSON.parse(text).models ?? []) as GeminiModel[]);
-  if (!model) throw new Error("Cheia Gemini nu are niciun model Flash disponibil. Setează GEMINI_MODEL.");
-  detected = { at: Date.now(), model };
-  return model;
+  const models = flashCandidates((JSON.parse(text).models ?? []) as GeminiModel[]);
+  if (!models.length) throw new Error("Cheia Gemini nu are niciun model Flash disponibil. Setează GEMINI_MODEL.");
+  detected = { at: Date.now(), models };
+  return models;
 }
+
+/**
+ * Modelul care a mers ultima dată (cu sau fără căutare) se încearcă primul data viitoare,
+ * ca să nu pierdem cereri pe modele fără cotă gratuită.
+ */
+let working: { model: string; grounded: boolean } | null = null;
+
+/**
+ * Cotă gratuită terminată pe zi sau inexistentă („limit: 0”) pentru modelul/funcția cerută. Nu trece cu o reîncercare,
+ * așa că trecem la alt model. O limită pe minut (cu retryDelay scurt) e tratată deja în postJson.
+ */
+export const isQuotaExhausted = (msg: string) =>
+  /HTTP 429/.test(msg) && /(PerDay|per day|limit: 0|free_?tier|exceeded your current quota)/i.test(msg);
 
 /** Gândirea cea mai ieftină: Gemini 3+ folosește „thinkingLevel”, modelele mai vechi „thinkingBudget”. */
 export function thinkingFor(model: string) {
@@ -80,6 +98,15 @@ export function parseGemini(data: GeminiResponse) {
 
 export const isGeminiFreeTier = () => envValue("GEMINI_FREE_TIER", "1") !== "0";
 
+type Attempt = { model: string; grounded: boolean };
+/** Ordinea încercărilor: întâi ce a mers ultima dată, apoi fiecare model cu căutare, apoi fără căutare. */
+export function attemptOrder(models: string[], last: Attempt | null): Attempt[] {
+  const all: Attempt[] = [...models.map((model) => ({ model, grounded: true })), ...models.map((model) => ({ model, grounded: false }))];
+  if (!last) return all;
+  const i = all.findIndex((a) => a.model === last.model && a.grounded === last.grounded);
+  return i <= 0 ? all : [all[i], ...all.slice(0, i), ...all.slice(i + 1)];
+}
+
 export const gemini: Runner = {
   id: "gemini",
   isLive: () => !!key(),
@@ -89,27 +116,36 @@ export const gemini: Runner = {
   }),
   async run(input: RunInput): Promise<RunOutput> {
     const t0 = Date.now();
-    const model = await resolveModel();
-    const call = (grounded: boolean, thinking: boolean) =>
+    const call = (model: string, grounded: boolean, thinking: boolean) =>
       postJson(`${API}/models/${model}:generateContent`, {
         contents: [{ role: "user", parts: [{ text: input.query }] }],
         ...(grounded ? { tools: [{ google_search: {} }] } : {}),
         generationConfig: { maxOutputTokens: costConfig().maxOutputTokens, ...(thinking ? { thinkingConfig: thinkingFor(model) } : {}) },
       }, { "x-goog-api-key": key() }) as Promise<GeminiResponse>;
 
-    let grounded = true;
-    let data: GeminiResponse;
-    try {
-      data = await call(true, true);
-    } catch (e) {
-      const msg = String(e);
-      if (/HTTP 400/.test(msg) && /thinking/i.test(msg)) data = await call(true, false);
-      else if (isGroundingRefused(msg)) { grounded = false; data = await call(false, true); }
-      else throw e;
+    let lastError: unknown = null;
+    for (const a of attemptOrder(await candidateModels(), working)) {
+      let data: GeminiResponse;
+      try {
+        try {
+          data = await call(a.model, a.grounded, true);
+        } catch (e) {
+          if (/HTTP 400/.test(String(e)) && /thinking/i.test(String(e))) data = await call(a.model, a.grounded, false);
+          else throw e;
+        }
+      } catch (e) {
+        const msg = String(e);
+        // Fără cotă pe acest model sau căutarea refuzată: încercăm următoarea variantă. Altă eroare: ne oprim.
+        if (isQuotaExhausted(msg) || (a.grounded && isGroundingRefused(msg)) || /HTTP 404/.test(msg)) { lastError = e; continue; }
+        throw e;
+      }
+      if (!working || working.model !== a.model || working.grounded !== a.grounded) console.log(`AI gemini: folosim ${a.model}${a.grounded ? " cu căutare Google" : " fără căutare"}`);
+      working = a;
+      const out = parseGemini(data);
+      const cost = isGeminiFreeTier() ? 0
+        : (out.inputTokens * envPrice("GEMINI_IN_PER_M", 0.3) + out.outputTokens * envPrice("GEMINI_OUT_PER_M", 2.5)) / 1e6 + (a.grounded ? envPrice("GEMINI_SEARCH_PER_CALL", 0.035) : 0);
+      return { ...out, model: a.grounded ? a.model : `${a.model} (fără căutare)`, mode: "live", costUsd: cost, latencyMs: Date.now() - t0 };
     }
-    const out = parseGemini(data);
-    const cost = isGeminiFreeTier() ? 0
-      : (out.inputTokens * envPrice("GEMINI_IN_PER_M", 0.3) + out.outputTokens * envPrice("GEMINI_OUT_PER_M", 2.5)) / 1e6 + (grounded ? envPrice("GEMINI_SEARCH_PER_CALL", 0.035) : 0);
-    return { ...out, model: grounded ? model : `${model} (fără căutare)`, mode: "live", costUsd: cost, latencyMs: Date.now() - t0 };
+    throw lastError ?? new Error("Gemini: niciun model disponibil");
   },
 };
