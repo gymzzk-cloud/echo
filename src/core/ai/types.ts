@@ -23,6 +23,9 @@ export type RunOutput = {
   mode: "live" | "demo";
   costUsd: number;
   latencyMs: number;
+  /** Tokenii raportați de API (0 în modul demo sau la eroare). */
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 /** Ce știm despre lume când extragem mențiunile sau simulăm (modul demo). */

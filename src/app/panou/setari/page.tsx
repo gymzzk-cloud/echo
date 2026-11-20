@@ -1,7 +1,8 @@
 import { desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
-import { activeProviders, costThisMonth } from "@/core/ai/engine";
+import { activeProviders, projectUsageThisMonth } from "@/core/ai/engine";
+import { budgetLeft, costConfig } from "@/core/ai/budget";
 import { providerLabel } from "@/core/ai/types";
 import { Badge, Button, Card, Field, FormActions, Input, PageHeader, Select } from "@/components/ui";
 import { ActionForm } from "@/components/forms";
@@ -12,21 +13,25 @@ import { syncingConnections } from "@/core/jobs";
 import { promptLimit } from "@/core/prompts";
 
 // Tipurile noi (produs, cod, categorie) sunt primele; cele vechi rămân doar ca etichete pentru căutările adăugate înainte.
+const usd = (n: number) => `$${n.toFixed(2)}`;
 const INTENT_NEW: Record<string, string> = { produs: "Nume produs", cod: "Cod / EAN", categorie: "Tip de produs", brand: "Despre magazin", general: "Altă căutare" };
 const INTENT: Record<string, string> = { ...INTENT_NEW, comparatie: "Comparație", cumparare: "Cumpărare" };
 
 export default async function Settings() {
   const { project } = await currentProject();
-  const [conns, comps, prompts, cost, org] = await Promise.all([
+  const [conns, comps, prompts, usage, org] = await Promise.all([
     db.select().from(schema.connections).where(eq(schema.connections.projectId, project.id)).orderBy(desc(schema.connections.createdAt)),
     db.select().from(schema.competitors).where(eq(schema.competitors.projectId, project.id)),
     db.select().from(schema.prompts).where(eq(schema.prompts.projectId, project.id)).orderBy(desc(schema.prompts.createdAt)),
-    costThisMonth(),
+    projectUsageThisMonth(project.id),
     db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, project.orgId)),
   ]);
   const syncing = await syncingConnections(conns.map((c) => c.id));
   const limit = promptLimit(org[0]?.plan ?? "trial");
   const providers = activeProviders();
+  const cfg = costConfig();
+  const left = budgetLeft(usage.usd, cfg.monthlyBudgetUsd);
+  const fmtInt = (n: number) => n.toLocaleString("ro-RO");
   const hidden = <input type="hidden" name="projectId" value={project.id} />;
   const active = prompts.filter((p) => p.active).length;
   const connectForms = (
@@ -133,9 +138,15 @@ export default async function Settings() {
 
       <Card title="AI-uri și costuri">
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {providers.map((p) => <li key={p.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">{providerLabel(p.id)}<Badge tone={p.live ? "good" : "warn"}>{p.live ? "live" : "demo"}</Badge></li>)}
+          {providers.map((p) => <li key={p.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">{providerLabel(p.id)}<Badge tone={p.live ? "good" : undefined}>{p.live ? "activ" : "fără cheie"}</Badge></li>)}
         </ul>
-        <p className="mt-3 text-xs text-muted">Luna aceasta: {cost.n} interogări, cost estimat ${cost.usd.toFixed(2)} (toată platforma; răspunsurile identice se refolosesc între magazine în aceeași zi). „Demo” = lipsește cheia API, răspunsurile sunt simulate.</p>
+        <dl className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div><dt className="label">Întrebări luna asta</dt><dd className="num mt-1 text-xl font-semibold">{fmtInt(usage.n)}</dd></div>
+          <div><dt className="label">Tokeni (intrare / ieșire)</dt><dd className="num mt-1 text-xl font-semibold">{fmtInt(usage.inputTokens)} / {fmtInt(usage.outputTokens)}</dd></div>
+          <div><dt className="label">Cost estimat</dt><dd className="num mt-1 text-xl font-semibold">{usd(usage.usd)}</dd></div>
+          <div><dt className="label">Buget lunar</dt><dd className="num mt-1 text-xl font-semibold">{left === null ? "fără plafon" : <>{usd(left)} <span className="text-sm font-normal text-muted">rămași din {usd(cfg.monthlyBudgetUsd)}</span></>}</dd></div>
+        </dl>
+        <p className="mt-4 text-xs text-muted">Întrebările rulează automat o dată la {cfg.runEveryDays} {cfg.runEveryDays === 1 ? "zi" : "zile"}, pe modele ieftine, cu răspunsuri scurte. O întrebare pusă deja azi nu se mai plătește a doua oară, nici dacă o urmăresc mai multe magazine. AI-urile „fără cheie” nu sunt întrebate deloc. La atingerea bugetului ne oprim până luna viitoare.</p>
       </Card>
     </div>
   );

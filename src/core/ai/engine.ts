@@ -73,7 +73,7 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
   const mentions = extractMentions(out.answer, out.sources, w);
   const [row] = await db.insert(schema.runs).values({
     queryHash: qh, query: input.query, language: input.language, provider, model: out.model, mode: out.mode,
-    answer: out.answer, sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), latencyMs: out.latencyMs, runDate: day,
+    answer: out.answer, sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs, runDate: day,
   }).onConflictDoNothing().returning();
   if (row) return row;
   const again = await db.select().from(schema.runs)
@@ -85,6 +85,20 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
 export async function runAll(input: RunInput) {
   const w = await loadWorld();
   return Promise.all(usableProviders().map((p) => runQuery(p.id, input, w)));
+}
+
+/**
+ * Consumul unui magazin luna aceasta: rulările legate de întrebările lui.
+ * O rulare partajată cu alte magazine se socotește întreagă la fiecare (estimare prudentă pentru plafon).
+ */
+export async function projectUsageThisMonth(projectId: string) {
+  const r = await db.execute(dsql`
+    select count(*)::int as n, coalesce(sum(r.cost_usd),0)::float as usd,
+           coalesce(sum(r.input_tokens),0)::int as "inputTokens", coalesce(sum(r.output_tokens),0)::int as "outputTokens"
+    from runs r
+    where r.run_date >= date_trunc('month', now()) and r.mode = 'live'
+      and r.id in (select pr.run_id from prompt_runs pr join prompts p on p.id = pr.prompt_id where p.project_id = ${projectId})`);
+  return r[0] as unknown as { n: number; usd: number; inputTokens: number; outputTokens: number };
 }
 
 export async function costThisMonth() {
