@@ -238,17 +238,35 @@ export async function addCompetitor(_: FormState, form: FormData): Promise<FormS
   try { info = parseStoreUrl(String(form.get("url") ?? "")); } catch { return { error: "Adresa concurentului nu e validă." }; }
   const name = String(form.get("name") ?? "").trim() || info.domain;
   await db.insert(schema.competitors).values({ projectId, domain: info.domain, name }).onConflictDoNothing();
+  await db.delete(schema.competitorDismissals).where(and(eq(schema.competitorDismissals.projectId, projectId), eq(schema.competitorDismissals.domain, info.domain)));
   invalidateWorld();
   revalidatePath("/panou/setari");
   return { ok: `${name} adăugat.` };
 }
 
+/** „Urmărește” un magazin găsit în răspunsurile AI (din Vizibilitate). */
+export async function trackRival(form: FormData) {
+  const projectId = String(form.get("projectId"));
+  await ownProject(projectId);
+  let info;
+  try { info = parseStoreUrl(String(form.get("domain") ?? "")); } catch { return; }
+  const name = String(form.get("name") ?? "").trim().slice(0, 80) || info.domain;
+  await db.insert(schema.competitors).values({ projectId, domain: info.domain, name }).onConflictDoNothing();
+  await db.delete(schema.competitorDismissals).where(and(eq(schema.competitorDismissals.projectId, projectId), eq(schema.competitorDismissals.domain, info.domain)));
+  invalidateWorld();
+  revalidatePath("/panou/vizibilitate");
+  revalidatePath("/panou/setari");
+}
+
 export async function removeCompetitor(form: FormData) {
   const projectId = String(form.get("projectId"));
   await ownProject(projectId);
-  await db.delete(schema.competitors).where(and(eq(schema.competitors.id, String(form.get("id"))), eq(schema.competitors.projectId, projectId)));
+  const [gone] = await db.delete(schema.competitors).where(and(eq(schema.competitors.id, String(form.get("id"))), eq(schema.competitors.projectId, projectId))).returning({ domain: schema.competitors.domain });
+  // Ținem minte că l-ai scos, ca detectarea automată să nu-l adauge la loc.
+  if (gone) await db.insert(schema.competitorDismissals).values({ projectId, domain: gone.domain }).onConflictDoNothing();
   invalidateWorld();
   revalidatePath("/panou/setari");
+  revalidatePath("/panou/vizibilitate");
 }
 
 const PromptInput = z.object({

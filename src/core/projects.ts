@@ -1,5 +1,7 @@
 import { and, desc, eq, gte, inArray, sql as dsql } from "drizzle-orm";
 import { emitEvent } from "./platform";
+import { projectRuns } from "./project-runs";
+import { detectRivals } from "./rivals-job";
 import { getStore, mergeStableFacts, recordAudit, registerAiStores } from "./stores";
 import type { StoreFacts } from "./audit";
 import { db, schema } from "@/db";
@@ -15,6 +17,7 @@ import { refreshPrompts } from "./tracked-prompts";
 
 type Project = typeof schema.projects.$inferSelect;
 const MARKETPLACES = new Set(["emag.ro", "emag.hu", "altex.ro", "flanco.ro", "arukereso.hu", "compari.ro"]);
+export { projectRuns };
 
 export const projectBase = (p: Project) => `https://${p.domain}${p.pathPrefix}`;
 
@@ -174,33 +177,10 @@ export async function runProject(projectId: string) {
   }
   console.log(`AI ${p.domain}${p.pathPrefix}: ${ps.length} întrebări, ${asked} rulări, ${failed} erori, cost lunar ${spent.toFixed(3)} USD`);
   await registerAiStores(seen);
-  await suggestCompetitors(projectId);
+  // Concurenții care apar mai bine ca tine, din răspunsurile de mai sus (fără apeluri AI noi).
+  await detectRivals(projectId);
   await computeStats(projectId);
   await generateActions(projectId);
-}
-
-/** Datele de bază pentru un proiect într-o perioadă: rulările întrebărilor lui. */
-export async function projectRuns(projectId: string, fromDay: string) {
-  return db.select({ run: schema.runs, promptId: schema.prompts.id, prompt: schema.prompts.text, category: schema.prompts.category, intent: schema.prompts.intent })
-    .from(schema.promptRuns)
-    .innerJoin(schema.runs, eq(schema.runs.id, schema.promptRuns.runId))
-    .innerJoin(schema.prompts, eq(schema.prompts.id, schema.promptRuns.promptId))
-    .where(and(eq(schema.prompts.projectId, projectId), gte(schema.runs.runDate, fromDay))).orderBy(schema.runs.runDate);
-}
-
-async function suggestCompetitors(projectId: string) {
-  const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
-  const existing = await db.select().from(schema.competitors).where(eq(schema.competitors.projectId, projectId));
-  if (existing.length >= 5) return;
-  const rows = await projectRuns(projectId, daysAgo(14));
-  const counts = new Map<string, { n: number; name?: string }>();
-  for (const { run } of rows) for (const m of run.mentions as Mention[]) {
-    if (m.domain === p.domain || MARKETPLACES.has(m.domain)) continue;
-    const c = counts.get(m.domain) ?? { n: 0, name: m.name };
-    c.n++; counts.set(m.domain, c);
-  }
-  const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 5 - existing.length);
-  if (top.length) await db.insert(schema.competitors).values(top.map(([domain, c]) => ({ projectId, domain, name: c.name ?? domain, suggested: true }))).onConflictDoNothing();
 }
 
 // ── Statistici zilnice ─────────────────────────────────────────────────────

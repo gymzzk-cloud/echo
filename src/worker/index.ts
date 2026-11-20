@@ -8,6 +8,7 @@ import { checkWatches } from "@/core/watches";
 import { deliverWebhook } from "@/core/platform";
 import { isDemo } from "@/core/ai/engine";
 import { costConfig, isRunDue } from "@/core/ai/budget";
+import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -25,6 +26,7 @@ async function handle(kind: string, payload: Record<string, string>) {
       if (payload.email) await sendReport(r.id, payload.email);
       return r;
     }
+    case "rivals": return detectRivals(payload.projectId);
     case "watches": return checkWatches();
     case "webhook": return deliverWebhook(payload.webhookId, payload.payload);
     default: throw new Error(`Job necunoscut: ${kind}`);
@@ -46,6 +48,10 @@ async function schedule() {
     const recent = await db.select().from(schema.audits)
       .where(and(eq(schema.audits.projectId, projectId), gte(schema.audits.createdAt, new Date(Date.now() - 7 * 864e5)))).limit(1);
     if (!recent.length && !(await pendingJobs(["audit"], "projectId", projectId))) await enqueue("audit", { projectId });
+  }
+  // Concurenții care apar mai bine ca tine: o dată pe zi, din răspunsurile deja salvate (fără apeluri AI).
+  for (const projectId of await projectsDueForRivals()) {
+    if (!(await pendingJobs(["rivals", "run_project"], "projectId", projectId))) await enqueue("rivals", { projectId });
   }
   // Cataloage: doar conexiunile ajunse la termen (12h + decalaj stabil per magazin), max 5 pe ciclu,
   // ca să nu lovim multe magazine deodată. Sincronizarea face cerere condiționată (304 = nimic de descărcat).

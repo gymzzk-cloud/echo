@@ -4,6 +4,8 @@ import { PROVIDERS, providerLabel } from "@/core/ai/types";
 import { Badge, Card, Empty, PageHeader, Table, Td } from "@/components/ui";
 import { TrendChart } from "@/components/client";
 import { daysAgo } from "@/lib/util";
+import { rankRivals } from "@/core/rivals";
+import { RivalsCard } from "@/components/rivals-card";
 
 const COLORS = ["var(--primary)", "#94a3b8", "#64748b", "#cbd5e1", "#475569"];
 
@@ -18,6 +20,7 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
   const board = leaderboard(rows, project.domain, base.competitors);
   const top = board.filter((b) => b.name !== "Tu").slice(0, 4);
   const chart = trend(rows, project.domain, top.map((c) => c.domain));
+  const rivals = rankRivals(rows, project.domain);
   const prompts = perPrompt(rows.filter((r) => r.run.runDate >= daysAgo(days)), project.domain);
   const link = (q: Record<string, string | undefined>) => "?" + new URLSearchParams(Object.entries({ zile: String(days), ai: sp.ai, ...q }).filter(([, v]) => v) as [string, string][]).toString();
 
@@ -32,6 +35,8 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
             {PROVIDERS.map((p) => <a key={p.id} href={link({ ai: p.id })} className={`rounded-lg border px-3 py-1.5 ${sp.ai === p.id ? "border-primary text-primary" : "border-border"}`}>{p.label}</a>)}
           </div>
         } />
+
+      <RivalsCard report={rivals} projectId={project.id} projectName={project.name} competitors={base.competitors} />
 
       <Card title="Evoluția vizibilității">
         {chart.length > 1 ? <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...top.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} /> : <p className="text-sm text-muted">Graficul apare după a doua zi de măsurători.</p>}

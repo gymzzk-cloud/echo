@@ -78,6 +78,13 @@
       "when": 1795172210173,
       "tag": "0010_ai_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795175755821,
+      "tag": "0011_rivals",
+      "breakpoints": true
     }
   ]
 }

@@ -82,6 +82,7 @@ export const projects = pgTable("projects", {
   mcpEnabled: boolean("mcp_enabled").notNull().default(true),
   agentPolicy: jsonb("agent_policy").$type<AgentPolicy>(),
   storeInfo: jsonb("store_info").$type<StoreInfo>(), // livrare, retur, întrebări frecvente: răspunsurile MCP ale magazinului
+  rivalsCheckedAt: timestamp("rivals_checked_at", { withTimezone: true }), // ultima căutare automată de concurenți în răspunsurile AI
   createdAt: createdAt(),
 }, (t) => [index("projects_org_idx").on(t.orgId), index("projects_domain_idx").on(t.domain)]);
 
@@ -143,6 +144,13 @@ export const competitors = pgTable("competitors", {
   suggested: boolean("suggested").notNull().default(false),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("competitors_project_domain_idx").on(t.projectId, t.domain)]);
+
+// Concurenții scoși de client: nu-i mai adăugăm automat (până îi adaugă el din nou).
+export const competitorDismissals = pgTable("competitor_dismissals", {
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  domain: text("domain").notNull(),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.projectId, t.domain] })]);
 
 export const prompts = pgTable("prompts", {
   id: id(),

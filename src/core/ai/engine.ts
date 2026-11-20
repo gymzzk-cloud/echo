@@ -77,7 +77,7 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
     console.error(`AI ${provider} eroare: ${msg}`);
     out = { answer: `(Eroare ${provider}: ${msg})`, sources: [], model: ERROR_MODEL, mode: "live" as const, costUsd: 0, latencyMs: 0 };
   }
-  const mentions = extractMentions(out.answer, out.sources, w);
+  const mentions = extractMentions(out.answer, out.sources, w, input.query);
   const [row] = await db.insert(schema.runs).values({
     queryHash: qh, query: input.query, language: input.language, provider, model: out.model, mode: out.mode,
     answer: out.answer, sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs, runDate: day,
