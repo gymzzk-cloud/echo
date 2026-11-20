@@ -85,7 +85,7 @@ export async function scanStatus(orgId: string, projectId: string) {
     ...(pol?.payment?.methods ?? []).slice(0, 4),
   ].filter((x): x is string => !!x);
   return {
-    name: r?.facts.title?.split(/[|–—-]/)[0]?.trim().slice(0, 60) || p.name,
+    name: storeNameFrom(r, p.domain) ?? p.name,
     domain: `${p.domain}${p.pathPrefix}`,
     audit: a ? a.status : "queued",
     policies: pol ? (pol.error ? "error" : "done") : "queued",
@@ -93,6 +93,7 @@ export async function scanStatus(orgId: string, projectId: string) {
     done: !!a && (a.status === "done" || a.status === "error") && (!!pol || !busy),
     error: a?.status === "error" ? ((a.result as { error?: string } | null)?.error ?? "Site-ul nu a putut fi citit.") : null,
     logo: r?.home?.logo ?? null,
+    logos: r?.home?.logos ?? (r?.home?.logo ? [r.home.logo] : []),
     platform: r?.platform && r.platform !== "necunoscută" ? r.platform : null,
     categories: r?.home?.categories ?? [],
     brands: r?.home?.brands ?? [],
@@ -102,6 +103,19 @@ export async function scanStatus(orgId: string, projectId: string) {
     trustmarks: r?.facts.trustmarks ?? [],
     cui: r?.facts.cui ?? null,
   };
+}
+
+/**
+ * Numele magazinului: cel declarat de site (og:site_name, Organization); titlul paginii doar dacă bucata aleasă
+ * conține numele din adresă (titlul „Scule electrice DEWALT | Hardline” nu dă „Scule electrice DEWALT”).
+ */
+export function storeNameFrom(r: Pick<AuditResult, "facts" | "home"> | null, domain: string) {
+  if (!r) return null;
+  if (r.home?.siteName) return r.home.siteName;
+  const key = (domain.split(".")[0] ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+  const parts = (r.facts.title ?? "").split(/\s[|–—-]\s|\|/).map((x) => x.trim()).filter(Boolean);
+  const hit = parts.find((x) => key.length >= 3 && x.replace(/[^a-z0-9]/gi, "").toLowerCase().includes(key.slice(0, Math.min(key.length, 8))));
+  return hit && hit.length <= 40 ? hit : null;
 }
 
 /** După scanare: profilul pornește de la ce am găsit, dacă clientul nu l-a completat deja. */
@@ -255,4 +269,15 @@ export async function addCompetitorFromTrial(orgId: string, projectId: string, d
 export async function trialCompetitors(orgId: string, projectId: string) {
   await owned(orgId, projectId);
   return (await db.select({ d: schema.competitors.domain }).from(schema.competitors).where(eq(schema.competitors.projectId, projectId)).limit(20)).map((c) => c.d);
+}
+
+/**
+ * După alegerea unui plan: analiza completă rulează din nou, acum pe toate AI-urile (Claude, Perplexity, Google…)
+ * și cu întrebările din catalog. Întrebările deja puse azi pe ChatGPT și Gemini nu se plătesc a doua oară (runQuery).
+ */
+export async function afterPlanChosen(orgId: string) {
+  const ps = await db.select({ id: schema.projects.id }).from(schema.projects)
+    .where(and(eq(schema.projects.orgId, orgId), isNotNull(schema.projects.onboarding)));
+  for (const p of ps) await enqueue("run_project", { projectId: p.id });
+  return ps.length;
 }

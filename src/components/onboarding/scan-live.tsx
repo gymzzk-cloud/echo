@@ -7,7 +7,7 @@ import { StoreLogo } from "./store-logo";
 
 type Scan = {
   name: string; domain: string; audit: string; policies: string; done: boolean; error: string | null; platform: string | null;
-  categories: string[]; brands: string[]; products: string[]; policyBits: string[]; blockedBots: string[]; trustmarks: string[]; cui: string | null; logo: string | null;
+  categories: string[]; brands: string[]; products: string[]; policyBits: string[]; blockedBots: string[]; trustmarks: string[]; cui: string | null; logo: string | null; logos: string[];
 };
 
 const STATUS = ["Deschidem prima pagină…", "Citim meniul și categoriile…", "Căutăm mărcile și produsele puse în față…", "Citim livrarea, returul și plata…", "Verificăm robots.txt pentru roboții AI…", "Mai avem puțin…"];
@@ -80,7 +80,7 @@ export function ScanLive({ action }: { action: () => Promise<void> }) {
         </section>
         <section className="order-1 min-w-0 overflow-hidden rounded-xl border border-border bg-bg lg:order-2">
           <div className="flex items-center gap-3 border-b border-border px-4 py-4 sm:px-6">
-            <StoreLogo key={s?.logo ?? "none"} src={s?.logo} name={s?.name ?? "M"} />
+            <StoreLogo key={(s?.logos ?? []).join("|") || "none"} srcs={s?.logos} name={s?.name ?? "M"} />
             <div className="min-w-0 flex-1"><div className="truncate text-base font-semibold">{s?.name ?? "…"}</div><div className="truncate text-xs text-muted">{s?.domain}</div></div>
             <Badge tone={s?.done ? "good" : "muted"}>{s?.done ? "Gata" : "Se completează"}</Badge>
           </div>

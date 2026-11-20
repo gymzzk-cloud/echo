@@ -6,7 +6,7 @@ import { Button, IconButton, Input } from "@/components/ui";
  * Listă editabilă (categorii, mărci, produse, adrese): cipuri cu „×” și un câmp pentru adăugat.
  * Trimite valorile într-un câmp ascuns, câte una pe rând.
  */
-export function TagInput({ name, initial, placeholder, max = 12, addLabel = "Adaugă" }: { name: string; initial: string[]; placeholder?: string; max?: number; addLabel?: string }) {
+export function TagInput({ name, initial, placeholder, max = 12, addLabel = "Adaugă", suggestions = [] }: { name: string; initial: string[]; placeholder?: string; max?: number; addLabel?: string; suggestions?: string[] }) {
   const [items, setItems] = useState(initial);
   const [draft, setDraft] = useState("");
   const add = () => {
@@ -27,6 +27,14 @@ export function TagInput({ name, initial, placeholder, max = 12, addLabel = "Ada
             </li>
           ))}
         </ul>
+      )}
+      {items.length < max && suggestions.some((x) => !items.includes(x)) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted">Apasă ca să adaugi:</span>
+          {suggestions.filter((x) => !items.includes(x)).map((x) => (
+            <Button key={x} type="button" size="sm" variant="secondary" onClick={() => setItems((cur) => [...cur, x].slice(0, max))}>+ {x}</Button>
+          ))}
+        </div>
       )}
       {items.length < max && (
         <div className="flex gap-2">

@@ -12,7 +12,7 @@ import { checkoutUrl, PLANS, type PlanId } from "@/core/billing";
 import {
   addCompetitorFromTrial, addQuestion, finishScan, removeQuestion, saveIdentity, saveMarkets, saveProfile, startTrial, startTrialRun, trialProject, writeQuestions,
 } from "@/core/onboarding";
-import { cleanDomain, cleanList, type Market } from "@/core/onboarding/types";
+import { cleanDomain, cleanList, domainFromName, type Market } from "@/core/onboarding/types";
 import type { FormState } from "@/app/actions";
 
 /** Testul gratuit: fiecare acțiune lucrează doar pe proiectul în test al organizației (nu primește id din formular). */
@@ -64,8 +64,8 @@ export async function saveIdentityAction(_: FormState, form: FormData): Promise<
 export async function saveProfileAction(_: FormState, form: FormData): Promise<FormState> {
   const { org, p } = await need();
   const categories = list(form, "categories", 10);
-  if (!categories.length) return { error: "Adaugă cel puțin o categorie de produse, de exemplu „Scule electrice”." };
-  await saveProfile(org.id, p.id, { categories, brands: list(form, "brands", 10), products: list(form, "products", 10), competitors: domains(form, "competitors") });
+  if (!categories.length) return { error: "Adaugă cel puțin o categorie de produse pe care o vinzi." };
+  await saveProfile(org.id, p.id, { categories, brands: list(form, "brands", 10), products: list(form, "products", 10), competitors: list(form, "competitors", 10).map((x) => cleanDomain(x) ?? domainFromName(x, p.country === "HU" ? "hu" : "ro")).filter((d): d is string => !!d) });
   redirect("/start/piete");
 }
 
