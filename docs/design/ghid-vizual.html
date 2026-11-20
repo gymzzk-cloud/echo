@@ -1,0 +1,668 @@
+<title>Ghid vizual Echo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Ghidul vizual pentru docs/DESIGN.md. Aceleași tokenuri ca src/app/globals.css.
+   Layout: o coloană de secțiuni numerotate ca în DESIGN.md; fiecare regulă are un exemplu desenat, iar unde ajută, „Corect” lângă „Greșit”. */
+:root {
+  --bg: #ffffff; --surface: #f7f9f8; --border: #e1e8e6; --text: #13231f; --text-muted: #5b6d68;
+  --primary: #0d7a6a; --primary-fg: #ffffff; --good: #1f8a4c; --warn: #b4610f; --bad: #b23b3b;
+  --good-bg: #e3f4ea; --warn-bg: #fdf0de; --bad-bg: #fbe3e3; --primary-bg: #dff2ee;
+  --side: #13231f; --side-fg: #e4ecea; --side-muted: #93a6a1; --side-active: #24332f;
+  --chart-2: #94a3b8; --chart-3: #64748b; --chart-4: #cbd5e1;
+  --guide-bg: #eef2f1; --mark: #c2410c;
+  --f-display: "Sora", "Inter", system-ui, sans-serif;
+  --f-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16211e; --surface: #0f1715; --border: #24332f; --text: #e4ecea; --text-muted: #93a6a1;
+    --primary: #4cc3ad; --primary-fg: #0f1715; --good: #5fcf8e; --warn: #e3a35a; --bad: #e37d7d;
+    --good-bg: #143322; --warn-bg: #3a2a17; --bad-bg: #3a1a1a; --primary-bg: #16332d;
+    --side: #0b1210; --side-fg: #e4ecea; --side-muted: #93a6a1; --side-active: #1c2a26;
+    --chart-2: #64748b; --chart-3: #94a3b8; --chart-4: #475569;
+    --guide-bg: #0a100e; --mark: #fb923c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16211e; --surface: #0f1715; --border: #24332f; --text: #e4ecea; --text-muted: #93a6a1;
+  --primary: #4cc3ad; --primary-fg: #0f1715; --good: #5fcf8e; --warn: #e3a35a; --bad: #e37d7d;
+  --good-bg: #143322; --warn-bg: #3a2a17; --bad-bg: #3a1a1a; --primary-bg: #16332d;
+  --side: #0b1210; --side-fg: #e4ecea; --side-muted: #93a6a1; --side-active: #1c2a26;
+  --chart-2: #64748b; --chart-3: #94a3b8; --chart-4: #475569;
+  --guide-bg: #0a100e; --mark: #fb923c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--guide-bg); color: var(--text); font-family: var(--f-sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 96px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+.lbl { font-family: var(--f-mono); font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+code { font-family: var(--f-mono); font-size: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+
+/* Antet */
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
+.head h1 { font-size: 40px; margin-top: 8px; }
+.head p { color: var(--text-muted); font-size: 16px; max-width: 62ch; margin-top: 12px; }
+.theme { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 3px; gap: 2px; }
+.theme button { height: 32px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); font: 500 12px var(--f-sans); cursor: pointer; }
+.theme button[aria-pressed="true"] { background: var(--surface); color: var(--text); }
+.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.toc a { height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); color: var(--text); text-decoration: none; font-size: 13px; }
+.toc a span { font-family: var(--f-mono); font-size: 11px; color: var(--text-muted); }
+.gold { margin-top: 32px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: grid; gap: 8px; }
+.gold h2 { font-size: 20px; }
+.gold p { color: var(--text-muted); max-width: 75ch; }
+
+/* Secțiuni */
+.sec { margin-top: 64px; scroll-margin-top: 16px; }
+.sec-h { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: baseline; margin-bottom: 20px; }
+.sec-h .n { font-family: var(--f-mono); font-size: 13px; color: var(--primary); grid-row: span 2; }
+.sec-h h2 { font-size: 26px; }
+.sec-h p { color: var(--text-muted); grid-column: 2; max-width: 70ch; }
+.rules { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rules.one { grid-template-columns: 1fr; }
+.rule { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 0; display: grid; gap: 16px; align-content: start; }
+.rule h3 { font-family: var(--f-sans); font-size: 15px; font-weight: 600; letter-spacing: 0; }
+.rule > p { color: var(--text-muted); font-size: 13px; }
+.stage { background: var(--surface); border: 1px dashed var(--border); border-radius: 10px; padding: 20px; min-width: 0; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pair > div { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.verdict { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.verdict.yes { color: var(--good); }
+.verdict.no { color: var(--bad); }
+.pair .stage.bad { border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.pair .stage.ok { border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.why { font-size: 12px; color: var(--text-muted); }
+
+/* Componentele Echo, desenate cu tokenurile reale */
+.card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 0; }
+.card.sm { padding: 16px; }
+.card-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 32px; margin-bottom: 16px; }
+.card-h h4 { margin: 0; font-size: 16px; font-weight: 600; }
+.desc { color: var(--text-muted); font-size: 14px; margin-bottom: 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 8px; font: 500 14px/1 var(--f-sans); white-space: nowrap; border: 1px solid transparent; cursor: pointer; }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 12px; }
+.btn.lg { height: 48px; padding: 0 24px; font-size: 16px; }
+.btn.primary { background: var(--primary); color: var(--primary-fg); }
+.btn.secondary { background: var(--bg); color: var(--text); border-color: var(--border); }
+.btn.danger { background: var(--bg); color: var(--bad); border-color: var(--border); }
+.btn.ghost { background: transparent; color: var(--text-muted); }
+.btn.full { width: 100%; }
+.tlink { color: var(--primary); font-weight: 500; font-size: 13px; text-decoration: none; }
+.btn:focus-visible, .tlink:focus-visible, .theme button:focus-visible, .toc a:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.form { display: grid; gap: 16px; align-items: start; }
+.f-n2a { grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) minmax(0, 1fr) auto; }
+.f-2a { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.f-end { align-items: end; }
+.field span.l { display: block; height: 20px; line-height: 20px; margin-bottom: 6px; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.field span.h { display: block; margin-top: 6px; font-size: 12px; line-height: 16px; color: var(--text-muted); }
+.ctl { display: flex; align-items: center; width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-muted); padding: 0 12px; font-size: 14px; white-space: nowrap; overflow: hidden; }
+.ctl.focus { border-color: var(--primary); color: var(--text); }
+.ctl.sel::after { content: "▾"; margin-left: auto; padding-left: 8px; }
+.act .sp { display: block; height: 26px; }
+.f-bad .field span.l { margin-bottom: 4px; }
+.guide-line { position: relative; }
+.guide-line::before { content: ""; position: absolute; left: -8px; right: -8px; top: var(--y); border-top: 1px dashed var(--mark); pointer-events: none; }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.b-good { background: var(--good-bg); color: var(--good); }
+.b-warn { background: var(--warn-bg); color: var(--warn); }
+.b-bad { background: var(--bad-bg); color: var(--bad); }
+.b-muted { background: var(--surface); color: var(--text-muted); }
+.b-primary { background: var(--primary-bg); color: var(--primary); }
+.notice { border-radius: 8px; padding: 12px 16px; font-size: 14px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.row:last-child { border-bottom: 0; padding-bottom: 0; }
+.row:first-child { padding-top: 0; }
+.grow { flex: 1; min-width: 0; }
+.sub { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ra { display: flex; gap: 8px; margin-left: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; padding: 0 12px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 12px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: 0; }
+.r { text-align: right; }
+
+/* Culori */
+.swatches { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.sw { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.sw div { height: 56px; border-bottom: 1px solid var(--border); }
+.sw p { padding: 10px 12px; font-size: 13px; font-weight: 500; }
+.sw small { display: block; font-family: var(--f-mono); font-size: 11px; color: var(--text-muted); font-weight: 500; }
+.sw em { display: block; font-style: normal; font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+
+/* Tipografie */
+.type-row { display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.type-row:last-child { border-bottom: 0; }
+.type-row .lbl { font-size: 10px; }
+
+/* Spații */
+.scale { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; }
+.scale div { display: grid; justify-items: center; gap: 6px; font-family: var(--f-mono); font-size: 11px; color: var(--text-muted); }
+.scale i { display: block; background: var(--primary-bg); border: 1px solid var(--primary); }
+.measure { position: relative; }
+.measure .tag { position: absolute; font-family: var(--f-mono); font-size: 10px; color: var(--mark); background: var(--bg); padding: 0 3px; border-radius: 3px; line-height: 14px; }
+.pad-demo { position: relative; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: 24px; }
+.pad-demo::before { content: ""; position: absolute; inset: 0; border-radius: 12px; border: 24px solid color-mix(in srgb, var(--mark) 12%, transparent); pointer-events: none; }
+.inner { border: 1px dashed var(--border); border-radius: 6px; padding: 12px; color: var(--text-muted); font-size: 13px; }
+
+/* Chenare */
+.shapes { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.shape { display: grid; gap: 8px; justify-items: start; }
+.shape p { font-size: 12px; color: var(--text-muted); }
+
+/* Meniu */
+.side { background: var(--side); color: var(--side-fg); border-radius: 10px; padding: 16px 12px; display: grid; gap: 4px; min-width: 0; }
+.side .it { padding: 7px 10px; border-radius: 8px; color: var(--side-muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side .it.on { background: var(--side-active); color: var(--side-fg); font-weight: 600; }
+.side .gl { font-family: var(--f-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--side-muted); padding: 8px 10px 2px; opacity: .8; }
+.side .gh { display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 8px 10px; color: var(--side-fg); font-weight: 600; font-size: 13px; border-top: 1px solid var(--side-active); padding-top: 16px; }
+.side .gh:first-child { margin-top: 0; border-top: 0; padding-top: 8px; }
+.side .gh svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; flex-shrink: 0; }
+.side .gh.cur { color: var(--primary); }
+.side .ind { padding-left: 34px; }
+
+/* Responsive */
+.devices { display: grid; gap: 16px; grid-template-columns: 150px 240px minmax(0, 1fr); align-items: end; }
+.dev { border: 6px solid var(--side); border-radius: 18px; background: var(--surface); overflow: hidden; display: grid; }
+.dev.tab { border-radius: 14px; }
+.dev.desk { border-radius: 10px; border-width: 6px 6px 14px; }
+.dev .t { background: var(--side); height: 14px; }
+.dev .c { padding: 8px; display: grid; gap: 6px; }
+.blk { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.blk.p { background: var(--primary); border: 0; }
+.dev-cap { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+.dev-cap b { color: var(--text); font-weight: 600; }
+.bp { width: 100%; border-collapse: collapse; font-size: 13px; }
+.bp td, .bp th { padding: 10px 12px; }
+
+.checklist { display: grid; gap: 0; }
+.checklist label { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; cursor: pointer; }
+.checklist label:last-child { border-bottom: 0; }
+.checklist input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--primary); flex-shrink: 0; }
+.foot { margin-top: 48px; color: var(--text-muted); font-size: 12px; }
+
+@media (max-width: 860px) {
+  .rules { grid-template-columns: 1fr; }
+  .devices { grid-template-columns: 1fr 1fr; }
+  .devices > :last-child { grid-column: span 2; }
+  .shapes { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .head h1 { font-size: 30px; }
+  .rule { padding: 16px; }
+  .pair { grid-template-columns: 1fr; }
+  .f-n2a, .f-2a { grid-template-columns: 1fr; }
+  .act .sp { display: none; }
+  .type-row { grid-template-columns: 1fr; gap: 4px; }
+  .devices { grid-template-columns: 1fr; }
+  .devices > :last-child { grid-column: auto; }
+  .shapes { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <span class="lbl">Echo · ghid vizual · versiunea 0.2 · 20.11.2026</span>
+      <h1>Cum arată Echo, regulă cu regulă</h1>
+      <p>Fiecare regulă din <code>docs/DESIGN.md</code>, desenată cu culorile reale ale aplicației. Unde contează, vezi „Corect” lângă „Greșit”. Comută tema ca să verifici ambele moduri.</p>
+    </div>
+    <div class="theme" role="group" aria-label="Tema">
+      <button type="button" data-t="" aria-pressed="true">Sistem</button>
+      <button type="button" data-t="light" aria-pressed="false">Luminos</button>
+      <button type="button" data-t="dark" aria-pressed="false">Întunecat</button>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Cuprins">
+    <a href="#culori"><span>2</span>Culori</a>
+    <a href="#tipografie"><span>3</span>Tipografie</a>
+    <a href="#spatii"><span>4</span>Spații</a>
+    <a href="#chenare"><span>5</span>Chenare</a>
+    <a href="#butoane"><span>6.1</span>Butoane</a>
+    <a href="#formulare"><span>6.2</span>Formulare</a>
+    <a href="#carduri"><span>6.3</span>Carduri</a>
+    <a href="#liste"><span>6.4</span>Liste și tabele</a>
+    <a href="#insigne"><span>6.5</span>Insigne</a>
+    <a href="#meniu"><span>7</span>Meniu</a>
+    <a href="#responsive"><span>8</span>Responsive</a>
+    <a href="#verificare"><span>12</span>Verificare</a>
+  </nav>
+
+  <section class="gold">
+    <span class="lbl">0 · Regula de aur</span>
+    <h2>Același lucru arată la fel peste tot</h2>
+    <p>Aceeași funcție are același buton, același conținut stă în același card, aceeași distanță se repetă pe toate paginile. Nimic nu se scrie de mână în pagini: nici butoane, nici câmpuri, nici culori. Dacă lipsește ceva, se adaugă întâi aici și în componente.</p>
+  </section>
+
+  <!-- 2. CULORI -->
+  <section class="sec" id="culori">
+    <div class="sec-h"><span class="n">2</span><h2>Culori</h2><p>Tokenurile din <code>globals.css</code>. Comută tema sus ca să vezi valorile pentru întunecat.</p></div>
+    <div class="rules one">
+      <div class="rule">
+        <h3>Paleta</h3>
+        <div class="swatches">
+          <div class="sw"><div style="background:var(--surface)"></div><p>surface<small>#F7F9F8 · #0F1715</small><em>fundalul paginii</em></p></div>
+          <div class="sw"><div style="background:var(--bg)"></div><p>bg<small>#FFFFFF · #16211E</small><em>carduri, câmpuri</em></p></div>
+          <div class="sw"><div style="background:var(--border)"></div><p>border<small>#E1E8E6 · #24332F</small><em>toate chenarele</em></p></div>
+          <div class="sw"><div style="background:var(--text)"></div><p>text<small>#13231F · #E4ECEA</small><em>text principal</em></p></div>
+          <div class="sw"><div style="background:var(--text-muted)"></div><p>muted<small>#5B6D68 · #93A6A1</small><em>text secundar</em></p></div>
+          <div class="sw"><div style="background:var(--primary)"></div><p>primary<small>#0D7A6A · #4CC3AD</small><em>marcă, acțiunea principală</em></p></div>
+          <div class="sw"><div style="background:var(--good)"></div><p>good<small>#1F8A4C · #5FCF8E</small><em>doar stare: bine</em></p></div>
+          <div class="sw"><div style="background:var(--warn)"></div><p>warn<small>#B4610F · #E3A35A</small><em>doar stare: atenție</em></p></div>
+          <div class="sw"><div style="background:var(--bad)"></div><p>bad<small>#B23B3B · #E37D7D</small><em>doar stare: problemă</em></p></div>
+          <div class="sw"><div style="background:var(--side)"></div><p>side<small>#13231F · #0B1210</small><em>doar meniul lateral</em></p></div>
+        </div>
+      </div>
+    </div>
+    <div class="rules" style="margin-top:16px">
+      <div class="rule">
+        <h3>Verdele de marcă se folosește puțin</h3>
+        <p>Doar pentru butonul principal (unul pe card), elementul activ din meniu, „tu” din grafice și link-uri.</p>
+        <div class="pair">
+          <div><span class="verdict yes">✓ Corect</span><div class="stage ok"><div class="card sm"><div class="card-h"><h4>Concurenți</h4><a class="tlink" href="#culori">Detalii</a></div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="btn primary sm">Salvează</span><span class="btn secondary sm">Adaugă</span></div></div></div></div>
+          <div><span class="verdict no">✕ Greșit</span><div class="stage bad"><div class="card sm" style="border-color:var(--primary)"><div class="card-h"><h4 style="color:var(--primary)">Concurenți</h4><a class="tlink" href="#culori">Detalii</a></div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="btn primary sm">Salvează</span><span class="btn primary sm">Adaugă</span></div></div></div><span class="why">Titlu, chenar și două butoane verzi: nu mai știi ce e important.</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <h3>Starea are culoare și text</h3>
+        <p>Verde, galben și roșu doar pentru stare. Mereu cu simbol sau cuvânt, pentru daltoniști.</p>
+        <div class="pair">
+          <div><span class="verdict yes">✓ Corect</span><div class="stage ok" style="display:grid;gap:8px;justify-items:start"><span class="num" style="color:var(--good);font-weight:600">▲ +4 pp</span><span class="num" style="color:var(--bad);font-weight:600">✕ 0 din 30</span><span class="badge b-warn">În lucru</span></div></div>
+          <div><span class="verdict no">✕ Greșit</span><div class="stage bad" style="display:grid;gap:8px;justify-items:start"><span class="num" style="color:var(--good);font-weight:600">4</span><span class="num" style="color:var(--bad);font-weight:600">0</span><span class="badge" style="background:var(--warn);color:var(--warn);width:40px"></span></div><span class="why">Doar culoarea nu spune nimic cuiva care nu distinge roșu de verde.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. TIPOGRAFIE -->
+  <section class="sec" id="tipografie">
+    <div class="sec-h"><span class="n">3</span><h2>Tipografie</h2><p>Trei fonturi, șapte mărimi, trei greutăți. Nimic în afara lor.</p></div>
+    <div class="rules">
+      <div class="rule">
+        <h3>Scara</h3>
+        <div>
+          <div class="type-row"><span class="lbl">48 · Sora 600</span><span style="font:600 48px/1.1 var(--f-display)" class="num">62</span></div>
+          <div class="type-row"><span class="lbl">30 · Sora 600</span><span style="font:600 30px/1.2 var(--f-display)">Setări magazin</span></div>
+          <div class="type-row"><span class="lbl">20 · Inter 600</span><span style="font-size:20px;font-weight:600">Ești recomandat de 3 din 6 AI-uri</span></div>
+          <div class="type-row"><span class="lbl">16 · Inter 600</span><span style="font-size:16px;font-weight:600">Catalogul de produse</span></div>
+          <div class="type-row"><span class="lbl">14 · Inter 400</span><span>Text de bază în panou. Site-ul public folosește 16.</span></div>
+          <div class="type-row"><span class="lbl">12 · Inter 400</span><span style="font-size:12px;color:var(--text-muted)">Ajutor sub câmp, note, detalii.</span></div>
+          <div class="type-row"><span class="lbl">11 · Mono 500</span><span class="lbl">Etichetă de context</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <h3>Majusculele mici doar pentru context</h3>
+        <p>Antetul tabelului, eticheta de deasupra unei cifre, sprânceana paginii. Titlurile de card sunt text normal.</p>
+        <div class="pair">
+          <div><span class="verdict yes">✓ Corect</span><div class="stage ok"><span class="lbl">Reparații</span><div style="font:600 22px var(--f-display);margin:2px 0 12px">Feed și canale</div><div class="card sm"><h4 style="margin:0;font-size:16px;font-weight:600">Etichete automate</h4></div></div></div>
+          <div><span class="verdict no">✕ Greșit</span><div class="stage bad"><span style="font:600 22px var(--f-display);text-transform:uppercase">Feed și canale</span><div class="card sm" style="margin-top:12px"><span class="lbl">Etichete automate</span></div></div><span class="why">Titlu cu majuscule și titlu de card ca o etichetă mică: ierarhia se pierde.</span></div>
+        </div>
+        <p>Cifrele din tabele și carduri au mereu <code>tabular-nums</code>, ca să stea una sub alta.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. SPAȚII -->
+  <section class="sec" id="spatii">
+    <div class="sec-h"><span class="n">4</span><h2>Spații</h2><p>Unitate de 4 px. Folosim doar valorile de mai jos.</p></div>
+    <div class="rules">
+      <div class="rule">
+        <h3>Scara permisă</h3>
+        <div class="stage"><div class="scale">
+          <div><i style="width:4px;height:4px"></i>4</div><div><i style="width:8px;height:8px"></i>8</div><div><i style="width:12px;height:12px"></i>12</div><div><i style="width:16px;height:16px"></i>16</div><div><i style="width:24px;height:24px"></i>24</div><div><i style="width:32px;height:32px"></i>32</div><div><i style="width:48px;height:48px"></i>48</div><div><i style="width:64px;height:64px"></i>64</div>
+        </div></div>
+        <table class="bp num">
+          <tbody>
+            <tr><td>Între carduri și secțiuni</td><td class="r"><b>24</b></td></tr>
+            <tr><td>În card (telefon)</td><td class="r"><b>24</b> (16)</td></tr>
+            <tr><td>Titlul cardului → conținut</td><td class="r"><b>16</b></td></tr>
+            <tr><td>Între câmpurile unui formular</td><td class="r"><b>16</b></td></tr>
+            <tr><td>Între butoane alăturate</td><td class="r"><b>8</b></td></tr>
+            <tr><td>Rând de listă sau tabel, sus și jos</td><td class="r"><b>12</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rule">
+        <h3>Cardul, măsurat</h3>
+        <p>Zona portocalie e padding-ul de 24 px. Conținutul nu intră niciodată în ea.</p>
+        <div class="stage">
+          <div class="pad-demo">
+            <div class="card-h" style="margin-bottom:16px"><h4>Concurenți</h4></div>
+            <div class="inner">Conținutul cardului</div>
+          </div>
+          <div style="height:24px;position:relative;margin:0 24px;border-left:1px dashed var(--mark);border-right:1px dashed var(--mark)"><span style="position:absolute;left:50%;top:5px;transform:translateX(-50%);font:500 10px var(--f-mono);color:var(--mark)">24 între carduri</span></div>
+          <div class="card"><div class="card-h" style="margin:0"><h4>Întrebări urmărite</h4></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. CHENARE -->
+  <section class="sec" id="chenare">
+    <div class="sec-h"><span class="n">5</span><h2>Chenare, colțuri, umbre</h2><p>Un chenar subțire, colțuri după tipul elementului, fără umbre.</p></div>
+    <div class="rules">
+      <div class="rule">
+        <h3>Fiecare element are forma lui</h3>
+        <div class="stage"><div class="shapes">
+          <div class="shape"><div class="card sm" style="width:100%;height:56px"></div><p><b>Card</b> · 1 px · 12 px</p></div>
+          <div class="shape"><div class="card sm" style="width:100%;height:56px;border:2px solid var(--primary);padding:15px"></div><p><b>Card evidențiat</b> · 2 px verde · 12 px</p></div>
+          <div class="shape"><div class="card sm" style="width:100%;height:56px;border-radius:8px"></div><p><b>Card în card</b> · 1 px · 8 px</p></div>
+          <div class="shape"><span class="ctl" style="width:100%">Câmp</span><p><b>Câmp, buton</b> · 1 px · 8 px</p></div>
+          <div class="shape"><span class="badge b-muted">Insignă</span><p><b>Insignă</b> · rotund complet</p></div>
+          <div class="shape"><div class="notice b-warn" style="width:100%">Mod demo</div><p><b>Notificare</b> · fără chenar · 8 px</p></div>
+        </div></div>
+      </div>
+      <div class="rule">
+        <h3>Cel mult două niveluri de chenar</h3>
+        <p>Un card poate conține carduri mici, dar acelea nu mai conțin altele. Fără umbre, fără colțuri amestecate.</p>
+        <div class="pair">
+          <div><span class="verdict yes">✓ Corect</span><div class="stage ok"><div class="card sm"><h4 style="margin:0 0 12px;font-size:15px">3 lucruri de făcut</h4><div style="border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px">Deblochează robotul Claude</div></div></div></div>
+          <div><span class="verdict no">✕ Greșit</span><div class="stage bad"><div class="card sm" style="box-shadow:0 8px 20px rgba(0,0,0,.18)"><h4 style="margin:0 0 12px;font-size:15px">3 lucruri de făcut</h4><div style="border:1px solid var(--border);border-radius:16px;padding:10px"><div style="border:1px solid var(--border);border-radius:4px;padding:8px;font-size:13px">Deblochează robotul</div></div></div></div><span class="why">Umbră grea, trei niveluri, colțuri de 16 și 4 px.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6.1 BUTOANE -->
+  <section class="sec" id="butoane">
+    <div class="sec-h"><span class="n">6.1</span><h2>Butoane după funcție</h2><p>Varianta nu se alege după gust, ci după ce face butonul.</p></div>
+    <div class="rules">
+      <div class="rule">
+        <h3>Cele cinci funcții</h3>
+        <table>
+          <tbody>
+            <tr><td style="padding-left:0"><span class="btn primary">Conectează</span></td><td><b>Principal</b><div class="sub" style="white-space:normal">Acțiunea pentru care ai venit. Unul singur pe card. Conectează, Salvează, Caută, Cumpără, Rezolvă.</div></td></tr>
+            <tr><td style="padding-left:0"><span class="btn secondary">Adaugă</span></td><td><b>Secundar</b><div class="sub" style="white-space:normal">Acțiuni în plus. Adaugă, Importă, Sincronizează, Rulează acum, Exportă.</div></td></tr>
+            <tr><td style="padding-left:0"><span class="btn danger">Șterge</span></td><td><b>Ștergere</b><div class="sub" style="white-space:normal">Elimină sau revocă. Șterge, Elimină, Revocă, Anulează invitația.</div></td></tr>
+            <tr><td style="padding-left:0"><span class="btn ghost">Oprește</span></td><td><b>Discret</b><div class="sub" style="white-space:normal">Comutatoare în rânduri. Oprește/Pornește, Am rezolvat, Marchează citite.</div></td></tr>
+            <tr><td style="padding-left:0"><a class="tlink" href="#butoane">Detalii</a></td><td><b>Link</b><div class="sub" style="white-space:normal">Doar navigare spre altă pagină. Niciodată o acțiune.</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rule">
+        <h3>Mărimi</h3>
+        <p><b>md</b> are exact înălțimea unui câmp: 40 px (44 pe telefon). <b>sm</b> doar în rânduri de tabel sau listă. <b>lg</b> doar la căutarea de pe prima pagină.</p>
+        <div class="stage" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+          <div style="display:grid;gap:6px;justify-items:center"><span class="btn primary sm">Rezolvă</span><span class="lbl">sm · 32</span></div>
+          <div style="display:grid;gap:6px;justify-items:center"><span class="btn primary">Conectează</span><span class="lbl">md · 40</span></div>
+          <div style="display:grid;gap:6px;justify-items:center"><span class="btn primary lg">Caută</span><span class="lbl">lg · 48</span></div>
+        </div>
+        <h3>Ordinea și textul</h3>
+        <div class="pair">
+          <div><span class="verdict yes">✓ Corect</span><div class="stage ok" style="display:flex;gap:8px;flex-wrap:wrap"><span class="btn primary sm">Salvează</span><span class="btn secondary sm">Testează</span><span class="btn danger sm">Șterge</span></div><span class="why">Principalul primul, ștergerea ultima. Textul spune ce face.</span></div>
+          <div><span class="verdict no">✕ Greșit</span><div class="stage bad" style="display:flex;gap:8px;flex-wrap:wrap"><span class="btn danger sm">Șterge</span><span class="btn primary sm">OK</span><span class="btn ghost sm" style="text-decoration:underline;color:var(--primary)">Test</span></div><span class="why">„OK” nu spune nimic, iar „Test” arată ca un link.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6.2 FORMULARE -->
+  <section class="sec" id="formulare">
+    <div class="sec-h"><span class="n">6.2</span><h2>Formulare și aliniere</h2><p>Exact decalajul din Setări magazin și regula care îl repară. Linia punctată portocalie arată unde trebuie să înceapă toate câmpurile.</p></div>
+    <div class="rules one">
+      <div class="rule">
+        <h3>Câmpurile dintr-un rând încep la aceeași linie, iar butonul e la nivelul lor</h3>
+        <div class="pair">
+          <div>
+            <span class="verdict no">✕ Greșit (cum era)</span>
+            <div class="stage bad">
+              <div class="form f-2a f-end f-bad">
+                <label class="field"><span class="l">Platformă</span><span class="ctl sel">Detectare automată</span></label>
+                <label class="field"><span class="l">Cheie API</span><span class="ctl">cheie:secret</span><span class="h">Gomag, MerchantPro, PrestaShop. Se păstrează criptată.</span></label>
+                <div><span class="btn primary">Conectează</span></div>
+              </div>
+            </div>
+            <span class="why">Grila e aliniată jos, iar textul de ajutor ridică doar câmpul lui. Butonul stă la nivelul ajutorului.</span>
+          </div>
+          <div>
+            <span class="verdict yes">✓ Corect</span>
+            <div class="stage ok guide-line" style="--y:46px">
+              <div class="form f-2a">
+                <label class="field"><span class="l">Platformă</span><span class="ctl sel">Detectare automată</span></label>
+                <label class="field"><span class="l">Cheie API</span><span class="ctl">cheie:secret</span><span class="h">Gomag, MerchantPro, PrestaShop. Se păstrează criptată.</span></label>
+                <div class="act"><span class="sp"></span><span class="btn primary">Conectează</span></div>
+              </div>
+            </div>
+            <span class="why">Grila e aliniată sus, eticheta are înălțime fixă, ajutorul stă dedesubt, iar butonul rezervă locul etichetei.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rules" style="margin-top:16px">
+      <div class="rule">
+        <h3>Anatomia unui câmp</h3>
+        <div class="stage measure" style="padding-right:64px">
+          <label class="field" style="display:block;max-width:320px">
+            <span class="l">Link feed sau adresa magazinului</span>
+            <span class="ctl focus">https://magazin.ro/feed.xml</span>
+            <span class="h">Gol = adresa magazinului.</span>
+          </label>
+          <span class="tag" style="right:8px;top:22px">20 + 6</span>
+          <span class="tag" style="right:8px;top:58px">40</span>
+          <span class="tag" style="right:8px;top:90px">ajutor</span>
+        </div>
+        <p>Eticheta e mereu deasupra, niciodată în stânga. Placeholder-ul e exemplu, nu etichetă. Focus: chenar verde.</p>
+      </div>
+      <div class="rule">
+        <h3>Așezările permise</h3>
+        <p>De la 768 px în sus. Sub, totul pe o coloană și butonul principal pe toată lățimea.</p>
+        <div class="stage" style="display:grid;gap:10px">
+          <div style="display:grid;grid-template-columns:1fr;gap:6px"><span class="lbl">o coloană</span><div class="blk" style="height:14px"></div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><span class="lbl" style="grid-column:span 2">2 · 3 · 4 coloane egale</span><div class="blk" style="height:14px"></div><div class="blk" style="height:14px"></div></div>
+          <div style="display:grid;grid-template-columns:1fr 48px;gap:6px"><span class="lbl" style="grid-column:span 2">câmp + buton</span><div class="blk" style="height:14px"></div><div class="blk p" style="height:14px"></div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 48px;gap:6px"><span class="lbl" style="grid-column:span 3">2 sau 3 câmpuri + buton</span><div class="blk" style="height:14px"></div><div class="blk" style="height:14px"></div><div class="blk p" style="height:14px"></div></div>
+          <div style="display:grid;grid-template-columns:60px 1fr 1fr 48px;gap:6px"><span class="lbl" style="grid-column:span 4">câmp îngust + 2 câmpuri + buton</span><div class="blk" style="height:14px"></div><div class="blk" style="height:14px"></div><div class="blk" style="height:14px"></div><div class="blk p" style="height:14px"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6.3 CARDURI -->
+  <section class="sec" id="carduri">
+    <div class="sec-h"><span class="n">6.3</span><h2>Carduri</h2><p>Același card peste tot: titlu, eventual un link sau un buton mic în dreapta, descriere scurtă, conținut, notă.</p></div>
+    <div class="rules">
+      <div class="rule">
+        <h3>Structura cardului</h3>
+        <div class="stage">
+          <div class="card">
+            <div class="card-h"><h4>Concurenți · 3</h4><a class="tlink" href="#carduri">Detalii</a></div>
+            <p class="desc">Îi comparăm cu tine în fiecare zi.</p>
+            <div class="inner">Conținut: listă, tabel, formular sau grafic</div>
+            <p style="margin-top:16px;font-size:12px;color:var(--text-muted)">Notă: sursa sau explicația, 12 px, la final.</p>
+          </div>
+        </div>
+      </div>
+      <div class="rule">
+        <h3>Card cifră</h3>
+        <p>Etichetă, cifra mare, variația cu simbol, explicație scurtă. Carduri alăturate au aceeași înălțime.</p>
+        <div class="stage" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+          <div class="card sm"><span class="lbl">Vizibilitate</span><div class="num" style="font:600 30px var(--f-display);margin-top:6px">27%</div><div class="num" style="color:var(--good);font-weight:500;font-size:13px">▲ +4 <span style="color:var(--text-muted);font-weight:400">vs. săpt. trecută</span></div></div>
+          <div class="card sm"><span class="lbl">Cotă</span><div class="num" style="font:600 30px var(--f-display);margin-top:6px">10%</div><div class="num" style="color:var(--bad);font-weight:500;font-size:13px">▼ −2 <span style="color:var(--text-muted);font-weight:400">vs. săpt. trecută</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6.4 LISTE ȘI TABELE -->
+  <section class="sec" id="liste">
+    <div class="sec-h"><span class="n">6.4</span><h2>Liste și tabele</h2><p>Detaliile la stânga, starea apoi, acțiunile mereu la capătul din dreapta.</p></div>
+    <div class="rules">
+      <div class="rule">
+        <h3>Rând de listă</h3>
+        <div class="pair">
+          <div><span class="verdict yes">✓ Corect</span><div class="stage ok"><div class="card sm">
+            <div class="row"><div class="grow"><b>Feed</b><div class="sub">shopexpert-ro.csv · 20.11.2026</div></div><span class="badge b-good">✓ 8 produse</span><div class="ra"><span class="btn secondary sm">Sincronizează</span><span class="btn danger sm">Șterge</span></div></div>
+          </div></div></div>
+          <div><span class="verdict no">✕ Greșit</span><div class="stage bad"><div class="card sm">
+            <div class="row"><span class="btn danger sm">Șterge</span><b>Feed</b><span class="badge b-good">8 produse</span><span class="sub">20.11.2026</span><span class="tlink">Sincronizează</span></div>
+          </div></div><span class="why">Acțiunile împrăștiate, una ca buton și una ca link.</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <h3>Tabel</h3>
+        <p>Antet cu etichete mici, cifrele la dreapta, ultimul rând fără linie. Pe telefon derulează în card, nu pagina.</p>
+        <div class="stage"><div class="card sm" style="overflow-x:auto"><table class="num">
+          <thead><tr><th class="lbl">AI</th><th class="lbl r">Te recomandă</th><th class="lbl">Problema</th></tr></thead>
+          <tbody>
+            <tr><td>ChatGPT</td><td class="r" style="color:var(--good);font-weight:600">✓ 6 din 30</td><td>preț vechi</td></tr>
+            <tr><td>Claude</td><td class="r" style="color:var(--bad);font-weight:600">✕ 0 din 30</td><td style="color:var(--bad)">robot blocat</td></tr>
+          </tbody>
+        </table></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6.5 INSIGNE -->
+  <section class="sec" id="insigne">
+    <div class="sec-h"><span class="n">6.5</span><h2>Insigne și notificări</h2><p>O singură formă de insignă, cinci tonuri. O singură notificare odată.</p></div>
+    <div class="rules">
+      <div class="rule">
+        <h3>Tonurile insignei</h3>
+        <div class="stage" style="display:flex;gap:8px;flex-wrap:wrap"><span class="badge b-good">✓ Rezolvat</span><span class="badge b-warn">În lucru</span><span class="badge b-bad">Impact mare</span><span class="badge b-muted">Ignorat</span><span class="badge b-primary">Nou</span></div>
+      </div>
+      <div class="rule">
+        <h3>Notificare în pagină</h3>
+        <div class="stage" style="display:grid;gap:8px"><div class="notice b-good">Contul e gata. Analizăm magazinul.</div><div class="notice b-warn">Mod demo: răspunsurile AI sunt simulate.</div><div class="notice b-bad">Nu am putut citi feed-ul. Verifică adresa.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. MENIU -->
+  <section class="sec" id="meniu">
+    <div class="sec-h"><span class="n">7</span><h2>Meniul panoului</h2><p>Grupurile (Vizibilitate, Vânzări, Reparații, Cont) trebuie să se vadă clar ca titluri de secțiune, separate de pagini. Acum aproape nu se văd și derutează.</p></div>
+    <div class="rules one">
+      <div class="rule">
+        <div class="pair">
+          <div>
+            <span class="verdict no">✕ Acum</span>
+            <div class="stage bad"><div class="side">
+              <div class="gl">Vizibilitate</div><div class="it on">Acasă</div><div class="it">Vizibilitate AI</div><div class="it">Produse</div>
+              <div class="gl">Reparații</div><div class="it">Audit tehnic</div><div class="it">Acțiuni</div>
+              <div class="gl">Cont</div><div class="it">Rapoarte</div><div class="it">Setări magazin</div>
+            </div></div>
+            <span class="why">Titlurile de grup sunt mici, gri, fără spațiu: par încă un rând din listă.</span>
+          </div>
+          <div>
+            <span class="verdict yes">✓ Cum trebuie</span>
+            <div class="stage ok"><div class="side">
+              <div class="gh cur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Vizibilitate</div>
+              <div class="it on ind">Acasă</div><div class="it ind">Vizibilitate AI</div><div class="it ind">Produse</div>
+              <div class="gh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>Reparații</div>
+              <div class="it ind">Audit tehnic</div><div class="it ind">Acțiuni</div>
+              <div class="gh"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Cont</div>
+              <div class="it ind">Rapoarte</div><div class="it ind">Setări magazin</div>
+            </div></div>
+            <span class="why">Icon, text deschis și gros, linie și 16 px deasupra fiecărui grup, pagini indentate. Grupul paginii active are titlul verde.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. RESPONSIVE -->
+  <section class="sec" id="responsive">
+    <div class="sec-h"><span class="n">8</span><h2>Responsive</h2><p>Proiectăm întâi pentru telefon, apoi adăugăm coloane. Nicio pagină nu derulează lateral.</p></div>
+    <div class="rules one">
+      <div class="rule">
+        <h3>Același ecran pe trei dispozitive</h3>
+        <div class="devices">
+          <div>
+            <div class="dev"><div class="t"></div><div class="c">
+              <div style="display:flex;gap:3px"><div class="blk" style="height:8px;width:30%;background:var(--side-active);border:0"></div><div class="blk" style="height:8px;width:30%"></div></div>
+              <div class="blk" style="height:46px"></div><div class="blk" style="height:12px"></div><div class="blk" style="height:12px"></div><div class="blk" style="height:12px"></div><div class="blk p" style="height:12px"></div><div class="blk" style="height:40px"></div>
+            </div></div>
+            <p class="dev-cap"><b>Telefon, 360 px</b><br>o coloană, meniul ca bandă sus, butonul pe toată lățimea, 44 px</p>
+          </div>
+          <div>
+            <div class="dev tab"><div class="t"></div><div class="c">
+              <div class="blk" style="height:40px"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 24px;gap:6px"><div class="blk" style="height:12px"></div><div class="blk" style="height:12px"></div><div class="blk p" style="height:12px"></div></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><div class="blk" style="height:52px"></div><div class="blk" style="height:52px"></div></div>
+            </div></div>
+            <p class="dev-cap"><b>Tabletă, 768 px</b><br>formularele pe rânduri, grile de 2 coloane</p>
+          </div>
+          <div>
+            <div class="dev desk" style="grid-template-columns:52px 1fr"><div style="background:var(--side)"></div><div class="c">
+              <div class="blk" style="height:44px"></div>
+              <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px"><div class="blk" style="height:70px"></div><div class="blk" style="height:70px"></div></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"><div class="blk" style="height:24px"></div><div class="blk" style="height:24px"></div><div class="blk" style="height:24px"></div><div class="blk" style="height:24px"></div></div>
+            </div></div>
+            <p class="dev-cap"><b>Laptop, 1366 px</b><br>meniul lateral fix, coloană laterală, grile de 3 și 4</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rules" style="margin-top:16px">
+      <div class="rule">
+        <h3>Punctele de rupere</h3>
+        <div style="overflow-x:auto"><table class="num">
+          <thead><tr><th class="lbl">Nume</th><th class="lbl">De la</th><th class="lbl">Ce se schimbă</th></tr></thead>
+          <tbody>
+            <tr><td>telefon</td><td>360</td><td>o coloană, 44 px, card cu 16 px</td></tr>
+            <tr><td><code>sm</code></td><td>640</td><td>40 px, card cu 24 px</td></tr>
+            <tr><td><code>md</code></td><td>768</td><td>formulare pe rânduri, 2 coloane</td></tr>
+            <tr><td><code>lg</code></td><td>1024</td><td>meniul lateral, 3 și 4 coloane</td></tr>
+            <tr><td><code>xl</code></td><td>1280</td><td>coloana laterală lângă conținut</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="rule">
+        <h3>Textul lung nu împinge pagina</h3>
+        <div class="pair">
+          <div><span class="verdict yes">✓ Corect</span><div class="stage ok" style="max-width:220px"><div class="card sm"><b>Feed</b><div class="sub">https://www.shopexpert.com/ro/openapi.yaml?key=…</div></div></div><span class="why">Adresele lungi se taie sau se rup.</span></div>
+          <div><span class="verdict no">✕ Greșit</span><div class="stage bad" style="max-width:220px;overflow:hidden"><div class="card sm" style="width:max-content"><b>Feed</b><div style="font-size:12px;color:var(--text-muted)">https://www.shopexpert.com/ro/openapi.yaml?key=…</div></div></div><span class="why">Cardul iese din ecran și pagina derulează lateral.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12. VERIFICARE -->
+  <section class="sec" id="verificare">
+    <div class="sec-h"><span class="n">12</span><h2>Lista de verificare</h2><p>Înainte de orice ecran nou sau schimbat. Bifele rămân doar în browserul tău.</p></div>
+    <div class="rule"><div class="checklist">
+      <label><input type="checkbox" id="c1">Folosește doar componentele comune și culorile din tokenuri</label>
+      <label><input type="checkbox" id="c2">Un singur buton verde pe card; celelalte au varianta funcției lor</label>
+      <label><input type="checkbox" id="c3">Câmpurile dintr-un rând încep la aceeași linie; butonul e la nivelul lor</label>
+      <label><input type="checkbox" id="c4">Spațiile sunt din scară: 24 între carduri, 24 în card, 16 între câmpuri</label>
+      <label><input type="checkbox" id="c5">Chenarele și colțurile sunt cele din secțiunea 5</label>
+      <label><input type="checkbox" id="c6">Merge la 360, 768 și 1366 px, fără scroll lateral</label>
+      <label><input type="checkbox" id="c7">Merge în modul luminos și în cel întunecat</label>
+      <label><input type="checkbox" id="c8">Răspunsul principal se vede sus; fiecare problemă are acțiune</label>
+      <label><input type="checkbox" id="c9">Are stare goală, de încărcare și de eroare</label>
+      <label><input type="checkbox" id="c10">Contrast bun, focus vizibil, zone de atingere de 44 px pe telefon</label>
+      <label><input type="checkbox" id="c11">Diacritice corecte, cifre cu format local și aliniate</label>
+    </div></div>
+  </section>
+
+  <p class="foot">Sursa regulilor: <code>docs/DESIGN.md</code>. Tokenurile: <code>src/app/globals.css</code>. Componentele: <code>src/components/ui.tsx</code>.</p>
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btns = document.querySelectorAll('.theme button');
+  function apply(t) {
+    if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme');
+    btns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.t === t)); });
+  }
+  btns.forEach(function (b) { b.addEventListener('click', function () { apply(b.dataset.t); }); });
+  var boxes = document.querySelectorAll('.checklist input');
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem('echo-check') || '{}'); } catch (e) {}
+  boxes.forEach(function (c) {
+    c.checked = !!saved[c.id];
+    c.addEventListener('change', function () {
+      saved[c.id] = c.checked;
+      try { localStorage.setItem('echo-check', JSON.stringify(saved)); } catch (e) {}
+    });
+  });
+})();
+</script>
