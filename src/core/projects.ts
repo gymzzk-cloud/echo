@@ -22,6 +22,11 @@ export async function syncCatalog(connectionId: string) {
   const [c] = await db.select().from(schema.connections).where(eq(schema.connections.id, connectionId));
   if (!c) return;
   const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, c.projectId));
+  // Sincronizări dublate la coadă: dacă tocmai am sincronizat (sub 10 minute), nu mai cerem nimic de la magazin.
+  if (c.lastSyncAt && Date.now() - c.lastSyncAt.getTime() < 10 * 60e3) {
+    if (c.status === "pending") await db.update(schema.connections).set({ status: c.lastError ? "error" : "ok" }).where(eq(schema.connections.id, c.id));
+    return c.productCount;
+  }
   try {
     const secret = c.secret ? decrypt(c.secret) : undefined;
     const now = new Date();

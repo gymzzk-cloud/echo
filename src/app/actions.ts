@@ -9,7 +9,7 @@ import { db, schema } from "@/db";
 import { createSession, destroySession, hashPassword, recordFailure, requireAuth, tooManyAttempts, verifyPassword } from "@/lib/auth";
 import { decrypt, parseStoreUrl } from "@/lib/util";
 import { verifyTotp } from "@/lib/totp";
-import { enqueue } from "@/core/jobs";
+import { enqueue, syncingConnections } from "@/core/jobs";
 import { connectStore, importFeedFile, runAuditRow } from "@/core/projects";
 import { claimStore, noteAuditRequest, recentAudit } from "@/core/stores";
 import { invalidateWorld } from "@/core/ai/engine";
@@ -221,7 +221,11 @@ export async function syncNow(form: FormData) {
   await ownProject(projectId);
   const id = String(form.get("connectionId"));
   const [c] = await db.select().from(schema.connections).where(and(eq(schema.connections.id, id), eq(schema.connections.projectId, projectId)));
-  if (c) await enqueue("sync", { connectionId: c.id });
+  // O singură sincronizare pe conexiune: dacă una e deja la coadă sau în lucru, nu mai adăugăm alta.
+  if (c && !(await syncingConnections([c.id])).has(c.id)) {
+    await db.update(schema.connections).set({ status: "pending" }).where(eq(schema.connections.id, c.id));
+    await enqueue("sync", { connectionId: c.id });
+  }
   revalidatePath("/panou/setari");
 }
 

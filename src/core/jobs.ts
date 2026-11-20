@@ -38,3 +38,15 @@ export async function pendingJobs(kinds: JobKind[], key: string, value: string) 
   const r = await db.execute(dsql`select count(*)::int as n from jobs where status in ('queued','running') and kind in ${kinds} and payload->>${key} = ${value}`);
   return (r[0] as unknown as { n: number }).n;
 }
+
+/**
+ * Conexiunile care au acum o sincronizare la coadă sau în lucru (pornită în ultimele 30 de minute).
+ * Un job mai vechi e considerat blocat (ex. worker repornit), ca să nu ascundă butonul la nesfârșit.
+ */
+export async function syncingConnections(connectionIds: string[]): Promise<Set<string>> {
+  if (!connectionIds.length) return new Set();
+  const r = await db.execute(dsql`select distinct payload->>'connectionId' as id from jobs
+    where kind = 'sync' and status in ('queued','running') and created_at > now() - interval '30 minutes'
+    and payload->>'connectionId' in ${connectionIds}`);
+  return new Set((r as unknown as { id: string }[]).map((x) => x.id));
+}

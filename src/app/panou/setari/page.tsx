@@ -8,6 +8,7 @@ import { ActionForm } from "@/components/forms";
 import { addCompetitor, addPrompt, connectFeed, removeCompetitor, removeConnection, syncNow, togglePrompt, uploadFeed } from "@/app/actions";
 import { FEED_HINTS } from "@/core/connectors/platforms";
 import { dateShort } from "@/lib/format";
+import { syncingConnections } from "@/core/jobs";
 
 const INTENT: Record<string, string> = { general: "Generală", brand: "Despre magazin", comparatie: "Comparație", cumparare: "Cumpărare" };
 
@@ -19,6 +20,7 @@ export default async function Settings() {
     db.select().from(schema.prompts).where(eq(schema.prompts.projectId, project.id)).orderBy(desc(schema.prompts.createdAt)),
     costThisMonth(),
   ]);
+  const syncing = await syncingConnections(conns.map((c) => c.id));
   const providers = activeProviders();
   const hidden = <input type="hidden" name="projectId" value={project.id} />;
   const active = prompts.filter((p) => p.active).length;
@@ -33,9 +35,9 @@ export default async function Settings() {
             {conns.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                 <span className="min-w-0 flex-1"><span className="font-medium capitalize">{c.kind}</span><span className="block truncate text-xs text-muted">{c.url}</span>{c.lastError && <span className="block text-xs text-bad">{c.lastError}</span>}</span>
-                <Badge tone={c.status === "ok" ? "good" : c.status === "error" ? "bad" : "warn"}>{c.status === "ok" ? `${c.productCount} produse` : c.status === "error" ? "Eroare" : "În lucru"}</Badge>
+                <Badge tone={syncing.has(c.id) ? "warn" : c.status === "ok" ? "good" : c.status === "error" ? "bad" : "warn"}>{syncing.has(c.id) ? "În lucru" : c.status === "ok" ? `${c.productCount} produse` : c.status === "error" ? "Eroare" : "În lucru"}</Badge>
                 <span className="text-xs text-muted">{c.lastSyncAt ? `sincronizat ${dateShort(c.lastSyncAt)}` : "nesincronizat"}</span>
-                <form action={syncNow}>{hidden}<input type="hidden" name="connectionId" value={c.id} /><Button variant="secondary" size="sm">Sincronizează</Button></form>
+                {!syncing.has(c.id) && <form action={syncNow}>{hidden}<input type="hidden" name="connectionId" value={c.id} /><Button variant="secondary" size="sm">Sincronizează</Button></form>}
                 <form action={removeConnection}>{hidden}<input type="hidden" name="connectionId" value={c.id} /><Button variant="secondary" size="sm">Șterge</Button></form>
               </li>
             ))}
