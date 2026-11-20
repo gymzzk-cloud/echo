@@ -11,6 +11,7 @@ import { costConfig, isRunDue } from "@/core/ai/budget";
 import { generateFeedFiles, projectsWithStaleFeeds } from "@/core/feed-files";
 import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
 import { projectsDueForPolicies, refreshPolicies } from "@/core/policies";
+import { pruneMcpCalls } from "@/core/mcp";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -81,6 +82,8 @@ async function schedule() {
   }
   // Alerte de preț și stoc pentru cumpărători: la fiecare programare (10 min), după sincronizările de catalog
   if (!(await pendingJobs(["watches"], "all", "1"))) await enqueue("watches", { all: "1" });
+  // Jurnalul apelurilor MCP: păstrat doar MCP_LOG_DAYS zile (promis în politica de confidențialitate).
+  await pruneMcpCalls().catch((e) => console.error("mcp prune", (e as Error).message));
   // Raport săptămânal: lunea, pentru proprietarii fiecărui magazin
   if (new Date().getDay() === 1) {
     const rows = await db.select({ p: schema.projects, email: schema.users.email }).from(schema.projects)
