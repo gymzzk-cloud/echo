@@ -34,10 +34,12 @@ export async function PublicFooter() {
     <footer className="mt-16 border-t border-border">
       <div className="mx-auto flex max-w-6xl flex-wrap justify-between gap-4 px-4 py-6 text-xs text-muted">
         <span>© {new Date().getFullYear()} {BRAND.name}. {t("footer.pay")}</span>
-        <nav className="flex gap-4">
+        <nav className="flex flex-wrap gap-x-4 gap-y-2">
           <Link prefetch={false} href="/cum-ordonam" className="hover:text-fg">{t("nav.ranking")}</Link>
           <Link prefetch={false} href="/index-ai" className="hover:text-fg">{t("nav.index")}</Link>
           <Link prefetch={false} href="/pentru-magazine" className="hover:text-fg">{t("nav.forStores")}</Link>
+          <Link prefetch={false} href="/conector" className="hover:text-fg">{t("nav.connector")}</Link>
+          <Link prefetch={false} href="/confidentialitate" className="hover:text-fg">{t("nav.privacy")}</Link>
         </nav>
       </div>
     </footer>

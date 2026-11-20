@@ -5,10 +5,11 @@ import { billingEnabled, PLANS } from "@/core/billing";
 import { SubmitButton } from "@/components/client";
 import { Badge, Card, Notice, Stat, cx } from "@/components/ui";
 import { StartShell, StepHeader } from "@/components/onboarding/shell";
+import { aiList } from "@/components/onboarding/ai-coverage";
+import { PLAN_PROVIDERS, TRIAL_PROVIDERS } from "@/core/onboarding/types";
 
 export const metadata = { title: "Rezultat" };
 
-const AI: Record<string, string> = { chatgpt: "ChatGPT", gemini: "Gemini" };
 
 /** Pasul 8: o gustare din rezultat. Cifrele mari sunt reale; detaliile se deschid doar cu un plan (nu pleacă spre pagină). */
 export default async function Result({ searchParams }: { searchParams: Promise<{ eroare?: string }> }) {
@@ -19,7 +20,7 @@ export default async function Result({ searchParams }: { searchParams: Promise<{
   return (
     <StartShell current="result" reached={p.onboarding.step}>
       <StepHeader n={8} title={t.visibility ? `AI-urile te recomandă în ${t.visibility}% din răspunsuri` : "AI-urile nu te recomandă încă"}>
-        Am pus {t.prompts} întrebări pe {t.providers.map((x) => AI[x] ?? x).join(" și ") || "ChatGPT și Gemini"} și am primit {t.answers} răspunsuri. Iată unde ești față de magazinele recomandate.
+        Am pus {t.prompts} întrebări pe {aiList(t.providers.length ? t.providers : TRIAL_PROVIDERS)} și am primit {t.answers} răspunsuri. Iată unde ești față de magazinele recomandate.
       </StepHeader>
       {eroare && <Notice tone="bad">{eroare}</Notice>}
 
@@ -68,7 +69,7 @@ export default async function Result({ searchParams }: { searchParams: Promise<{
       <section className="space-y-4">
         <div className="label">Se deschid cu un plan</div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Locked title="Ce răspunde fiecare AI" text={`Răspunsul complet la toate cele ${t.prompts} întrebări, cu locul tău în fiecare.`} />
+          <Locked title="Ce răspunde fiecare AI" text={`Răspunsul complet la toate cele ${t.prompts} întrebări, plus ${aiList(PLAN_PROVIDERS)}.`} />
           <Locked title={t.problems ? `${t.problems} lucruri de reparat pe site` : "Ce să repari pe site"} text="De ce nu te recomandă și pașii exacți, în ordinea efectului." />
           <Locked title="Sursele citate de AI" text="Site-urile și paginile pe care se bazează răspunsurile." />
         </div>
@@ -77,7 +78,7 @@ export default async function Result({ searchParams }: { searchParams: Promise<{
       <section className="space-y-4">
         <div className="space-y-1">
           <h2 className="text-xl font-semibold">Alege un plan și vezi tot</h2>
-          <p className="text-sm text-muted">Urmărim tot catalogul, toate AI-urile, în fiecare săptămână. Anulezi oricând.</p>
+          <p className="text-sm text-muted">Imediat după plată facem analiza din nou pe toate AI-urile: {aiList([...TRIAL_PROVIDERS, ...PLAN_PROVIDERS])}. Apoi urmărim tot catalogul, în fiecare săptămână. Anulezi oricând.</p>
         </div>
         {!pay && <Notice tone="warn">Plata online se activează în curând. Până atunci, scrie-ne și îți deschidem contul.</Notice>}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

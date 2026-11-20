@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { afterPlanChosen } from "./onboarding";
 
 /**
  * Abonamente prin Stripe (Checkout + Portalul clientului + webhook).
@@ -71,6 +72,8 @@ export async function handleStripeEvent(ev: StripeEvent) {
       stripeCustomerId: o.customer as string, stripeSubscriptionId: o.subscription as string,
       plan: o.metadata?.plan ?? "start", billingStatus: "active",
     }).where(eq(schema.orgs.id, orgId));
+    // Testul gratuit a întrebat doar AI-urile ieftine; acum facem analiza completă, cu toate.
+    await afterPlanChosen(orgId);
   } else if (ev.type === "customer.subscription.updated" || ev.type === "customer.subscription.deleted") {
     const status = ev.type.endsWith("deleted") ? "canceled" : String(o.status);
     await db.update(schema.orgs).set({

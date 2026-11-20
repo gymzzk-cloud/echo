@@ -61,8 +61,20 @@ export function cleanList(raw: string | string[] | null | undefined, max = 12, m
   return items.filter((x) => { const k = x.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, max);
 }
 
+/**
+ * Concurent scris doar cu numele: „Dedeman” → dedeman.ro, „Atelierul Tău” → atelierultau.ro.
+ * Majoritatea magazinelor din RO/HU au domeniul numelui lor; clientul vede adresa și o poate corecta.
+ */
+export function domainFromName(raw: string, tld: "ro" | "hu" = "ro") {
+  const slug = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, "si").replace(/[^a-z0-9-]+/g, "");
+  return slug.length >= 3 && slug.length <= 40 ? `${slug}.${tld}` : null;
+}
+
 /** Domeniu curat dintr-o adresă scrisă de om: „https://www.Shop-Expert.ro/” → „shop-expert.ro”. */
 export function cleanDomain(raw: string) {
   const d = raw.trim().toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/^www\./, "").split(/[/?#\s]/)[0];
   return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d) ? d : null;
 }
+
+/** AI-urile adăugate după alegerea unui plan (analiza completă rulează din nou, cu toate). Ordinea din pagini. */
+export const PLAN_PROVIDERS = ["claude", "perplexity", "aioverview"] as const;

@@ -12,7 +12,7 @@ type Run = {
 const AI: Record<string, string> = { chatgpt: "ChatGPT", gemini: "Gemini", claude: "Claude", perplexity: "Perplexity" };
 
 /** Prima rulare, live: întreabă serverul la 2 secunde; clasamentul și răspunsurile apar pe măsură ce vin. */
-export function RunLive({ action, store }: { action: () => Promise<void>; store: string }) {
+export function RunLive({ action, store, trialAi, planAi }: { action: () => Promise<void>; store: string; trialAi: string; planAi: string }) {
   const [s, setS] = useState<Run | null>(null);
   const [late, setLate] = useState(false);
   const started = useRef(Date.now());
@@ -40,7 +40,7 @@ export function RunLive({ action, store }: { action: () => Promise<void>; store:
           <div className="label">Pasul 7 din 8</div>
           <h1 className="text-2xl font-semibold sm:text-3xl">{s?.done ? "Gata. Avem primele răspunsuri." : "Întrebăm AI-urile"}</h1>
           <p className="text-base text-muted" aria-live="polite">
-            {s ? `${s.received} din ${s.expected} răspunsuri de la ChatGPT și Gemini${s.failed ? ` · ${s.failed} nu au răspuns` : ""}` : "Pornim…"}
+            {s ? `${s.received} din ${s.expected} răspunsuri de la ${trialAi}${s.failed ? ` · ${s.failed} nu au răspuns` : ""}` : "Pornim…"}
           </p>
         </div>
       </div>
@@ -91,7 +91,7 @@ export function RunLive({ action, store }: { action: () => Promise<void>; store:
 
       {(s?.done || late) && (
         <form action={action} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-bg p-4 sm:p-6">
-          <p className="text-sm text-muted">{s?.done ? "Am pregătit rezultatul: locul tău, cine te întrece și ce mărci apar." : "Durează mai mult decât de obicei. Poți vedea ce a venit până acum."}</p>
+          <p className="text-sm text-muted">{s?.done ? `Am pregătit rezultatul: locul tău, cine te întrece și ce mărci apar. Cu un plan întrebăm și ${planAi}.` : "Durează mai mult decât de obicei. Poți vedea ce a venit până acum."}</p>
           <SubmitButton pendingText="Pregătim…">Vezi rezultatul</SubmitButton>
         </form>
       )}

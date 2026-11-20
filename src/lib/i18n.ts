@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 export type Lang = "ro" | "hu";
 
 const RO = {
-  "nav.search": "Caută", "nav.forStores": "Pentru magazine", "nav.login": "Intră în cont", "nav.account": "Contul meu", "nav.index": "Indexul AI", "nav.ranking": "Cum ordonăm rezultatele",
+  "nav.search": "Caută", "nav.forStores": "Pentru magazine", "nav.login": "Intră în cont", "nav.account": "Contul meu", "nav.index": "Indexul AI", "nav.ranking": "Cum ordonăm rezultatele", "nav.connector": "Conector AI", "nav.privacy": "Confidențialitate",
   "footer.pay": "Plata se face întotdeauna pe site-ul magazinului.",
   "home.h1a": "Întrebi o dată.", "home.h1b": "Îți răspund toate AI-urile.",
   "home.sub": "întreabă ChatGPT, Gemini, Perplexity, Claude, Google AI Mode și Copilot în același timp, combină răspunsurile și verifică prețul și stocul direct în magazin.",
@@ -23,7 +23,7 @@ const RO = {
 };
 type Key = keyof typeof RO;
 const HU: Record<Key, string> = {
-  "nav.search": "Keresés", "nav.forStores": "Webshopoknak", "nav.login": "Belépés", "nav.account": "Fiókom", "nav.index": "AI-index", "nav.ranking": "Hogyan rangsorolunk",
+  "nav.search": "Keresés", "nav.forStores": "Webshopoknak", "nav.login": "Belépés", "nav.account": "Fiókom", "nav.index": "AI-index", "nav.ranking": "Hogyan rangsorolunk", "nav.connector": "AI-csatlakozó", "nav.privacy": "Adatvédelem",
   "footer.pay": "A fizetés mindig a webshop oldalán történik.",
   "home.h1a": "Egyszer kérdezel.", "home.h1b": "Minden AI válaszol.",
   "home.sub": "egyszerre kérdezi meg a ChatGPT-t, a Geminit, a Perplexityt, a Claude-ot, a Google AI Mode-ot és a Copilotot, összesíti a válaszokat, és közvetlenül a webshopban ellenőrzi az árat és a készletet.",

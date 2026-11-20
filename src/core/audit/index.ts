@@ -269,6 +269,8 @@ export async function runAudit(inputUrl: string): Promise<AuditResult> {
   result.platform = detectPlatform(page.body, page.headers);
   result.facts = extractFacts($, page.body, nodes);
   result.home = extractHomeCatalog($, nodes, home);
+  // Un rând scurt pentru diagnoză (doar numărători, fără conținut de pe site).
+  console.log(`Scanare ${domain}: ${result.home.categories.length} categorii, ${result.home.brands.length} mărci, ${result.home.products.length} produse, ${result.home.logos?.length ?? 0} sigle, nume ${result.home.siteName ? "declarat" : "din titlu/adresă"}`);
 
   // 3. Date: Organization / WebSite
   const hasOrg = nodes.some((n) => hasType(n, "Organization") || hasType(n, "OnlineStore") || hasType(n, "Store") || hasType(n, "LocalBusiness"));
