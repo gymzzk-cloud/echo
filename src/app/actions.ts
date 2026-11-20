@@ -162,8 +162,8 @@ export async function connectFeed(_: FormState, form: FormData): Promise<FormSta
   const projectId = String(form.get("projectId"));
   const { org, user } = await ownProject(projectId);
   const kind = String(form.get("kind")) as ConnectorKind | "auto";
-  const url = String(form.get("url") ?? "").trim();
-  const secret = String(form.get("secret") ?? "").trim();
+  const url = String(form.get("feed_url") ?? "").trim();
+  const secret = String(form.get("api_key") ?? "").trim();
   if (!["auto", "shopify", "woocommerce", "feed", "gomag", "merchantpro", "prestashop"].includes(kind)) return { error: "Tip de conexiune necunoscut." };
   if (kind === "feed" && !/^https?:\/\//.test(url)) return { error: "Adaugă adresa completă a feed-ului (https://…)." };
   if (["gomag", "merchantpro", "prestashop"].includes(kind) && !secret) return { error: "Pentru această platformă e nevoie de cheia API." };

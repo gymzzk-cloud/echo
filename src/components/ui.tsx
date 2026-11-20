@@ -47,7 +47,7 @@ export function Stat({ label, value, delta, hint }: { label: string; value: Reac
 type BtnProps = { children: ReactNode; variant?: "primary" | "secondary" | "ghost"; className?: string; size?: "sm" | "md" };
 const btn = (variant: BtnProps["variant"] = "primary", size: BtnProps["size"] = "md") =>
   cx("inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50",
-    size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2.5 text-sm",
+    size === "sm" ? "px-3 py-1.5 text-xs" : "h-11 px-4 text-sm sm:h-10",
     variant === "primary" && "bg-primary text-primary-fg hover:opacity-90",
     variant === "secondary" && "border border-border bg-bg hover:bg-surface",
     variant === "ghost" && "text-muted hover:bg-surface hover:text-fg");
@@ -95,18 +95,28 @@ export function Table({ head, children, className }: { head: ReactNode[]; childr
 export const Td = ({ children, className }: { children: ReactNode; className?: string }) => <td className={cx("border-b border-border px-3 py-2.5 align-top", className)}>{children}</td>;
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={cx("w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm placeholder:text-muted focus:border-primary focus:outline-none", props.className)} />;
+  return <input {...props} className={cx("h-11 w-full rounded-lg border border-border bg-bg px-3 text-sm placeholder:text-muted sm:h-10 focus:border-primary focus:outline-none", props.className)} />;
 }
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={cx("rounded-lg border border-border bg-bg px-3 py-2.5 text-sm", props.className)} />;
+  return <select {...props} className={cx("h-11 rounded-lg border border-border bg-bg px-3 text-sm focus:border-primary focus:outline-none sm:h-10", props.className)} />;
 }
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium">{label}</span>
+      <span className="mb-1.5 block h-5 truncate text-xs font-medium leading-5">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
     </label>
+  );
+}
+
+/** Butonul dintr-un rând cu câmpuri: rezervă locul etichetei, ca să stea la nivelul câmpurilor (DESIGN 6.2.4). Pe telefon ocupă toată lățimea. */
+export function FormActions({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-col [&>*]:w-full md:[&>*]:w-auto">
+      <span aria-hidden className="mb-1.5 hidden h-5 md:block" />
+      {children}
+    </div>
   );
 }
 
