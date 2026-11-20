@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { endpointFromOpenApi, mapRecord, type CatalogItem } from "../src/core/connectors";
 import { differentOrder, rankFromItems } from "../src/core/connectors/popularity";
-import { humanName, suggestPrompts, type CatalogProduct } from "../src/core/prompts";
+import { humanName, modelLike, suggestPrompts, type CatalogProduct } from "../src/core/prompts";
 
 const item = (id: string, extra: Partial<CatalogItem> = {}): CatalogItem => ({ externalId: id, title: `P ${id}`, url: `https://x/${id}`, price: 10, currency: "RON", inStock: true, ...extra });
 
@@ -47,7 +47,7 @@ describe("întrebările urmărite cu top de vânzări", () => {
     ]);
     expect(ps.slice(0, 10).every((p) => Number(p.productId) >= 490)).toBe(true); // ~80% din produse vin din top
     // tipul celui mai vândut produs (499 % 15 = 4) are prima întrebare de cumpărător
-    expect(ps.find((p) => p.intent === "informativ" || p.intent === "comercial")!.text).toBe("care sunt cele mai bune tip 4");
+    expect(ps.find((p) => p.intent === "cumparare")!.text).toBe("tip 4 cel mai bun preț");
     expect(ps).toHaveLength(30);
   });
   it("amestec: 16 întrebări de cumpărător, 12 produse populare, 2 despre magazin", () => {
@@ -64,5 +64,20 @@ describe("numele produsului cum îl scrie un om", () => {
     expect(humanName({ title: "BOSCH GBH 18V-22", brand: "BOSCH" })).toBe("Bosch GBH 18V-22");
     expect(humanName({ title: "AEG BS18", brand: "AEG" })).toBe("AEG BS18");
     expect(humanName({ title: "DeWALT DCD796", brand: "DeWALT" })).toBe("DeWALT DCD796");
+  });
+});
+
+describe("fără top de vânzări: aparate cu model, nu accesorii", () => {
+  it("recunoaște un model", () => {
+    expect(modelLike({ title: "BOSCH GBH 18V-22", brand: "BOSCH" })).toBe(true);
+    expect(modelLike({ title: "MAKITA JR3070CT", brand: "MAKITA" })).toBe(true);
+    expect(modelLike({ title: "BOSCH Burghiu HSS spiralat", brand: "BOSCH" })).toBe(false);
+  });
+  it("produsele urmărite sunt aparate când sunt destule", () => {
+    const cat: CatalogProduct[] = [];
+    for (let i = 0; i < 100; i++) cat.push({ id: `m${i}`, title: `BOSCH GBH ${i}V-22`, brand: "BOSCH", category: `Scule > Tip ${i % 5}`, price: "500" });
+    for (let i = 0; i < 100; i++) cat.push({ id: `a${i}`, title: `BOSCH Burghiu lemn ${String.fromCharCode(97 + (i % 26))}`, brand: "BOSCH", category: `Accesorii > Acc ${i % 5}`, price: "20" });
+    expect(suggestPrompts(cat, "M", "ro", 30).filter((p) => p.productId).every((p) => p.productId!.startsWith("m"))).toBe(true);
+    expect(humanName({ title: "BOSCH GST 185-LI (SOLO)", brand: "BOSCH" })).toBe("Bosch GST 185-LI");
   });
 });
