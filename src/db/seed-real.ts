@@ -1,5 +1,5 @@
 /**
- * Profil REAL, fără date inventate: un cont cu ShopExpert RO și HU conectate la API-ul lor de produse.
+ * Profil REAL, fără date inventate: un cont cu ShopExpert RO (și HU, cu REAL_STORES=RO,HU) conectate la API-ul lor de produse.
  * Nu creează istoric, vânzări, recenzii sau răspunsuri AI simulate. Catalogul vine din sincronizare (worker),
  * iar întrebările se generează din catalogul real după prima sincronizare.
  *
@@ -16,10 +16,13 @@ const EMAIL = process.env.OWNER_EMAIL || "demo@echo.local";
 const PASSWORD = process.env.OWNER_PASSWORD || "echo-demo-2026";
 const KEY = process.env.SHOPEXPERT_API_KEY;
 
-const STORES = [
+// Pas cu pas: întâi doar RO. HU se adaugă din panou (Magazin nou) când trecem la el.
+const ALL = [
   { name: "ShopExpert RO", url: "shopexpert.com/ro", country: "RO" as const, feed: "https://www.shopexpert.com/ro/openapi.yaml" },
   { name: "ShopExpert HU", url: "shopexpert.com/hu", country: "HU" as const, feed: "https://www.shopexpert.com/hu/openapi.yaml" },
 ];
+const wanted = (process.env.REAL_STORES || "RO").split(",").map((x) => x.trim().toUpperCase());
+const STORES = ALL.filter((s) => wanted.includes(s.country));
 
 async function main() {
   if (!KEY) console.warn("Lipsește SHOPEXPERT_API_KEY: conectez feed-urile fără cheie (sincronizarea va da eroare până pui cheia din Setări).");
