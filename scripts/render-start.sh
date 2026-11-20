@@ -3,7 +3,10 @@
 # 1) aplică migrările, 2) creează contul demo doar dacă baza e goală,
 # 3) pornește workerul în fundal, 4) pornește Next.js pe portul dat de Render.
 set -u
-npx tsx scripts/reset-db.ts || exit 1
+# Golirea bazei doar când e cerută explicit: nu mai pornim un proces în plus la fiecare trezire.
+if [ "${RESET_DB:-}" = "sterge-tot" ]; then
+  npx tsx scripts/reset-db.ts || exit 1
+fi
 npx tsx src/db/migrate.ts || exit 1
 npx tsx src/db/needs-seed.ts
 if [ $? -eq 10 ]; then
@@ -16,6 +19,7 @@ if [ $? -eq 10 ]; then
   fi
 fi
 if [ "${RUN_WORKER:-1}" = "1" ]; then
-  npx tsx --conditions=react-server src/worker/index.ts &
+  # Workerul pornește după 30 s, ca la trezire procesorul (0,1 pe planul gratuit) să servească întâi paginile.
+  (sleep "${WORKER_START_DELAY:-30}"; exec npx tsx --conditions=react-server src/worker/index.ts) &
 fi
 exec npx next start -p "${PORT:-10000}"

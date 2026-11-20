@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql as dsql } from "drizzle-orm";
+import { and, desc, eq, gte, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { FeedAction, FeedCondition } from "@/db/schema";
 import { daysAgo, normalizeText } from "@/lib/util";
@@ -37,25 +37,27 @@ export async function autoLabels(projectId: string, domain: string, products: (t
   const runs = await projectRuns(projectId, daysAgo(30));
   const mentioned = new Set<string>();
   for (const { run: r } of runs) for (const m of r.mentions as { domain: string; productTitle?: string }[]) if (m.domain === domain && m.productTitle) mentioned.add(normalizeText(m.productTitle));
-  // 2. Clicuri din căutarea Echo (popularitate)
-  const ids = products.map((p) => p.id);
-  const clicks = ids.length ? await db.select({ productId: schema.clicks.productId, n: dsql<number>`count(*)::int` }).from(schema.clicks)
-    .where(and(inArray(schema.clicks.productId, ids), gte(schema.clicks.createdAt, new Date(Date.now() - 30 * 864e5)))).groupBy(schema.clicks.productId) : [];
+  // 2. Clicuri din căutarea Echo (popularitate). Filtrăm după magazin, nu după o listă de mii de id-uri.
+  const clicks = products.length ? await db.select({ productId: schema.clicks.productId, n: dsql<number>`count(*)::int` }).from(schema.clicks)
+    .where(and(eq(schema.clicks.projectId, projectId), gte(schema.clicks.createdAt, new Date(Date.now() - 30 * 864e5)))).groupBy(schema.clicks.productId) : [];
   const clickN = new Map(clicks.map((c) => [c.productId!, c.n]));
-  // 3. Competitivitatea prețului: același GTIN în celelalte magazine conectate
-  const gtins = products.map((p) => p.gtin).filter((g): g is string => !!g);
-  const others = gtins.length ? await db.select({ gtin: schema.products.gtin, price: schema.products.price }).from(schema.products)
-    .where(and(inArray(schema.products.gtin, gtins), dsql`${schema.products.projectId} <> ${projectId}`)) : [];
+  // 3. Competitivitatea prețului: cel mai mic preț pentru același GTIN în celelalte magazine conectate, calculat în baza de date.
+  const others = products.some((p) => p.gtin) ? await db.select({ gtin: schema.products.gtin, min: dsql<string>`min(${schema.products.price})` }).from(schema.products)
+    .where(and(dsql`${schema.products.projectId} <> ${projectId}`, dsql`${schema.products.price} is not null`,
+      dsql`${schema.products.gtin} in (select ${schema.products.gtin} from ${schema.products} where ${schema.products.projectId} = ${projectId} and ${schema.products.gtin} is not null)`))
+    .groupBy(schema.products.gtin) : [];
+  const minOther = new Map(others.map((o) => [o.gtin!, parseFloat(o.min)]));
   for (const p of products) {
     const l = labels.get(p.id)!;
-    if (mentioned.has(normalizeText(p.title))) l.push("recomandat_ai");
+    const isMentioned = mentioned.size > 0 && mentioned.has(normalizeText(p.title));
+    if (isMentioned) l.push("recomandat_ai");
     const n = clickN.get(p.id) ?? 0;
     if (n >= 5) l.push("popular");
-    else if (n === 0 && !mentioned.has(normalizeText(p.title))) l.push("zombie");
+    else if (n === 0 && !isMentioned) l.push("zombie");
     l.push(p.inStock ? "in_stoc" : "fara_stoc");
     const price = p.price ? parseFloat(p.price) : null;
-    const comp = others.filter((o) => o.gtin === p.gtin && o.price).map((o) => parseFloat(o.price!));
-    if (price && comp.length) l.push(price <= Math.min(...comp) ? "pret_cel_mai_bun" : price > Math.min(...comp) * 1.1 ? "pret_peste_piata" : "pret_in_piata");
+    const best = p.gtin ? minOther.get(p.gtin) : undefined;
+    if (price && best !== undefined && !Number.isNaN(best)) l.push(price <= best ? "pret_cel_mai_bun" : price > best * 1.1 ? "pret_peste_piata" : "pret_in_piata");
     if (!p.gtin || !p.imageUrl || !p.brand) l.push("date_lipsa");
   }
   return labels;
@@ -123,6 +125,8 @@ export async function buildFeed(projectId: string, channel: string) {
     .where(and(eq(schema.products.projectId, projectId), eq(schema.productEdits.status, "aprobat"))).orderBy(desc(schema.productEdits.createdAt));
   const rules = await db.select().from(schema.feedRules).where(eq(schema.feedRules.projectId, projectId)).orderBy(schema.feedRules.priority);
   const labels = await autoLabels(projectId, project.domain, products);
+  const editsBy = new Map<string, typeof edits>();
+  for (const e of edits) editsBy.set(e.product_edits.productId, [...(editsBy.get(e.product_edits.productId) ?? []), e]);
   const out: FeedProduct[] = [];
   for (const p of products) {
     let fp: FeedProduct = {
@@ -130,11 +134,11 @@ export async function buildFeed(projectId: string, channel: string) {
       price: p.price ? parseFloat(p.price) : null, currency: p.currency, inStock: p.inStock, brand: p.brand, category: p.category, gtin: p.gtin,
       labels: labels.get(p.id) ?? [],
     };
-    for (const e of edits.filter((x) => x.product_edits.productId === p.id).reverse()) fp = { ...fp, [e.product_edits.field]: e.product_edits.value };
+    for (const e of [...(editsBy.get(p.id) ?? [])].reverse()) fp = { ...fp, [e.product_edits.field]: e.product_edits.value };
     const r = applyRules(fp, rules, channel);
     if (r) out.push(r);
   }
-  return { project, items: out };
+  return { project, items: out, labels, total: products.length };
 }
 
 const x = (s: string | null | undefined) => (s ?? "").replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]!));
