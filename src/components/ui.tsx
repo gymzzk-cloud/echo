@@ -56,7 +56,7 @@ export function Button({ children, variant, size, className, ...rest }: BtnProps
   return <button {...rest} className={cx(btn(variant, size), className)}>{children}</button>;
 }
 export function ButtonLink({ children, variant, size, className, href }: BtnProps & { href: string }) {
-  return <Link href={href} className={cx(btn(variant, size), className)}>{children}</Link>;
+  return <Link prefetch={false} href={href} className={cx(btn(variant, size), className)}>{children}</Link>;
 }
 
 export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {

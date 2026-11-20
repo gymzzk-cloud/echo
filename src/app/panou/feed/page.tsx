@@ -1,4 +1,5 @@
-import { and, desc, eq } from "drizzle-orm";
+import { Suspense } from "react";
+import { and, desc, eq, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { ActionForm } from "@/components/forms";
@@ -20,12 +21,8 @@ export default async function FeedPage() {
   const rules = await db.select().from(schema.feedRules).where(eq(schema.feedRules.projectId, project.id)).orderBy(schema.feedRules.priority);
   const edits = await db.select({ e: schema.productEdits, p: schema.products }).from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))
     .where(and(eq(schema.products.projectId, project.id))).orderBy(desc(schema.productEdits.createdAt)).limit(200);
-  // Un singur calcul pentru tot catalogul: etichetele și previzualizarea vin din același feed.
-  const feed = await buildFeed(project.id, "google");
-  const counts = new Map<string, number>();
-  for (const l of feed.labels.values()) for (const x of l) counts.set(x, (counts.get(x) ?? 0) + 1);
-  const preview = feed.items;
-  const total = feed.total;
+  // Doar numărul de produse aici; etichetele și previzualizarea (calcul pe tot catalogul) vin separat, în Suspense.
+  const [{ total }] = await db.select({ total: dsql<number>`count(*)::int` }).from(schema.products).where(eq(schema.products.projectId, project.id));
   const app = process.env.APP_URL ?? "http://localhost:3000";
   const proposed = edits.filter((x) => x.e.status === "propus");
   const pid = <input type="hidden" name="projectId" value={project.id} />;
@@ -35,10 +32,9 @@ export default async function FeedPage() {
       <PageHeader eyebrow="Reparații" title="Feed și canale" subtitle="Un singur catalog, optimizat automat pentru fiecare canal. Catalogul tău nu se modifică: regulile și titlurile aprobate se aplică doar în feed și se pot anula oricând." />
       {total === 0 ? <Empty title="Nu există încă produse">Conectează catalogul din Setări magazin.</Empty> : (
       <div className="space-y-6">
-        <Card title="Etichete automate">
-          <p className="mb-3 text-sm text-muted">Calculate din ce văd AI-urile, din clicuri și din prețurile altor magazine pentru același GTIN. Le primești în feed ca custom_label, pentru campanii separate.</p>
-          <div className="flex flex-wrap gap-2">{[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => <Badge key={k} tone={k === "recomandat_ai" || k === "pret_cel_mai_bun" ? "good" : k === "zombie" || k === "pret_peste_piata" || k === "date_lipsa" ? "warn" : "muted"}>{LABELS[k] ?? k}: {n}</Badge>)}</div>
-        </Card>
+        <Suspense fallback={<Card title="Etichete automate"><Loading /></Card>}>
+          <AutoLabels projectId={project.id} />
+        </Suspense>
 
         <Card title="Canale">
           <Table head={["Canal", "Format", "Adresa feed-ului", ""]}>
@@ -112,15 +108,38 @@ export default async function FeedPage() {
           </ActionForm>
         </Card>
 
-        <Card title={`Previzualizare feed Google (${preview.length} din ${total} produse)`}>
-          <Table head={["Produs", "Preț", "Etichete"]}>
-            {preview.slice(0, 15).map((p) => (
-              <tr key={p.id}><Td>{p.title}</Td><Td className="num whitespace-nowrap">{money(p.price, p.currency)}</Td><Td className="text-xs text-muted">{p.labels.map((l) => LABELS[l] ?? l).join(", ")}</Td></tr>
-            ))}
-          </Table>
-        </Card>
+        <Suspense fallback={<Card title="Previzualizare feed Google"><Loading /></Card>}>
+          <FeedPreview projectId={project.id} total={total} />
+        </Suspense>
       </div>
       )}
     </>
+  );
+}
+
+const Loading = () => <p className="animate-pulse text-sm text-muted">Calculăm pentru tot catalogul…</p>;
+
+async function AutoLabels({ projectId }: { projectId: string }) {
+  const feed = await buildFeed(projectId, "google");
+  const counts = new Map<string, number>();
+  for (const l of feed.labels.values()) for (const x of l) counts.set(x, (counts.get(x) ?? 0) + 1);
+  return (
+    <Card title="Etichete automate">
+      <p className="mb-3 text-sm text-muted">Calculate din ce văd AI-urile, din clicuri și din prețurile altor magazine pentru același GTIN. Le primești în feed ca custom_label, pentru campanii separate.</p>
+      <div className="flex flex-wrap gap-2">{[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => <Badge key={k} tone={k === "recomandat_ai" || k === "pret_cel_mai_bun" ? "good" : k === "zombie" || k === "pret_peste_piata" || k === "date_lipsa" ? "warn" : "muted"}>{LABELS[k] ?? k}: {n}</Badge>)}</div>
+    </Card>
+  );
+}
+
+async function FeedPreview({ projectId, total }: { projectId: string; total: number }) {
+  const preview = (await buildFeed(projectId, "google")).items;
+  return (
+    <Card title={`Previzualizare feed Google (${preview.length} din ${total} produse)`}>
+      <Table head={["Produs", "Preț", "Etichete"]}>
+        {preview.slice(0, 15).map((p) => (
+          <tr key={p.id}><Td>{p.title}</Td><Td className="num whitespace-nowrap">{money(p.price, p.currency)}</Td><Td className="text-xs text-muted">{p.labels.map((l) => LABELS[l] ?? l).join(", ")}</Td></tr>
+        ))}
+      </Table>
+    </Card>
   );
 }

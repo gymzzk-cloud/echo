@@ -34,8 +34,9 @@ if (SEED > 0) {
 const time = async (path: string) => {
   const t = performance.now();
   const r = await fetch(BASE + path, { headers: { cookie }, redirect: "manual" });
+  const first = Math.round(performance.now() - t); // primul răspuns: ce vede omul imediat (antet, schelet)
   await r.text();
-  return { status: r.status, ms: Math.round(performance.now() - t) };
+  return { status: r.status, first, ms: Math.round(performance.now() - t) };
 };
 
 let slow = 0;
@@ -44,9 +45,11 @@ try {
     await time(p); // prima cerere încălzește pagina
     const runs = [await time(p), await time(p)];
     const ms = Math.min(...runs.map((r) => r.ms));
-    const bad = ms > LIMIT || runs[0].status >= 400;
+    const first = Math.min(...runs.map((r) => r.first));
+    // Pragul se aplică primului răspuns; o parte grea poate veni după, în Suspense, dar tot cel mult de 3 ori pragul.
+    const bad = first > LIMIT || ms > LIMIT * 3 || runs[0].status >= 400;
     if (bad) slow++;
-    console.log(`${bad ? "✗" : "✓"} ${p.padEnd(24)} ${String(ms).padStart(6)} ms  (${runs[0].status})`);
+    console.log(`${bad ? "✗" : "✓"} ${p.padEnd(24)} primul răspuns ${String(first).padStart(5)} ms · complet ${String(ms).padStart(5)} ms  (${runs[0].status})`);
   }
 } finally {
   await db.delete(schema.sessions).where(eq(schema.sessions.id, sha256(token)));

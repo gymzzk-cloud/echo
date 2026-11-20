@@ -128,7 +128,19 @@ export function invalidateFeed() {
   feedCache.clear();
 }
 
-export async function buildFeed(projectId: string, channel: string) {
+const inflight = new Map<string, ReturnType<typeof cachedFeed>>();
+
+export function buildFeed(projectId: string, channel: string) {
+  // Cererile simultane pentru același feed (ex. două carduri din pagină) așteaptă același rezultat.
+  const key = `${projectId}|${channel}`;
+  const running = inflight.get(key);
+  if (running) return running;
+  const p = cachedFeed(projectId, channel).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
+async function cachedFeed(projectId: string, channel: string) {
   const [st] = await db.select({ n: dsql<number>`count(*)::int`, last: dsql<string>`coalesce(max(${schema.products.updatedAt})::text, '')` })
     .from(schema.products).where(eq(schema.products.projectId, projectId));
   const stamp = `${st.n}|${st.last}`;

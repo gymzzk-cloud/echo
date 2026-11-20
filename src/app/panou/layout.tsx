@@ -23,7 +23,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       {/* Meniul lateral închis la culoare, ca în ilustrații */}
       <aside className="bg-side text-side-fg lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <div className="flex items-center justify-between gap-3 px-5 py-5">
-          <Link href="/panou"><Logo name={org.brandName ?? BRAND.name} dark /></Link>
+          <Link prefetch={false} href="/panou"><Logo name={org.brandName ?? BRAND.name} dark /></Link>
         </div>
         <form action={selectProject} className="mx-4 mb-4 flex items-center gap-1">
           <label htmlFor="proj" className="sr-only">Magazin</label>
@@ -34,7 +34,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </form>
         <div className="px-3 pb-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"><PanelNav alerts={n} agency={org.kind === "agency"} client={role === "client"} lang={lang} /></div>
         <div className="hidden space-y-1 border-t border-side-active px-5 py-4 text-xs text-side-muted lg:block">
-          <Link href="/panou/magazin-nou" className="block hover:text-side-fg">+ Adaugă magazin</Link>
+          <Link prefetch={false} href="/panou/magazin-nou" className="block hover:text-side-fg">+ Adaugă magazin</Link>
           <div className="truncate">{user.email}</div>
           <form action={logout}><button className="hover:text-side-fg">Ieșire</button></form>
         </div>
