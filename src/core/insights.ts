@@ -144,7 +144,7 @@ export async function overview(project: Project) {
   return { rows, competitors, audit, latest, weekAgo, perProvider, sum, unchecked: [...unchecked.entries()].map(([provider, reason]) => ({ provider, reason })) };
 }
 
-const VENDOR: Record<string, string> = { chatgpt: "OpenAI", gemini: "Google", perplexity: "Perplexity", claude: "Anthropic", aimode: "Google", copilot: "Microsoft" };
+const VENDOR: Record<string, string> = { chatgpt: "OpenAI", gemini: "Google", perplexity: "Perplexity", claude: "Anthropic", aioverview: "Google", aimode: "Google", copilot: "Microsoft" };
 
 /** „Cine te recomandă și cine nu”: pe fiecare AI, câte întrebări, cine apare în locul tău și problema probabilă. */
 export function whoRecommends(rows: Rows, domain: string, audit: { result: unknown } | null, products: { title: string; price: string | null }[]) {

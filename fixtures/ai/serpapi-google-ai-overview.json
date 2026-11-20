@@ -1,0 +1,21 @@
+{
+  "search_metadata": { "status": "Success" },
+  "search_parameters": { "engine": "google", "q": "bormasina cu acumulator bosch", "google_domain": "google.ro", "gl": "ro", "hl": "ro" },
+  "ai_overview": {
+    "text_blocks": [
+      { "type": "paragraph", "snippet": "Pentru o bormașină cu acumulator Bosch, cele mai căutate modele sunt GSR 18V-55 și GSB 18V-50.", "reference_indexes": [0, 1] },
+      { "type": "heading", "snippet": "Unde le găsești" },
+      { "type": "list", "list": [
+        { "title": "Dedeman", "snippet": "are GSR 18V-55 la aproximativ 899 lei.", "reference_indexes": [0] },
+        { "title": "eMAG", "snippet": "oferă kituri cu două acumulatoare.", "reference_indexes": [1], "list": [ { "snippet": "livrare rapidă cu Genius" } ] }
+      ] },
+      { "type": "expandable", "title": "Sfaturi", "text_blocks": [ { "type": "paragraph", "snippet": "Verifică tensiunea și capacitatea acumulatorului." } ] }
+    ],
+    "references": [
+      { "title": "Bormasina Bosch GSR 18V-55", "link": "https://www.dedeman.ro/ro/bormasina-bosch-gsr-18v-55/p/123", "source": "Dedeman", "index": 0 },
+      { "title": "Bosch GSB 18V-50", "link": "https://www.emag.ro/bosch-gsb-18v-50/pd/ABC/", "source": "eMAG", "index": 1 },
+      { "title": "Duplicat", "link": "https://www.emag.ro/bosch-gsb-18v-50/pd/ABC/", "source": "eMAG", "index": 2 }
+    ]
+  },
+  "organic_results": [ { "position": 1, "title": "x", "link": "https://exemplu.ro" } ]
+}

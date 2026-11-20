@@ -71,8 +71,8 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
                   <span className="flex gap-1">
                     {PROVIDERS.map((x) => {
                       const b = p.byProvider[x.id];
-                      if (b?.failure) return <Badge key={x.id} tone="warn"><span title={`Nu am putut întreba: ${b.failure}`}>{x.label.slice(0, 3)} !</span></Badge>;
-                      return <Badge key={x.id} tone={!b ? "muted" : b.me ? "good" : "bad"}>{x.label.slice(0, 3)} {b?.me ? `#${b.me}` : "–"}</Badge>;
+                      if (b?.failure) return <Badge key={x.id} tone="warn"><span title={`Nu am putut întreba: ${b.failure}`}>{x.short} !</span></Badge>;
+                      return <Badge key={x.id} tone={!b ? "muted" : b.me ? "good" : "bad"}>{x.short} {b?.me ? `#${b.me}` : "–"}</Badge>;
                     })}
                   </span>
                   <span className="w-16 text-right text-xs text-muted">{asked ? `${hits}/${asked}` : "–"}</span>
