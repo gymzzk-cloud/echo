@@ -246,31 +246,62 @@ export function intentPrompts(products: CatalogProduct[], language: "ro" | "hu",
   return out;
 }
 
+/** Numele produsului cum îl tastează un om: „BOSCH GBH 18V-22” → „Bosch GBH 18V-22” (doar marca își schimbă forma). */
+export function humanName(p: Pick<CatalogProduct, "title" | "brand">) {
+  const q = productQuery(p);
+  const b = p.brand?.trim();
+  if (!b || b.length <= 3 || b !== b.toUpperCase()) return q;
+  return q.replace(new RegExp(`(^|\\s)${b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$)`), (m, sp: string) => sp + brandName(b));
+}
+
+/**
+ * Cum caută un om un produs anume, prin rotație ca lista să aibă de toate:
+ * „vreau să cumpăr X”, „X preț”, codul singur, „X cel mai ieftin”, numele simplu, „de unde cumpăr X”.
+ * Fără cod (EAN sau cod producător), locul codului îl ia „cel mai ieftin”.
+ */
+const PRODUCT_Q: Record<"ro" | "hu", ((n: string) => string)[]> = {
+  ro: [(n) => `vreau să cumpăr ${n}`, (n) => `${n} preț`, () => "", (n) => `${n} cel mai ieftin`, (n) => n, (n) => `de unde cumpăr ${n}`],
+  hu: [(n) => `${n} vásárlás`, (n) => `${n} ár`, () => "", (n) => `${n} legolcsóbb`, (n) => n, (n) => `hol vehetek ${n}`],
+};
+const CODE_SLOT = 2;
+
+export function productPrompts(picked: { product: CatalogProduct; category: string }[], language: "ro" | "hu"): SuggestedPrompt[] {
+  const tpls = PRODUCT_Q[language];
+  return picked.map(({ product: p, category }, i) => {
+    const name = humanName(p);
+    const slot = i % tpls.length;
+    if (slot === CODE_SLOT) {
+      const code = validCode(p.mpn, p.title) ? p.mpn!.trim() : validEan(p.gtin) ? p.gtin!.trim() : null;
+      if (code) return { text: code, category, intent: "cod" as const, productId: p.id };
+      return { text: tpls[3](name), category, intent: "produs" as const, productId: p.id };
+    }
+    return { text: tpls[slot](name), category, intent: "produs" as const, productId: p.id };
+  });
+}
+
 /**
  * Lista propusă, cel mult `max` căutări, ca un cumpărător real:
- * - ~80% fără numele magazinului: recomandări, „de unde cumpăr”, comparații și „cum aleg”, pe tipurile de produs
- *   importante (cele mai vândute întâi, toate domeniile magazinului). Aici AI-ul numește magazine și mărci.
- * - ~20% cu numele: 2 despre magazin (Reputație) și produsele cele mai vândute (nume sau cod).
+ * - ~40% produse anume, cele mai vândute întâi, scrise cum caută un om (vezi PRODUCT_Q);
+ * - ~55% fără numele magazinului sau al unui produs: recomandări, „de unde cumpăr”, comparații, „cum aleg”,
+ *   pe tipurile de produs importante. Aici AI-ul numește magazine și mărci;
+ * - 2 despre magazin (Reputație).
  */
 export function suggestPrompts(products: CatalogProduct[], storeName: string, language: "ro" | "hu" = "ro", max = 30): SuggestedPrompt[] {
   const store = STORE_Q[language].map((f) => ({ text: f(storeSearchName(storeName)), category: "magazin", intent: "brand" as const }));
   const room = Math.max(0, max - store.length);
   if (!room || !products.length) return store.slice(0, max);
-  const branded = Math.min(room, Math.max(1, Math.round(max * 0.2) - store.length));
-  const intent = intentPrompts(products, language, room - branded);
-  // Ce nu acoperă întrebările de cumpărător (catalog mic) trece la produse anume.
-  const nameCount = room - intent.length;
-  const { picked } = pickProducts(products, language, nameCount);
-
+  const { picked } = pickProducts(products, language, Math.min(room, Math.max(1, Math.round(max * 0.4))));
+  const named = productPrompts(picked, language);
+  const intent = intentPrompts(products, language, room - named.length);
   const out: SuggestedPrompt[] = [];
   const seen = new Set<string>();
   const push = (x: SuggestedPrompt) => { const k = x.text.toLowerCase(); if (!seen.has(k) && x.text.length >= 3 && out.length < room) { seen.add(k); out.push(x); } };
+  for (const x of named) push(x);
   for (const x of intent) push(x);
-  for (const { product: p, category } of picked) push({ text: productQuery(p), category, intent: "produs", productId: p.id });
-  // Codurile (EAN, cod producător) doar dacă mai e loc: un cod rar aduce numele altor magazine.
-  for (const { product: p, category } of picked) {
-    const code = validCode(p.mpn, p.title) ? p.mpn!.trim() : validEan(p.gtin) ? p.gtin!.trim() : null;
-    if (code) push({ text: code, category, intent: "cod", productId: p.id });
+  // Catalog mic (puține tipuri de produs): restul locurilor merg la alte produse.
+  if (out.length < room) {
+    const more = pickProducts(products, language, room).picked.filter((x) => !named.some((n) => n.productId && n.productId === x.product.id));
+    for (const x of more) push({ text: humanName(x.product), category: x.category, intent: "produs", productId: x.product.id });
   }
   return [...out, ...store];
 }

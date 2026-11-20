@@ -42,20 +42,22 @@ describe("căutări urmărite din catalog", () => {
     expect(texts).toContain("care sunt cele mai bune șurubelnițe cu impact");
     expect(texts).toContain("de unde pot cumpăra online aspiratoare verticale");
     expect(texts).toContain("șurubelnițe cu impact Bosch sau Makita, ce să aleg?");
-    expect(texts).toContain("BOSCH GDS 18V-320");
+    expect(texts.some((t) => t.includes("Bosch GDS 18V-320"))).toBe(true);
+    expect(texts.some((t) => t.includes("BOSCH"))).toBe(false);
     expect(texts).toContain("ShopExpert păreri clienți");
     // Fără numele magazinului în întrebările de cumpărător.
     expect(ps.filter((p) => ["comercial", "cumparare", "informativ"].includes(p.intent)).some((p) => /shopexpert/i.test(p.text))).toBe(false);
   });
-  it("respectă limita, ~80% fără marcă, acoperă mai multe domenii și nu se repetă", () => {
+  it("respectă limita, ~55% fără marcă, 12 produse, acoperă mai multe domenii și nu se repetă", () => {
     const big: CatalogProduct[] = [];
     for (let i = 0; i < 3000; i++) big.push(se(String(i), `BRAND${i % 7} Model ${i % 1500}`, `BRAND${i % 7}`, `Domeniu ${i % 4} > Tip ${i % 12}`, { gtin: String(5900000000000 + i) }));
     const ps = suggestPrompts(big, "Magazin", "ro", 30);
     expect(ps).toHaveLength(30);
     expect(new Set(ps.map((p) => p.text.toLowerCase())).size).toBe(30);
     const nonBranded = ps.filter((p) => ["comercial", "cumparare", "informativ"].includes(p.intent));
-    expect(nonBranded.length).toBe(24);
-    expect(new Set(nonBranded.map((p) => p.category)).size).toBeGreaterThanOrEqual(8);
+    expect(nonBranded.length).toBe(16);
+    expect(ps.filter((p) => p.productId).length).toBe(12);
+    expect(new Set(nonBranded.map((p) => p.category)).size).toBeGreaterThanOrEqual(6);
     // Determinist: aceeași listă la fiecare sincronizare, deci istoricul se păstrează.
     expect(suggestPrompts([...big].reverse(), "Magazin", "ro", 30).map((p) => p.text).sort()).toEqual(ps.map((p) => p.text).sort());
   });
