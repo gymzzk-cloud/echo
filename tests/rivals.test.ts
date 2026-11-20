@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isStoreLike, pickAutoRivals, rankRivals, type RivalRow } from "@/core/rivals";
-import { extractMentions, sourceLabel } from "@/core/ai/extract";
+import { extractMentions, runMentions, sourceLabel } from "@/core/ai/extract";
 
 const row = (promptId: string, provider: string, mentions: { domain: string; position: number; name?: string }[]): RivalRow =>
   ({ promptId, run: { provider, runDate: "2026-11-20", mentions } });
@@ -100,5 +100,13 @@ describe("extractMentions: magazine citate și numite în text", () => {
     expect(sourceLabel("leroy-merlin.ro")).toBe("leroy merlin");
     expect(sourceLabel("shop.ro")).toBeNull();
     expect(sourceLabel("abc.ro")).toBeNull();
+  });
+});
+
+describe("runMentions", () => {
+  it("o rulare cu eroare nu are mențiuni (linkul din eroare nu e magazin)", () => {
+    const answer = '(Eroare chatgpt: Error: HTTP 401: { "message": "Incorrect API key provided. You can find your API key at https://platform.openai.com/account/api-keys." })';
+    expect(runMentions({ answer, sources: [], model: "eroare" }, { stores: [], products: [] })).toEqual([]);
+    expect(extractMentions(answer, [], { stores: [], products: [] }).map((m) => m.domain)).toContain("platform.openai.com");
   });
 });

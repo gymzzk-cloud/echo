@@ -2,9 +2,9 @@ import { and, eq, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { normalizeText, sha256, today } from "@/lib/util";
 import { demoRun } from "./demo";
-import { extractMentions } from "./extract";
+import { runMentions } from "./extract";
 import { LIVE } from "./live";
-import { PROVIDERS, type KnownProduct, type KnownStore, type Provider, type RunInput } from "./types";
+import { ERROR_MODEL, PROVIDERS, type KnownProduct, type KnownStore, type Provider, type RunInput } from "./types";
 
 /**
  * Motorul comun pentru panou și căutare.
@@ -12,8 +12,7 @@ import { PROVIDERS, type KnownProduct, type KnownStore, type Provider, type RunI
  * între toți clienții și cumpărătorii. Asta ține costul mic.
  */
 
-/** Modelul trecut pe o rulare eșuată. */
-export const ERROR_MODEL = "eroare";
+export { ERROR_MODEL };
 
 export type World = { stores: KnownStore[]; products: KnownProduct[]; ownDomains: string[] };
 
@@ -77,7 +76,7 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
     console.error(`AI ${provider} eroare: ${msg}`);
     out = { answer: `(Eroare ${provider}: ${msg})`, sources: [], model: ERROR_MODEL, mode: "live" as const, costUsd: 0, latencyMs: 0 };
   }
-  const mentions = extractMentions(out.answer, out.sources, w, input.query);
+  const mentions = runMentions({ ...out, query: input.query }, w);
   const [row] = await db.insert(schema.runs).values({
     queryHash: qh, query: input.query, language: input.language, provider, model: out.model, mode: out.mode,
     answer: out.answer, sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs, runDate: day,

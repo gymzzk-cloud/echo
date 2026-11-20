@@ -2,7 +2,7 @@ import { and, eq, isNull, lt, or, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Mention } from "@/db/schema";
 import { daysAgo } from "@/lib/util";
-import { extractMentions } from "./ai/extract";
+import { runMentions } from "./ai/extract";
 import { invalidateWorld, loadWorld } from "./ai/engine";
 import { projectRuns } from "./project-runs";
 import { pickAutoRivals, rankRivals } from "./rivals";
@@ -25,7 +25,7 @@ export async function detectRivals(projectId: string) {
   const fresh = new Map<string, Mention[]>();
   for (const r of rows) {
     if (fresh.has(r.run.id)) continue;
-    const ms = extractMentions(r.run.answer, r.run.sources as { url: string; title?: string }[], world, r.run.query);
+    const ms = runMentions({ ...r.run, sources: r.run.sources as { url: string; title?: string }[] }, world);
     fresh.set(r.run.id, ms);
     if (JSON.stringify(ms) !== JSON.stringify(r.run.mentions)) await db.update(schema.runs).set({ mentions: ms }).where(eq(schema.runs.id, r.run.id));
   }
