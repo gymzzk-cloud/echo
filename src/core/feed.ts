@@ -118,7 +118,29 @@ export async function proposeTitleEdits(projectId: string) {
   return rows.length;
 }
 
+/**
+ * Feed-ul calculat se păstrează 10 minute în memorie (pagina Feed și descărcările canalelor îl refolosesc).
+ * Se recalculează când se schimbă catalogul (număr de produse / ultima actualizare) sau când se modifică regulile ori titlurile (invalidateFeed).
+ */
+const FEED_TTL_MS = 10 * 60_000;
+const feedCache = new Map<string, { at: number; stamp: string; value: Awaited<ReturnType<typeof computeFeed>> }>();
+export function invalidateFeed() {
+  feedCache.clear();
+}
+
 export async function buildFeed(projectId: string, channel: string) {
+  const [st] = await db.select({ n: dsql<number>`count(*)::int`, last: dsql<string>`coalesce(max(${schema.products.updatedAt})::text, '')` })
+    .from(schema.products).where(eq(schema.products.projectId, projectId));
+  const stamp = `${st.n}|${st.last}`;
+  const key = `${projectId}|${channel}`;
+  const hit = feedCache.get(key);
+  if (hit && hit.stamp === stamp && Date.now() - hit.at < FEED_TTL_MS) return hit.value;
+  const value = await computeFeed(projectId, channel);
+  feedCache.set(key, { at: Date.now(), stamp, value });
+  return value;
+}
+
+async function computeFeed(projectId: string, channel: string) {
   const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
   const products = await db.select().from(schema.products).where(eq(schema.products.projectId, projectId)).limit(20000);
   const edits = await db.select().from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))

@@ -65,6 +65,17 @@ O sarcină e gata doar când:
 - Nume clare în engleză pentru cod, iar textele pentru utilizator în română.
 - Fișiere mici: o componentă sau o funcție pe responsabilitate. Peste ~300 de rânduri, împărțim.
 
+## Viteză (regulă permanentă: panoul răspunde imediat)
+
+- **Ținta**: orice pagină a panoului răspunde în **sub 1 secundă** pe serverul de producție (azi Render gratuit: 0,1 procesor), iar clicul din meniu arată imediat că se încarcă (spinner și schelet `loading.tsx`).
+- **Nimic pe tot catalogul la deschiderea paginii.** Pagina citește doar ce afișează: coloanele de care are nevoie, cu `limit` și paginare (maxim 50–100 de rânduri pe ecran). Totalurile și numărătorile se fac în SQL (`count`, `group by`), nu în JavaScript pe mii de rânduri.
+- **Calculele grele se fac în worker și se salvează** (etichete, scoruri, agregate), iar pagina doar le citește. Dacă un calcul trebuie făcut la cerere, se păstrează în cache, cu invalidare la schimbare.
+- **Fără bucle pătratice**: nicio căutare `filter`/`find` într-o listă mare în interiorul altei bucle. Se folosesc `Map`/`Set`.
+- **Interogări cu index**: orice filtru nou pe o coloană folosită des primește index, prin migrare aditivă.
+- **Meniul nu preîncarcă toate paginile** (`prefetch={false}` pe linkurile din bara laterală).
+- **Se măsoară înainte de fiecare merge** care atinge o pagină sau o interogare: `pnpm perf` (vezi `scripts/perf-pages.ts`) pe o bază cu un catalog realist (15.000 de produse). O pagină peste prag nu intră în `main`.
+- Pornirea serverului rămâne scurtă: fără procese în plus la fiecare trezire, iar workerul pornește după serverul web.
+
 ## Lucrări în fundal: fără dubluri (regulă permanentă)
 
 - **Orice buton care pornește o lucrare** (analiză, audit, sincronizare, raport, rulare AI etc.) **dispare sau e înlocuit cu „… e în lucru”** cât timp acea lucrare e **la coadă sau în lucru**. „În așteptare” contează la fel ca „în lucru”.

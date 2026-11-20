@@ -6,10 +6,13 @@ import { db, schema } from "@/db";
 import type { FeedAction, FeedCondition } from "@/db/schema";
 import { audit, ownProject } from "@/lib/guard";
 import { randomToken } from "@/lib/util";
-import { CHANNELS, FIELDS, proposeTitleEdits } from "@/core/feed";
+import { CHANNELS, FIELDS, invalidateFeed, proposeTitleEdits } from "@/core/feed";
 import type { FormState } from "./actions";
 
-const done = () => revalidatePath("/panou/feed");
+const done = () => {
+  invalidateFeed();
+  revalidatePath("/panou/feed");
+};
 
 export async function toggleChannel(form: FormData) {
   const { project, org, user } = await ownProject(String(form.get("projectId")));

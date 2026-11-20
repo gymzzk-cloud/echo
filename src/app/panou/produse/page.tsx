@@ -17,9 +17,9 @@ export default async function Products({ searchParams }: { searchParams: Promise
   if (sp.f === "recomandate") list = list.filter((p) => p.mentions > 0);
   if (sp.f === "pret") list = list.filter((p) => p.wrongPrices.length);
   if (sp.f === "stoc") list = list.filter((p) => !p.inStock);
-  if (sp.f === "incomplete") list = list.filter((p) => !p.gtin || !p.brand || !p.description || !p.imageUrl);
+  if (sp.f === "incomplete") list = list.filter((p) => !p.gtin || !p.brand || !p.hasDescription || !p.hasImage);
   if (q) list = list.filter((p) => p.title.toLowerCase().includes(q));
-  const missing = (p: (typeof list)[number]) => [!p.gtin && "GTIN", !p.brand && "brand", !p.description && "descriere", !p.imageUrl && "imagine"].filter(Boolean) as string[];
+  const missing = (p: (typeof list)[number]) => [!p.gtin && "GTIN", !p.brand && "brand", !p.hasDescription && "descriere", !p.hasImage && "imagine"].filter(Boolean) as string[];
   const filters = [["", "Toate"], ["recomandate", "Recomandate de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
 
   return (
@@ -38,7 +38,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
           <input name="q" defaultValue={sp.q} placeholder="Caută produs…" className="ml-auto w-56 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm" />
         </form>
         <Table head={["Produs", "Preț", "Recomandat", "De cine", "Poziție", "Probleme"]}>
-          {list.slice(0, 200).map((p) => (
+          {list.slice(0, 100).map((p) => (
             <tr key={p.id}>
               <Td><a href={p.url} target="_blank" rel="noopener" className="font-medium hover:underline">{p.title}</a><span className="block text-xs text-muted">{[p.brand, p.category].filter(Boolean).join(" · ")}</span></Td>
               <Td className="num whitespace-nowrap">{money(p.price ? parseFloat(p.price) : null, p.currency)}</Td>
@@ -55,7 +55,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
             </tr>
           ))}
         </Table>
-        {list.length > 200 && <p className="mt-3 text-xs text-muted">Afișăm primele 200 din {list.length}. Folosește căutarea.</p>}
+        {list.length > 100 && <p className="mt-3 text-xs text-muted">Afișăm primele 100 din {list.length}. Folosește căutarea.</p>}
         {list.length === 0 && <p className="mt-3 text-sm text-muted">Niciun produs pentru acest filtru.</p>}
       </Card>
 
