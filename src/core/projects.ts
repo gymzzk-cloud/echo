@@ -10,7 +10,7 @@ import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogIt
 import { nextSyncAt } from "./connectors/polite";
 import { invalidateWorld, isDemo, loadWorld, runQuery } from "./ai/engine";
 import { PROVIDERS, providerLabel } from "./ai/types";
-import { suggestPrompts } from "./prompts";
+import { refreshPrompts } from "./tracked-prompts";
 
 type Project = typeof schema.projects.$inferSelect;
 const MARKETPLACES = new Set(["emag.ro", "emag.hu", "altex.ro", "flanco.ro", "arukereso.hu", "compari.ro"]);
@@ -82,7 +82,7 @@ export async function saveChangedItems(projectId: string, items: CatalogItem[]) 
     if (!r) return true;
     return r.title !== it.title.slice(0, 500) || r.url !== it.url || (r.cartUrl ?? null) !== (it.cartUrl ?? null) || r.price !== fmt(it.price)
       || r.inStock !== it.inStock || (r.brand ?? null) !== (it.brand ?? null) || (r.category ?? null) !== (it.category ?? null)
-      || (r.imageUrl ?? null) !== (it.imageUrl ?? null) || (r.gtin ?? null) !== (it.gtin ?? null) || (r.description ?? null) !== (it.description ?? null)
+      || (r.imageUrl ?? null) !== (it.imageUrl ?? null) || (r.gtin ?? null) !== (it.gtin ?? null) || (r.mpn ?? null) !== (it.mpn?.slice(0, 100) ?? null) || (r.description ?? null) !== (it.description ?? null)
       || (r.delivery ?? null) !== (it.delivery ?? null);
   });
   await saveItems(projectId, changed);
@@ -100,11 +100,11 @@ export async function saveItems(projectId: string, items: CatalogItem[]) {
     const chunk = items.slice(i, i + 500).map((it) => ({
       projectId, externalId: it.externalId.slice(0, 200), title: it.title.slice(0, 500), url: it.url, cartUrl: it.cartUrl ?? null,
       price: it.price?.toFixed(2) ?? null, currency: it.currency, inStock: it.inStock, brand: it.brand ?? null,
-      category: it.category ?? null, imageUrl: it.imageUrl ?? null, gtin: it.gtin ?? null, description: it.description ?? null, delivery: it.delivery ?? null, updatedAt: new Date(),
+      category: it.category ?? null, imageUrl: it.imageUrl ?? null, gtin: it.gtin ?? null, mpn: it.mpn?.slice(0, 100) ?? null, description: it.description ?? null, delivery: it.delivery ?? null, updatedAt: new Date(),
     }));
     await db.insert(schema.products).values(chunk).onConflictDoUpdate({
       target: [schema.products.projectId, schema.products.externalId],
-      set: { title: dsql`excluded.title`, url: dsql`excluded.url`, cartUrl: dsql`excluded.cart_url`, price: dsql`excluded.price`, inStock: dsql`excluded.in_stock`, brand: dsql`excluded.brand`, category: dsql`excluded.category`, imageUrl: dsql`excluded.image_url`, gtin: dsql`excluded.gtin`, description: dsql`excluded.description`, delivery: dsql`excluded.delivery`, updatedAt: dsql`now()` },
+      set: { title: dsql`excluded.title`, url: dsql`excluded.url`, cartUrl: dsql`excluded.cart_url`, price: dsql`excluded.price`, inStock: dsql`excluded.in_stock`, brand: dsql`excluded.brand`, category: dsql`excluded.category`, imageUrl: dsql`excluded.image_url`, gtin: dsql`excluded.gtin`, mpn: dsql`excluded.mpn`, description: dsql`excluded.description`, delivery: dsql`excluded.delivery`, updatedAt: dsql`now()` },
     });
   }
 }
@@ -138,19 +138,16 @@ export async function connectStore(projectId: string, opts: { kind?: ConnectorKi
   return c;
 }
 
-// ── Întrebări ──────────────────────────────────────────────────────────────
+// ── Căutări urmărite ───────────────────────────────────────────────────────
+/** Reface căutările propuse din catalogul real (vezi tracked-prompts.ts). Nume păstrat pentru apelurile vechi. */
 export async function ensurePrompts(projectId: string) {
-  const existing = await db.select({ id: schema.prompts.id }).from(schema.prompts).where(eq(schema.prompts.projectId, projectId)).limit(1);
-  if (existing.length) return;
-  const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
-  const prods = await db.select({ title: schema.products.title, category: schema.products.category, brand: schema.products.brand, price: schema.products.price })
-    .from(schema.products).where(eq(schema.products.projectId, projectId)).limit(5000);
-  const list = suggestPrompts(prods, p.name, p.language as "ro" | "hu");
-  if (list.length) await db.insert(schema.prompts).values(list.map((x) => ({ projectId, ...x, language: p.language })));
+  return refreshPrompts(projectId);
 }
 
 // ── Rulare zilnică pentru un proiect ───────────────────────────────────────
 export async function runProject(projectId: string) {
+  // Doar baza de date, fără AI: scoate produsele ieșite din stoc, completează până la limită. Rulează și fără chei.
+  await refreshPrompts(projectId);
   // Fără chei AI nu inventăm răspunsuri: modul DEMO rulează doar dacă e cerut explicit (seed-ul demo).
   if (isDemo() && process.env.ALLOW_DEMO_AI !== "1") return;
   const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));

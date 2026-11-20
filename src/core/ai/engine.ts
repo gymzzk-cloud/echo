@@ -20,9 +20,10 @@ export async function loadWorld(): Promise<World> {
   const projects = await db.select().from(schema.projects);
   const comps = await db.select().from(schema.competitors);
   const prods = await db
-    .select({ title: schema.products.title, price: schema.products.price, url: schema.products.url, category: schema.products.category, domain: schema.projects.domain })
+    .select({ title: schema.products.title, price: schema.products.price, url: schema.products.url, category: schema.products.category, gtin: schema.products.gtin, mpn: schema.products.mpn, domain: schema.projects.domain })
     .from(schema.products)
     .innerJoin(schema.projects, eq(schema.projects.id, schema.products.projectId))
+    .where(eq(schema.products.inStock, true))
     .limit(50000);
   const stores = new Map<string, KnownStore>();
   for (const p of projects) stores.set(p.domain, { domain: p.domain, name: p.name });
@@ -33,7 +34,7 @@ export async function loadWorld(): Promise<World> {
   }
   const w: World = {
     stores: [...stores.values()],
-    products: prods.map((p) => ({ ...p, price: p.price ? parseFloat(p.price) : null })),
+    products: prods.map(({ gtin, mpn, ...p }) => ({ ...p, price: p.price ? parseFloat(p.price) : null, codes: [gtin, mpn].filter((c): c is string => !!c).map((c) => normalizeText(c)) })),
     ownDomains: projects.map((p) => p.domain),
   };
   worldCache = { at: Date.now(), w };

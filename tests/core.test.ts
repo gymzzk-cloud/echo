@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { productType, suggestPrompts } from "@/core/prompts";
+import { categoryType, productQuery, productType, promptLimit, suggestPrompts, type CatalogProduct } from "@/core/prompts";
+import { planPromptChanges } from "@/core/tracked-prompts";
 import { parseFeed } from "@/core/connectors";
 import { parseRobots, robotsAllows } from "@/core/audit";
 import { parseStoreUrl } from "@/lib/util";
@@ -15,9 +16,68 @@ describe("productType", () => {
     expect(productType("Automata kávéfőző", "hu")).toBe("automata kávéfőző");
     expect(productType("Elektromos fűnyíró 1600W", "hu")).toBe("elektromos fűnyíró");
   });
-  it("acordă genul în întrebări", () => {
-    const ps = suggestPrompts([{ title: "Bormașină cu percuție 750W", category: null, brand: null, price: "289" }], "X", "ro");
-    expect(ps.map((p) => p.text)).toContain(`Care este cea mai bună bormașină cu percuție în ${new Date().getFullYear()}?`);
+});
+
+const se = (id: string, title: string, brand: string, cat: string, extra: Partial<CatalogProduct> = {}): CatalogProduct =>
+  ({ id, externalId: id, title, brand, category: `${cat} > ${brand}`, price: "100", gtin: null, mpn: null, ...extra });
+
+describe("căutări urmărite din catalog", () => {
+  it("tipul de produs vine din categorii, fără marcă", () => {
+    expect(categoryType({ title: "BOSCH GDS 18V-320", brand: "BOSCH", category: "Scule cu Acumulator > Șurubelnițe cu impact > BOSCH" }, "ro")).toBe("șurubelnițe cu impact");
+    expect(categoryType({ title: "Fier de călcat cu abur 2800W", brand: null, category: null }, "ro")).toBe("fier de călcat");
+  });
+  it("numele produsului e scurt și are marca", () => {
+    expect(productQuery({ title: "GDS 18V-320", brand: "BOSCH" })).toBe("BOSCH GDS 18V-320");
+    expect(productQuery({ title: "CROMWELL Aparat de curatat cablul 0.2-16 mm WIRE STRIPPER NO. 5 PRO", brand: "CROMWELL" }).split(" ").length).toBeLessThanOrEqual(8);
+  });
+  it("propune nume, cod, EAN și tip de produs, fără întrebări generice", () => {
+    const cat = [
+      se("1", "BOSCH GDS 18V-320", "BOSCH", "Scule > Șurubelnițe cu impact", { mpn: "06019L5300", gtin: "4053423841923" }),
+      se("2", "MAKITA DTD153Z", "MAKITA", "Scule > Șurubelnițe cu impact", { gtin: "0088381623456" }),
+      se("3", "DREAME H12 Pro", "DREAME", "Casă > Aspiratoare verticale", { mpn: "HHV3", gtin: "6970000000001" }),
+    ];
+    const ps = suggestPrompts(cat, "ShopExpert RO", "ro", 30);
+    const texts = ps.map((p) => p.text);
+    expect(texts).toContain("BOSCH GDS 18V-320");
+    expect(texts).toContain("06019L5300");
+    expect(texts).toContain("șurubelnițe cu impact");
+    expect(texts).toContain("ShopExpert păreri clienți");
+    expect(texts.some((t) => /merită|cea mai bună|cel mai bun|recomand/i.test(t))).toBe(false);
+    expect(ps.find((p) => p.text === "06019L5300")).toMatchObject({ intent: "cod", productId: "1" });
+  });
+  it("respectă limita, acoperă mai multe categorii și nu repetă același titlu", () => {
+    const big: CatalogProduct[] = [];
+    for (let i = 0; i < 3000; i++) big.push(se(String(i), `BRAND${i % 7} Model ${i % 1500}`, `BRAND${i % 7}`, `Raft > Tip ${i % 12}`, { gtin: String(5900000000000 + i) }));
+    const ps = suggestPrompts(big, "Magazin", "ro", 30);
+    expect(ps).toHaveLength(30);
+    expect(new Set(ps.map((p) => p.text.toLowerCase())).size).toBe(30);
+    expect(new Set(ps.filter((p) => p.intent === "produs").map((p) => p.category)).size).toBeGreaterThan(5);
+    // Determinist: aceeași listă la fiecare sincronizare, deci istoricul se păstrează.
+    expect(suggestPrompts([...big].reverse(), "Magazin", "ro", 30).map((p) => p.text).sort()).toEqual(ps.map((p) => p.text).sort());
+  });
+  it("fără catalog real: doar căutările despre magazin", () => {
+    expect(suggestPrompts([], "ShopExpert HU", "hu").map((p) => p.text)).toEqual(["ShopExpert vélemények", "ShopExpert szállítás és visszaküldés"]);
+  });
+  it("limita pe plan", () => {
+    expect(promptLimit("trial")).toBe(30);
+    expect(promptLimit("pro")).toBe(100);
+  });
+  it("reconcilierea: șterge propunerile vechi, păstrează manualele și ce rămâne", () => {
+    const existing = [
+      { id: "a", text: "Care este cel mai bun aspirator?", active: true, suggested: true },
+      { id: "b", text: "BOSCH GDS 18V-320", active: false, suggested: true },
+      { id: "c", text: "căutarea mea", active: true, suggested: false },
+    ];
+    const desired = [
+      { text: "BOSCH GDS 18V-320", category: "x", intent: "produs" as const },
+      { text: "06019L5300", category: "x", intent: "cod" as const },
+      { text: "căutarea mea", category: "x", intent: "produs" as const },
+      { text: "în plus", category: "x", intent: "produs" as const },
+    ];
+    const r = planPromptChanges(existing, desired, 3);
+    expect(r.remove).toEqual(["a"]);
+    expect(r.add.map((x) => x.text)).toEqual(["06019L5300"]);
+    expect(planPromptChanges([...existing.slice(1)], desired, 3)).toEqual(r.remove.length ? { remove: [], add: r.add } : r);
   });
 });
 

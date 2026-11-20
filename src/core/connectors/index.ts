@@ -19,6 +19,7 @@ export type CatalogItem = {
   category?: string | null;
   imageUrl?: string | null;
   gtin?: string | null;
+  mpn?: string | null;
   description?: string | null;
   cartUrl?: string | null;
   delivery?: string | null;
@@ -59,6 +60,7 @@ export async function fetchShopify(base: string, currency = "RON"): Promise<Cata
         category: p.product_type || null,
         imageUrl: p.images?.[0]?.src ?? null,
         gtin: v.barcode || null,
+        mpn: v.sku || null,
         description: stripHtml(p.body_html)?.slice(0, 2000) ?? null,
       });
     }
@@ -86,7 +88,7 @@ export async function fetchWoo(base: string): Promise<CatalogItem[]> {
         brand: p.brands?.[0]?.name ?? null,
         category: p.categories?.[0]?.name ?? null,
         imageUrl: p.images?.[0]?.src ?? null,
-        gtin: p.sku || null,
+        mpn: p.sku || null,
         description: stripHtml(p.short_description || p.description)?.slice(0, 2000) ?? null,
       });
     }
@@ -118,7 +120,8 @@ const KEYS = {
   brand: ["brand", "producator", "producător", "manufacturer", "marca", "marcă", "gyarto", "gyártó"],
   category: ["product_type", "breadcrumbs", "breadcrumb", "category_path", "google_product_category", "subcategory", "categorie", "category", "categoria", "kategoria", "kategória"],
   image: ["image_link", "imagine", "image", "image_url", "kep", "kép"],
-  gtin: ["gtin", "ean", "ean13", "barcode", "mpn", "cod_bare"],
+  gtin: ["gtin", "ean", "ean13", "barcode", "cod_bare", "vonalkod", "vonalkód"],
+  mpn: ["mpn", "sku", "cod_producator", "cod_produs", "part_number", "model", "cikkszam", "cikkszám"],
   description: ["short_description", "description", "descriere", "leiras", "leírás"],
   delivery: ["delivery_time", "termen_livrare", "livrare", "shipping_time", "szallitas", "szállítás"],
   shipping: ["shipping_cost", "cost_livrare", "transport", "shipping_price"],
@@ -181,6 +184,7 @@ export function mapRecord(rec: Record<string, unknown>, currency = "RON"): Catal
     category: get(KEYS.category) || null,
     imageUrl: get(KEYS.image) || null,
     gtin: get(KEYS.gtin) || null,
+    mpn: get(KEYS.mpn) || null,
     description: describe(m, get(KEYS.description)),
     delivery: deliveryText(get(KEYS.delivery), get(KEYS.shipping), cur),
   };

@@ -1,4 +1,5 @@
-import { keywords, seededRandom, today } from "@/lib/util";
+import { storeSearchName } from "@/core/prompts";
+import { keywords, normalizeText, seededRandom, today } from "@/lib/util";
 import type { KnownProduct, KnownStore, Provider, RunInput, RunOutput } from "./types";
 
 /**
@@ -66,14 +67,16 @@ function brandAnswer(provider: Provider, store: KnownStore, rnd: () => number): 
 export function demoRun(provider: Provider, input: RunInput, world: { stores: KnownStore[]; products: KnownProduct[]; ownDomains: string[] }): RunOutput {
   const rnd = seededRandom(`${provider}|${input.query}|${today()}`);
   const ql = input.query.toLowerCase();
-  const own = world.stores.find((s) => world.ownDomains.includes(s.domain) && (ql.includes(s.name.toLowerCase()) || ql.includes(s.domain)));
-  if (own && /încredere|incredere|părere|parere|clienți|clienti|retur|livr|megbízható|vélemény|recenzi/.test(ql)) return brandAnswer(provider, own, rnd);
+  const own = world.stores.find((s) => world.ownDomains.includes(s.domain) && (ql.includes(s.name.toLowerCase()) || ql.includes(storeSearchName(s.name).toLowerCase()) || ql.includes(s.domain)));
+  if (own && /încredere|incredere|părer|parer|clienți|clienti|retur|livr|megbízható|vélemény|szállít|recenzi/.test(ql)) return brandAnswer(provider, own, rnd);
   const kw = keywords(input.query);
   const match = (text: string) => kw.filter((k) => text.toLowerCase().includes(k.slice(0, Math.max(4, k.length - 2)))).length;
 
   // Produse reale din cataloagele conectate care se potrivesc întrebării
+  // Căutare după cod (EAN sau codul producătorului): potrivire exactă, ca un motor de căutare real.
+  const qTokens = new Set(normalizeText(input.query).split(" "));
   const prodCandidates = world.products
-    .map((p) => ({ p, s: match(`${p.title} ${p.category ?? ""}`) }))
+    .map((p) => ({ p, s: (p.codes ?? []).some((c) => qTokens.has(c)) ? 100 : match(`${p.title} ${p.category ?? ""}`) }))
     .filter((x) => x.s > 0)
     .sort((a, b) => b.s - a.s || rnd() - 0.5)
     .slice(0, 12);
