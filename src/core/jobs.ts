@@ -34,6 +34,17 @@ export async function busyKinds(projectId: string, connectionIds: string[] = [])
   return new Set((r as unknown as { kind: JobKind }[]).map((x) => x.kind));
 }
 
+/**
+ * La pornirea workerului: joburile rămase „în lucru” au fost întrerupte (deploy, restart, adormire).
+ * Le punem înapoi la coadă, cu ora de acum, ca butonul să arate în continuare „în lucru” și jobul să ruleze din nou.
+ * Avem un singur worker, deci nimic altceva nu le rulează în acest moment. Joburile sunt idempotente.
+ */
+export async function requeueInterrupted() {
+  const rows = await db.execute(dsql`update jobs set status = 'queued', run_at = now(), created_at = now()
+    where status = 'running' returning id`);
+  return rows.length;
+}
+
 export async function pickJob() {
   const rows = await db.execute(dsql`
     update jobs set status = 'running', attempts = attempts + 1
