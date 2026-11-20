@@ -99,7 +99,7 @@ export default async function Settings() {
       </Card>
 
       <Card title={`Concurenți (${comps.length})`}>
-        <p className="mb-3 text-xs text-muted">Îi comparăm cu tine în fiecare zi. Adăugăm automat magazinele pe care AI-urile le recomandă des în locul tău.</p>
+        <p className="mb-3 text-xs text-muted">Îi comparăm cu tine în fiecare zi. Adăugăm automat magazinele pe care AI-urile le recomandă în locul tău sau înaintea ta. Dacă scoți unul, nu-l mai adăugăm.</p>
         <ul className="mb-4 flex flex-wrap gap-2">
           {comps.map((c) => (
             <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border py-1 pl-3 pr-1 text-sm">
