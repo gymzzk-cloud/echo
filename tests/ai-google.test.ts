@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { daysAgo } from "../src/core/ai/budget";
 import { failureReason } from "../src/core/ai/errors";
 import { attemptOrder, flashCandidates, flashVersion, gemini, isGroundingRefused, isQuotaExhausted, parseGemini, pickFlashModel, thinkingFor } from "../src/core/ai/gemini";
-import { errorSummary, retryAfterMs } from "../src/core/ai/http";
+import { errorSummary, postJson, retryAfterMs } from "../src/core/ai/http";
 import { limitReason, waitForSlot } from "../src/core/ai/limits";
 import { NO_OVERVIEW, aioverview, overviewSources, overviewText } from "../src/core/ai/serpapi";
 import { PROVIDERS } from "../src/core/ai/types";
@@ -199,6 +199,7 @@ describe("Gemini: cota gratuită", () => {
     it("fără cotă pe primul model, folosește următorul, fără să aștepte retryDelay", async () => {
       vi.stubEnv("GEMINI_API_KEY", "k");
       vi.stubEnv("GEMINI_MODEL", "");
+      vi.stubEnv("GEMINI_FREE_TIER", "1");
       const calls: string[] = [];
       vi.stubGlobal("fetch", vi.fn(async (url: string) => {
         calls.push(url.replace(/^.*\/v1beta\//, ""));
@@ -213,5 +214,34 @@ describe("Gemini: cota gratuită", () => {
       expect(out.costUsd).toBe(0);
       expect(calls).toEqual(["models?pageSize=200", "models/gemini-3-flash:generateContent", "models/gemini-2.5-flash:generateContent"]);
     });
+  });
+});
+
+describe("supraîncărcare (503)", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  const r503 = () => new Response(JSON.stringify({ error: { code: 503, status: "UNAVAILABLE", message: "This model is currently experiencing high demand." } }), { status: 503 });
+
+  it("reîncearcă de două ori cu pauze, apoi reușește", async () => {
+    const f = vi.fn().mockResolvedValueOnce(r503()).mockResolvedValueOnce(r503()).mockResolvedValueOnce(new Response("{\"ok\":1}"));
+    vi.stubGlobal("fetch", f);
+    expect(await postJson("https://x", {}, {}, 1000, [1, 1])).toEqual({ ok: 1 });
+    expect(f).toHaveBeenCalledTimes(3);
+  });
+
+  it("după reîncercări dă eroarea, scurtă și clară", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => r503()));
+    await expect(postJson("https://x", {}, {}, 1000, [1, 1])).rejects.toThrow("HTTP 503: UNAVAILABLE This model is currently experiencing high demand.");
+  });
+
+  it("o eroare de cheie (401) nu se reîncearcă", async () => {
+    const f = vi.fn(async () => new Response("bad key", { status: 401 }));
+    vi.stubGlobal("fetch", f);
+    await expect(postJson("https://x", {}, {}, 1000, [1, 1])).rejects.toThrow("HTTP 401");
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("modelele stabile înaintea celor preview, chiar dacă preview e mai nou", () => {
+    expect(flashCandidates([{ name: "models/gemini-3.5-flash-preview" }, { name: "models/gemini-3-flash" }, { name: "models/gemini-2.5-flash" }]))
+      .toEqual(["gemini-3-flash", "gemini-2.5-flash", "gemini-3.5-flash-preview"]);
   });
 });

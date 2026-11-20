@@ -32,9 +32,19 @@ export function errorSummary(text: string, max = 400): string {
   return text.replace(/\s+/g, " ").slice(0, max);
 }
 
-/** POST JSON. La un 429 cu timp de așteptare scurt mai încearcă o dată, ca limita pe minut să nu devină eroare. */
-export async function postJson(url: string, body: unknown, headers: Record<string, string>, timeoutMs = 60000): Promise<ReturnType<typeof JSON.parse>> {
-  for (let attempt = 0; ; attempt++) {
+/** Pauzele dintre reîncercări când API-ul e supraîncărcat (500, 502, 503, 504): 2 s, apoi 6 s. */
+export const OVERLOAD_BACKOFF_MS = [2000, 6000];
+export const isOverloaded = (status: number) => [500, 502, 503, 504].includes(status);
+
+/**
+ * POST JSON. Reîncearcă singur ce trece cu puțină răbdare:
+ * - 429 cu limită pe minut: o dată, după timpul cerut de API;
+ * - supraîncărcare (500/502/503/504): de două ori, cu pauze tot mai lungi.
+ * O cotă pe zi sau inexistentă nu se reîncearcă: nu trece așteptând.
+ */
+export async function postJson(url: string, body: unknown, headers: Record<string, string>, timeoutMs = 60000, backoff = OVERLOAD_BACKOFF_MS): Promise<ReturnType<typeof JSON.parse>> {
+  let rateRetried = false;
+  for (let overloadTry = 0; ; ) {
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json", ...headers },
@@ -43,9 +53,13 @@ export async function postJson(url: string, body: unknown, headers: Record<strin
     });
     const text = await r.text();
     if (r.ok) return JSON.parse(text);
-    // O cotă pe zi sau inexistentă („quotaValue": "0”) nu trece așteptând: nu mai pierdem timp cu reîncercarea.
-    const dailyOrZero = /PerDay|"quotaValue"\s*:\s*"0"/.test(text);
-    const wait = r.status === 429 && attempt === 0 && !dailyOrZero ? retryAfterMs(text, r.headers.get("retry-after")) : null;
+    let wait: number | null = null;
+    if (r.status === 429 && !rateRetried && !/PerDay|"quotaValue"\s*:\s*"0"/.test(text)) {
+      wait = retryAfterMs(text, r.headers.get("retry-after"));
+      rateRetried = true;
+    } else if (isOverloaded(r.status) && overloadTry < backoff.length) {
+      wait = backoff[overloadTry++];
+    }
     if (wait === null) throw new Error(`HTTP ${r.status}: ${errorSummary(text)}`);
     await sleep(wait);
   }
