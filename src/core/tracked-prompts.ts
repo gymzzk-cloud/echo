@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { productQuery, promptLimit, suggestPrompts, type SuggestedPrompt } from "./prompts";
+import { humanName, promptLimit, suggestPrompts, type SuggestedPrompt } from "./prompts";
 
 type Existing = { id: string; text: string; active: boolean; suggested: boolean };
 
@@ -85,7 +85,7 @@ export async function setProductTracked(projectId: string, productId: string, on
     if (manualActive.length >= limit) throw new Error(`Planul tău urmărește cel mult ${limit} căutări alese de tine. Scoate una ca să adaugi alta.`);
     const byName = mine.find((x) => x.intent === "produs");
     if (byName) await db.update(schema.prompts).set({ suggested: false, active: true }).where(eq(schema.prompts.id, byName.id));
-    else await db.insert(schema.prompts).values({ projectId, text: productQuery(prod), category: null, intent: "produs", productId, language: p?.language ?? "ro", suggested: false });
+    else await db.insert(schema.prompts).values({ projectId, text: humanName(prod), category: null, intent: "produs", productId, language: p?.language ?? "ro", suggested: false });
   }
   await refreshPrompts(projectId);
 }
