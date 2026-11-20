@@ -95,6 +95,7 @@ Toate stau în `src/components/ui.tsx` (când depășește ~300 de rânduri, se 
 | `danger` (alb, text roșu) | elimină sau revocă ceva | Șterge, Elimină, Revocă, Anulează invitația |
 | `ghost` (fără chenar) | comutatoare și acțiuni discrete în rânduri | Oprește / Pornește, Am rezolvat, Marchează citite, Respinge |
 | `TextLink` (text verde) | **doar navigare** spre altă pagină, niciodată o acțiune | Detalii, Toate, Vezi lista |
+| `Chips` (cipuri rotunjite) | filtre și file care schimbă ce arată pagina | 7 / 30 / 90 zile, De făcut / Rezolvate, exemplele de întrebări |
 
 Mărimi: `md` (implicit) are exact înălțimea unui câmp: **40 px, 44 px pe telefon**. `sm` (32 px, 36 px pe telefon) doar pentru acțiunile din rânduri de tabel sau listă. `lg` (48 px) doar pentru căutarea de pe prima pagină.
 
@@ -110,7 +111,7 @@ Reguli:
 Cauza decalajelor de până acum: grila era aliniată jos (`items-end`), iar textul de ajutor de sub unele câmpuri le împingea în sus. Regula de acum:
 
 1. **Toate câmpurile au aceeași înălțime** (40 px, 44 px pe telefon), egală cu a butonului `md`.
-2. **Eticheta are înălțime fixă** (20 px + 6 px spațiu), deci câmpurile dintr-un rând încep la aceeași linie.
+2. **Eticheta are înălțime fixă** (20 px + 8 px spațiu), deci câmpurile dintr-un rând încep la aceeași linie.
 3. **Textul de ajutor stă sub câmp** și nu mută nimic: grila e aliniată **sus** (`items-start`), niciodată jos.
 4. **Butonul dintr-un rând cu câmpuri** stă într-o zonă care rezervă locul etichetei (`FormActions inline`), deci e la nivelul câmpurilor, nu al textului de ajutor.
 5. Câmpurile dintr-un rând au lățimi egale, cu excepția celor scurte prin natura lor (platformă, tip, rol): acestea au lățime fixă (~200 px).
@@ -139,7 +140,10 @@ Așezări permise pentru un formular (`FormGrid`): o coloană; 2, 3 sau 4 coloan
 
 ### 6.5 Insigne și notificări
 
-- `Badge`: o singură formă (complet rotunjită, 12 px, greutate 500). Tonuri: `good`, `warn`, `bad`, `muted`, `primary`. Pentru stări (Nou, În lucru, Rezolvat, Ignorat) și etichete scurte.
+- Titlul unei probleme spune **problema**, nu criteriul verificat: „Pagina principală se încarcă greu”, nu „Pagina principală răspunde rapid”. Acțiunile din audit își iau titlul din `src/core/audit/problems.ts`.
+- O lucrare din fundal aflată la coadă sau în lucru se arată cu `Working` (insignă galbenă cu spinner și o propoziție despre ce urmează), în locul butonului care o pornește.
+
+- `Badge`: o singură formă (complet rotunjită, 12 px, greutate 500), **mereu pe un singur rând** (nu se rupe, nu se strânge). Într-un card cu titlu lung, insigna stă deasupra titlului, nu lângă el. Tonuri: `good`, `warn`, `bad`, `muted`, `primary`. Pentru stări (Nou, În lucru, Rezolvat, Ignorat) și etichete scurte.
 - `Notice`: mesaj pe toată lățimea, în culoarea stării. Unul singur odată, deasupra conținutului la care se referă.
 
 ### 6.6 Antetul paginii
@@ -197,6 +201,10 @@ Reguli:
 - Confirmăm doar acțiunile care nu se pot anula.
 
 ## 12. Lista de verificare pentru orice ecran
+
+Două verificări automate prind o parte din listă:
+- `pnpm test` rulează `tests/design-rules.test.ts`: fără elemente native scrise de mână, culori directe, mărimi de text sau spații în afara scării, colțuri greșite și umbre, în `src/app/panou` și `src/components`.
+- `pnpm ui:check` (cu aplicația pornită) deschide fiecare pagină din panou la 360, 768 și 1366 px, luminos și întunecat, verifică să nu existe scroll orizontal, insigne sau butoane rupte pe două rânduri și salvează capturile în `ui-shots/` pentru PR.
 
 - [ ] Folosește doar componentele din `ui.tsx` și culorile din tokenuri (nimic scris de mână)
 - [ ] O singură acțiune principală (buton verde) pe card; celelalte butoane au varianta funcției lor

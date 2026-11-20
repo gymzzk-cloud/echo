@@ -8,8 +8,8 @@ export function ActionForm({ action, children, className }: { action: (s: FormSt
   return (
     <form action={formAction} className={className}>
       {children}
-      {state?.error && <p role="alert" className="col-span-full mt-3 rounded-lg bg-bad-bg px-3 py-2 text-sm text-bad">{state.error}</p>}
-      {state?.ok && <p role="status" className="col-span-full mt-3 rounded-lg bg-good-bg px-3 py-2 text-sm text-good">{state.ok}</p>}
+      {state?.error && <p role="alert" className="col-span-full mt-4 rounded-lg bg-bad-bg px-4 py-3 text-sm text-bad">{state.error}</p>}
+      {state?.ok && <p role="status" className="col-span-full mt-4 rounded-lg bg-good-bg px-4 py-3 text-sm text-good">{state.ok}</p>}
     </form>
   );
 }

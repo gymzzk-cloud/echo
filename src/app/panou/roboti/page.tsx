@@ -2,8 +2,8 @@ import { currentProject } from "@/lib/project";
 import { botSummary, botVendor, cloudflareWorker } from "@/core/bots";
 import { uploadBotLog } from "@/app/actions";
 import { ActionForm } from "@/components/forms";
-import { Badge, Button, Card, Field, PageHeader, Table, Td } from "@/components/ui";
-import { CopyButton, TrendChart } from "@/components/client";
+import { Badge, Card, Field, FileInput, FormActions, PageHeader, Table, Td } from "@/components/ui";
+import { CodeBlock, SubmitButton, TrendChart } from "@/components/client";
 import { daysAgo } from "@/lib/util";
 
 export default async function Bots() {
@@ -12,18 +12,18 @@ export default async function Bots() {
   const worker = cloudflareWorker(process.env.APP_URL ?? "http://localhost:3000", project.trackingKey);
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Ultimele 30 de zile" title="Roboții AI pe site" subtitle="Ce roboți AI îți citesc site-ul, ce pagini, și unde sunt blocați. Un robot blocat înseamnă că acel AI nu-ți vede produsele." />
+      <PageHeader eyebrow="Reparații" title="Roboții AI pe site" subtitle="În ultimele 30 de zile: ce roboți AI îți citesc site-ul, ce pagini, și unde sunt blocați. Un robot blocat înseamnă că acel AI nu-ți vede produsele." />
       {s.byBot.length > 0 ? (
         <>
-          <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+          <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
             <Card>
               <Table head={["Robot", "Al cui", "Vizite", "Pagini", "Blocat", "Negăsit (404)"]}>
                 {s.byBot.map((b) => (
                   <tr key={b.bot}>
                     <Td className="font-medium">{b.bot}</Td>
                     <Td className="text-muted">{botVendor(b.bot)}</Td>
-                    <Td className="num">{b.hits}</Td>
-                    <Td className="num">{b.pages}</Td>
+                    <Td className="num text-right">{b.hits}</Td>
+                    <Td className="num text-right">{b.pages}</Td>
                     <Td>{b.blocked ? <Badge tone="bad">{b.blocked}</Badge> : <span className="text-muted">0</span>}</Td>
                     <Td>{b.missing ? <Badge tone="warn">{b.missing}</Badge> : <span className="text-muted">0</span>}</Td>
                   </tr>
@@ -36,7 +36,7 @@ export default async function Bots() {
           </div>
           <Card title="Paginile citite cel mai des">
             <Table head={["Pagină", "Vizite", "Roboți"]}>
-              {s.topPages.map((p) => <tr key={p.path}><Td className="break-all font-mono text-xs">{p.path}</Td><Td className="num">{p.hits}</Td><Td className="text-xs text-muted">{p.bots.join(", ")}</Td></tr>)}
+              {s.topPages.map((p) => <tr key={p.path}><Td className="break-all font-mono text-xs">{p.path}</Td><Td className="num text-right">{p.hits}</Td><Td className="text-xs text-muted">{p.bots.join(", ")}</Td></tr>)}
             </Table>
           </Card>
         </>
@@ -44,16 +44,16 @@ export default async function Bots() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Varianta 1: încarcă jurnalul serverului">
-          <p className="mb-3 text-sm text-muted">Fișierul access.log (nginx sau Apache), de la găzduire. Citim doar liniile roboților AI.</p>
-          <ActionForm action={uploadBotLog} className="flex flex-wrap items-end gap-3">
+          <p className="mb-4 text-sm text-muted">Fișierul access.log (nginx sau Apache), de la găzduire. Citim doar liniile roboților AI.</p>
+          <ActionForm action={uploadBotLog} className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
             <input type="hidden" name="projectId" value={project.id} />
-            <Field label="Fișier jurnal"><input type="file" name="file" required className="block text-sm file:mr-3 file:rounded-lg file:border file:border-border file:bg-bg file:px-3 file:py-2" /></Field>
-            <Button variant="secondary">Analizează</Button>
+            <Field label="Fișier jurnal"><FileInput name="file" required /></Field>
+            <FormActions><SubmitButton variant="secondary" pendingText="Analizez…">Analizează jurnalul</SubmitButton></FormActions>
           </ActionForm>
         </Card>
         <Card title="Varianta 2: automat, prin Cloudflare">
-          <p className="mb-3 text-sm text-muted">Workers → Create → lipește codul → adaugă ruta magazinului. Raportează doar vizitele roboților AI.</p>
-          <div className="relative rounded-lg border border-border bg-surface p-3"><div className="absolute right-2 top-2"><CopyButton text={worker} /></div><pre className="max-h-56 overflow-auto font-mono text-[11px]">{worker}</pre></div>
+          <p className="mb-4 text-sm text-muted">Workers → Create → lipește codul → adaugă ruta magazinului. Raportează doar vizitele roboților AI.</p>
+          <CodeBlock code={worker} label="JavaScript (Cloudflare Worker)" />
         </Card>
       </div>
     </div>

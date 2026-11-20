@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
-import { Card, Empty, PageHeader } from "@/components/ui";
+import { Card, Checkbox, Empty, PageHeader, Working } from "@/components/ui";
 import { SubmitButton } from "@/components/client";
 import { makeReport } from "@/app/actions";
 import { dateShort } from "@/lib/format";
@@ -15,20 +15,24 @@ export default async function Reports() {
   const generating = (await busyKinds(project.id)).has("report");
   return (
     <div className="space-y-6">
-      <PageHeader title="Rapoarte" subtitle="Raportul săptămânal vine pe email luni dimineață. Îl poți genera și acum." />
+      <PageHeader eyebrow="Cont" title="Rapoarte" subtitle="Raportul săptămânal vine pe email luni dimineață. Îl poți genera și acum." />
       <Card>
-        <form action={makeReport} className="flex flex-wrap items-center gap-4">
-          <input type="hidden" name="projectId" value={project.id} />
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="send" defaultChecked /> Trimite și pe email la {user.email}</label>
-          {generating ? <span className="text-sm text-muted">Raportul se generează…</span> : <SubmitButton pendingText="Generez…">Generează raportul acum</SubmitButton>}
-        </form>
-        <p className="mt-2 text-xs text-muted">Se generează în fundal; pagina se actualizează singură când e gata.</p>
+        {generating ? <Working hint="Se generează în fundal; pagina se actualizează singură când e gata.">Raportul se generează</Working> : (
+          <>
+            <form action={makeReport} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <input type="hidden" name="projectId" value={project.id} />
+              <SubmitButton pendingText="Generez…">Generează raportul acum</SubmitButton>
+              <Checkbox name="send" defaultChecked label={<>Trimite și pe email la <span className="break-all">{user.email}</span></>} />
+            </form>
+            <p className="mt-2 text-xs text-muted">Se generează în fundal; pagina se actualizează singură când e gata.</p>
+          </>
+        )}
       </Card>
       {list.length === 0 ? <Empty title="Niciun raport încă" /> : (
         <Card title="Rapoarte anterioare">
           <ul className="divide-y divide-border">
             {list.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+              <li key={r.id} className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <Link prefetch={false} href={`/panou/rapoarte/${r.id}`} className="font-medium hover:underline">{r.subject}</Link>
                 <span className="text-xs text-muted">{dateShort(r.createdAt)}{r.sentTo ? ` · trimis la ${r.sentTo}` : ""}</span>
               </li>

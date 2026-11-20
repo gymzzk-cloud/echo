@@ -1,5 +1,5 @@
 import { currentProject } from "@/lib/project";
-import { Card, Notice, PageHeader } from "@/components/ui";
+import { Button, Card, Chips, Input, Notice, PageHeader } from "@/components/ui";
 import { askAssistant } from "@/core/assistant";
 
 const EXAMPLES = ["De ce a scăzut scorul săptămâna asta?", "Ce fac săptămâna asta?", "Cine mă depășește la recomandări?", "Câte vânzări am din AI?"];
@@ -12,19 +12,19 @@ export default async function Assistant({ searchParams }: { searchParams: Promis
     <>
       <PageHeader eyebrow="Vizibilitate" title="Întreabă asistentul" subtitle="Răspunde doar din datele magazinului tău: scor, concurenți, acțiuni, vânzări din AI." />
       <Card>
-        <form className="flex gap-2">
+        <form className="flex flex-col gap-2 md:flex-row">
           <label htmlFor="q" className="sr-only">Întrebare</label>
-          <input id="q" name="q" defaultValue={q} placeholder="ex. De ce nu mă recomandă Gemini?" className="w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm" />
-          <button className="rounded-lg bg-primary px-4 text-sm font-medium text-primary-fg">Întreabă</button>
+          <Input id="q" name="q" defaultValue={q} placeholder="ex. De ce nu mă recomandă Gemini?" />
+          <div className="[&>*]:w-full md:[&>*]:w-auto"><Button>Întreabă</Button></div>
         </form>
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">{EXAMPLES.map((e) => <a key={e} href={`?q=${encodeURIComponent(e)}`} className="rounded-full border border-border px-2.5 py-1 text-muted hover:bg-surface hover:text-fg">{e}</a>)}</div>
+        <Chips className="mt-4" items={EXAMPLES.map((e) => ({ href: `?q=${encodeURIComponent(e)}`, label: e, active: e === q }))} />
         {res && (
-          <div className="mt-6 rounded-xl bg-surface p-4">
+          <div className="mt-6 rounded-lg bg-surface p-4">
             <div className="label mb-2">Răspuns</div>
-            <p className="whitespace-pre-line text-[15px] leading-relaxed">{res.answer}</p>
+            <p className="whitespace-pre-line text-sm leading-relaxed">{res.answer}</p>
           </div>
         )}
-        {res && !res.live && <div className="mt-3"><Notice tone="muted">Răspuns compus automat din date. Cu cheia Anthropic adăugată, răspunde Claude, tot doar din datele tale.</Notice></div>}
+        {res && !res.live && <div className="mt-4"><Notice tone="muted">Răspuns compus automat din date. Cu cheia Anthropic adăugată, răspunde Claude, tot doar din datele tale.</Notice></div>}
       </Card>
     </>
   );
