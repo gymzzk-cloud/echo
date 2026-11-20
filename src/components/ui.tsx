@@ -45,7 +45,7 @@ export function Stat({ label, value, delta, hint }: { label: string; value: Reac
 }
 
 type BtnProps = { children: ReactNode; variant?: "primary" | "secondary" | "ghost"; className?: string; size?: "sm" | "md" };
-const btn = (variant: BtnProps["variant"] = "primary", size: BtnProps["size"] = "md") =>
+export const btn = (variant: BtnProps["variant"] = "primary", size: BtnProps["size"] = "md") =>
   cx("inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50",
     size === "sm" ? "px-3 py-1.5 text-xs" : "h-11 px-4 text-sm sm:h-10",
     variant === "primary" && "bg-primary text-primary-fg hover:opacity-90",

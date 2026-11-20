@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import type { FeedAction, FeedCondition } from "@/db/schema";
+import type { FeedAction, FeedCondition, FeedFileStats, FeedOutputSettings } from "@/db/schema";
+import { openAiWriter } from "./feed-channels/openai";
 import { daysAgo, normalizeText } from "@/lib/util";
 import { projectRuns } from "./projects";
 
@@ -14,7 +15,7 @@ export const CHANNELS = [
   { id: "google", name: "Google Merchant Center", format: "xml" },
   { id: "meta", name: "Meta (Facebook, Instagram)", format: "xml" },
   { id: "tiktok", name: "TikTok Shop / Catalog", format: "xml" },
-  { id: "openai", name: "ChatGPT (feed OpenAI)", format: "json" },
+  { id: "openai", name: "ChatGPT (feed OpenAI)", format: "csv" },
   { id: "compari", name: "Compari.ro", format: "xml" },
   { id: "arukereso", name: "Árukereső.hu", format: "xml" },
   { id: "emag", name: "eMAG Marketplace", format: "csv" },
@@ -26,41 +27,53 @@ export const FIELDS = ["title", "description", "brand", "category", "gtin", "pri
 
 export type FeedProduct = {
   id: string; externalId: string; title: string; description: string | null; url: string; imageUrl: string | null;
-  price: number | null; currency: string; inStock: boolean; brand: string | null; category: string | null; gtin: string | null;
+  price: number | null; currency: string; inStock: boolean; brand: string | null; category: string | null; gtin: string | null; mpn?: string | null;
   labels: string[];
 };
 
-/** Etichete automate, calculate din datele Echo (nu din catalog). */
-export async function autoLabels(projectId: string, domain: string, products: (typeof schema.products.$inferSelect)[]) {
-  const labels = new Map<string, string[]>(products.map((p) => [p.id, []]));
+type LabelInput = { id: string; title: string; inStock: boolean; price: string | null; gtin: string | null; imageUrl: string | null; brand: string | null };
+export type LabelContext = { mentioned: Set<string>; clickN: Map<string, number>; minOther: Map<string, number> };
+
+/** Datele din care se calculează etichetele automate (AI, clicuri, prețuri în alte magazine). Se citesc o dată pe magazin. */
+export async function labelContext(projectId: string, domain: string): Promise<LabelContext> {
   // 1. Recomandat de AI în ultimele 30 de zile
   const runs = await projectRuns(projectId, daysAgo(30));
   const mentioned = new Set<string>();
   for (const { run: r } of runs) for (const m of r.mentions as { domain: string; productTitle?: string }[]) if (m.domain === domain && m.productTitle) mentioned.add(normalizeText(m.productTitle));
   // 2. Clicuri din căutarea Echo (popularitate). Filtrăm după magazin, nu după o listă de mii de id-uri.
-  const clicks = products.length ? await db.select({ productId: schema.clicks.productId, n: dsql<number>`count(*)::int` }).from(schema.clicks)
-    .where(and(eq(schema.clicks.projectId, projectId), gte(schema.clicks.createdAt, new Date(Date.now() - 30 * 864e5)))).groupBy(schema.clicks.productId) : [];
+  const clicks = await db.select({ productId: schema.clicks.productId, n: dsql<number>`count(*)::int` }).from(schema.clicks)
+    .where(and(eq(schema.clicks.projectId, projectId), gte(schema.clicks.createdAt, new Date(Date.now() - 30 * 864e5)))).groupBy(schema.clicks.productId);
   const clickN = new Map(clicks.map((c) => [c.productId!, c.n]));
   // 3. Competitivitatea prețului: cel mai mic preț pentru același GTIN în celelalte magazine conectate, calculat în baza de date.
-  const others = products.some((p) => p.gtin) ? await db.select({ gtin: schema.products.gtin, min: dsql<string>`min(${schema.products.price})` }).from(schema.products)
+  const others = await db.select({ gtin: schema.products.gtin, min: dsql<string>`min(${schema.products.price})` }).from(schema.products)
     .where(and(dsql`${schema.products.projectId} <> ${projectId}`, dsql`${schema.products.price} is not null`,
       dsql`${schema.products.gtin} in (select ${schema.products.gtin} from ${schema.products} where ${schema.products.projectId} = ${projectId} and ${schema.products.gtin} is not null)`))
-    .groupBy(schema.products.gtin) : [];
+    .groupBy(schema.products.gtin);
   const minOther = new Map(others.map((o) => [o.gtin!, parseFloat(o.min)]));
-  for (const p of products) {
-    const l = labels.get(p.id)!;
-    const isMentioned = mentioned.size > 0 && mentioned.has(normalizeText(p.title));
-    if (isMentioned) l.push("recomandat_ai");
-    const n = clickN.get(p.id) ?? 0;
-    if (n >= 5) l.push("popular");
-    else if (n === 0 && !isMentioned) l.push("zombie");
-    l.push(p.inStock ? "in_stoc" : "fara_stoc");
-    const price = p.price ? parseFloat(p.price) : null;
-    const best = p.gtin ? minOther.get(p.gtin) : undefined;
-    if (price && best !== undefined && !Number.isNaN(best)) l.push(price <= best ? "pret_cel_mai_bun" : price > best * 1.1 ? "pret_peste_piata" : "pret_in_piata");
-    if (!p.gtin || !p.imageUrl || !p.brand) l.push("date_lipsa");
-  }
-  return labels;
+  return { mentioned, clickN, minOther };
+}
+
+/** Etichetele unui produs. Funcție pură. */
+export function labelsFor(p: LabelInput, ctx: LabelContext) {
+  const l: string[] = [];
+  const isMentioned = ctx.mentioned.size > 0 && ctx.mentioned.has(normalizeText(p.title));
+  if (isMentioned) l.push("recomandat_ai");
+  const n = ctx.clickN.get(p.id) ?? 0;
+  if (n >= 5) l.push("popular");
+  else if (n === 0 && !isMentioned) l.push("zombie");
+  l.push(p.inStock ? "in_stoc" : "fara_stoc");
+  const price = p.price ? parseFloat(p.price) : null;
+  const best = p.gtin ? ctx.minOther.get(p.gtin) : undefined;
+  if (price && best !== undefined && !Number.isNaN(best)) l.push(price <= best ? "pret_cel_mai_bun" : price > best * 1.1 ? "pret_peste_piata" : "pret_in_piata");
+  if (!p.gtin || !p.imageUrl || !p.brand) l.push("date_lipsa");
+  return l;
+}
+
+/** Etichete automate, calculate din datele Echo (nu din catalog). */
+export async function autoLabels(projectId: string, domain: string, products: LabelInput[]) {
+  if (!products.length) return new Map<string, string[]>();
+  const ctx = await labelContext(projectId, domain);
+  return new Map(products.map((p) => [p.id, labelsFor(p, ctx)]));
 }
 
 const get = (p: FeedProduct, f: string): string => f === "label" ? p.labels.join(",") : f === "inStock" ? (p.inStock ? "da" : "nu") : String((p as unknown as Record<string, unknown>)[f] ?? "");
@@ -152,50 +165,84 @@ async function cachedFeed(projectId: string, channel: string) {
   return value;
 }
 
-async function computeFeed(projectId: string, channel: string) {
+async function computeFeed(projectId: string, channel: string, limit = 20000) {
+  const base = await loadFeedBase(projectId, limit);
+  return { ...base, items: channelItems(base, channel) };
+}
+
+/**
+ * Datele comune tuturor canalelor: produsele cu titlurile aprobate și etichetele automate, plus regulile.
+ * Workerul le citește o singură dată și generează din ele fișierul fiecărui canal pornit.
+ */
+export async function loadFeedBase(projectId: string, limit = 20000) {
   const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
-  const products = await db.select().from(schema.products).where(eq(schema.products.projectId, projectId)).limit(20000);
+  const products = await db.select().from(schema.products).where(eq(schema.products.projectId, projectId)).limit(limit);
   const edits = await db.select().from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))
     .where(and(eq(schema.products.projectId, projectId), eq(schema.productEdits.status, "aprobat"))).orderBy(desc(schema.productEdits.createdAt));
   const rules = await db.select().from(schema.feedRules).where(eq(schema.feedRules.projectId, projectId)).orderBy(schema.feedRules.priority);
   const labels = await autoLabels(projectId, project.domain, products);
   const editsBy = new Map<string, typeof edits>();
   for (const e of edits) editsBy.set(e.product_edits.productId, [...(editsBy.get(e.product_edits.productId) ?? []), e]);
-  const out: FeedProduct[] = [];
-  for (const p of products) {
+  const base: FeedProduct[] = products.map((p) => {
     let fp: FeedProduct = {
       id: p.id, externalId: p.externalId, title: p.title, description: p.description, url: p.url, imageUrl: p.imageUrl,
-      price: p.price ? parseFloat(p.price) : null, currency: p.currency, inStock: p.inStock, brand: p.brand, category: p.category, gtin: p.gtin,
+      price: p.price ? parseFloat(p.price) : null, currency: p.currency, inStock: p.inStock, brand: p.brand, category: p.category, gtin: p.gtin, mpn: p.mpn,
       labels: labels.get(p.id) ?? [],
     };
     for (const e of [...(editsBy.get(p.id) ?? [])].reverse()) fp = { ...fp, [e.product_edits.field]: e.product_edits.value };
-    const r = applyRules(fp, rules, channel);
+    return fp;
+  });
+  return { project, products: base, rules, labels, total: products.length };
+}
+
+/** Produsele unui canal: regulile se aplică pe canal (o regulă poate exclude sau modifica produse doar pentru Meta, de ex.). */
+export function channelItems(base: { products: FeedProduct[]; rules: Parameters<typeof applyRules>[1] }, channel: string) {
+  const out: FeedProduct[] = [];
+  for (const p of base.products) {
+    const r = applyRules(p, base.rules, channel);
     if (r) out.push(r);
   }
-  return { project, items: out, labels, total: products.length };
+  return out;
 }
 
 const x = (s: string | null | undefined) => (s ?? "").replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]!));
 const priceStr = (p: FeedProduct) => (p.price != null ? `${p.price.toFixed(2)} ${p.currency}` : "");
 
-export function renderFeed(channel: string, project: { name: string; domain: string }, items: FeedProduct[]) {
+type StoreRef = { name: string; domain: string; pathPrefix?: string; country?: string };
+export type FeedWriter = { type: string; head: string; row: (p: FeedProduct) => string | null; foot: string; stats: () => FeedFileStats };
+
+/**
+ * Scrie feed-ul unui canal rând cu rând (antet, câte un rând pe produs, final), ca workerul să poată genera
+ * cataloage mari pe bucăți, fără să țină tot fișierul în memorie.
+ */
+export function feedWriter(channel: string, project: StoreRef, settings?: FeedOutputSettings | null): FeedWriter {
+  let total = 0, included = 0;
+  const counted = (row: (p: FeedProduct) => string | null) => (p: FeedProduct) => { total++; const r = row(p); if (r !== null) included++; return r; };
+  const simpleStats = () => ({ total, included, excluded: {}, missing: {} });
   if (channel === "openai") {
-    return { type: "application/json", body: JSON.stringify(items.map((p) => ({
-      id: p.externalId, title: p.title, description: p.description ?? p.title, link: p.url, image_link: p.imageUrl,
-      price: priceStr(p), availability: p.inStock ? "in_stock" : "out_of_stock", brand: p.brand, gtin: p.gtin,
-      product_category: p.category, seller_name: project.name, seller_url: `https://${project.domain}`,
-      enable_search: true, enable_checkout: false,
-    })), null, 1) };
+    const w = openAiWriter({ ...project, pathPrefix: project.pathPrefix ?? "", country: project.country ?? "RO" }, settings ?? null);
+    return { type: "text/csv; charset=utf-8", head: w.head, row: w.row, foot: "", stats: w.stats };
   }
   if (channel === "emag") {
-    const head = "part_number,name,brand,category,price,currency,stock,ean,url,image";
-    const q = (s: unknown) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-    return { type: "text/csv; charset=utf-8", body: [head, ...items.map((p) => [p.externalId, p.title, p.brand, p.category, p.price, p.currency, p.inStock ? 1 : 0, p.gtin, p.url, p.imageUrl].map(q).join(","))].join("\n") };
+    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    return { type: "text/csv; charset=utf-8", head: "part_number,name,brand,category,price,currency,stock,ean,url,image\n", foot: "", stats: simpleStats,
+      row: counted((p) => `${[p.externalId, p.title, p.brand, p.category, p.price, p.currency, p.inStock ? 1 : 0, p.gtin, p.url, p.imageUrl].map(q).join(",")}\n`) };
   }
   if (channel === "compari" || channel === "arukereso") {
-    return { type: "application/xml", body: `<?xml version="1.0" encoding="UTF-8"?>\n<products>\n${items.map((p) => `<product><identifier>${x(p.externalId)}</identifier><manufacturer>${x(p.brand)}</manufacturer><name>${x(p.title)}</name><category>${x(p.category)}</category><product_url>${x(p.url)}</product_url><price>${p.price ?? ""}</price><image_url>${x(p.imageUrl)}</image_url><description>${x(p.description)}</description><ean_code>${x(p.gtin)}</ean_code><delivery_time>${p.inStock ? "1-3" : ""}</delivery_time></product>`).join("\n")}\n</products>` };
+    return { type: "application/xml", head: `<?xml version="1.0" encoding="UTF-8"?>\n<products>\n`, foot: "</products>", stats: simpleStats,
+      row: counted((p) => `<product><identifier>${x(p.externalId)}</identifier><manufacturer>${x(p.brand)}</manufacturer><name>${x(p.title)}</name><category>${x(p.category)}</category><product_url>${x(p.url)}</product_url><price>${p.price ?? ""}</price><image_url>${x(p.imageUrl)}</image_url><description>${x(p.description)}</description><ean_code>${x(p.gtin)}</ean_code><delivery_time>${p.inStock ? "1-3" : ""}</delivery_time></product>\n`) };
   }
   // Google, Meta, TikTok, Glami: formatul RSS 2.0 cu spațiul de nume g:
-  return { type: "application/xml", body: `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel><title>${x(project.name)}</title><link>https://${x(project.domain)}</link>\n${items.map((p) =>
-    `<item><g:id>${x(p.externalId)}</g:id><title>${x(p.title)}</title><description>${x(p.description ?? p.title)}</description><link>${x(p.url)}</link>${p.imageUrl ? `<g:image_link>${x(p.imageUrl)}</g:image_link>` : ""}<g:price>${x(priceStr(p))}</g:price><g:availability>${p.inStock ? "in_stock" : "out_of_stock"}</g:availability>${p.brand ? `<g:brand>${x(p.brand)}</g:brand>` : ""}${p.gtin ? `<g:gtin>${x(p.gtin)}</g:gtin>` : "<g:identifier_exists>no</g:identifier_exists>"}${p.category ? `<g:product_type>${x(p.category)}</g:product_type>` : ""}<g:condition>new</g:condition>${p.labels.slice(0, 5).map((l, i) => `<g:custom_label_${i}>${x(l)}</g:custom_label_${i}>`).join("")}</item>`).join("\n")}\n</channel></rss>` };
+  return { type: "application/xml", stats: simpleStats,
+    head: `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel><title>${x(project.name)}</title><link>https://${x(project.domain)}</link>\n`,
+    foot: "</channel></rss>",
+    row: counted((p) => `<item><g:id>${x(p.externalId)}</g:id><title>${x(p.title)}</title><description>${x(p.description ?? p.title)}</description><link>${x(p.url)}</link>${p.imageUrl ? `<g:image_link>${x(p.imageUrl)}</g:image_link>` : ""}<g:price>${x(priceStr(p))}</g:price><g:availability>${p.inStock ? "in_stock" : "out_of_stock"}</g:availability>${p.brand ? `<g:brand>${x(p.brand)}</g:brand>` : ""}${p.gtin ? `<g:gtin>${x(p.gtin)}</g:gtin>` : "<g:identifier_exists>no</g:identifier_exists>"}${p.category ? `<g:product_type>${x(p.category)}</g:product_type>` : ""}<g:condition>new</g:condition>${p.labels.slice(0, 5).map((l, i) => `<g:custom_label_${i}>${x(l)}</g:custom_label_${i}>`).join("")}</item>\n`) };
+}
+
+/** Tot feed-ul ca text (pentru cataloage mici și teste). Workerul folosește feedWriter, pe bucăți. */
+export function renderFeed(channel: string, project: StoreRef, items: FeedProduct[], settings?: FeedOutputSettings | null) {
+  const w = feedWriter(channel, project, settings);
+  const rows: string[] = [];
+  for (const p of items) { const r = w.row(p); if (r !== null) rows.push(r); }
+  return { type: w.type, body: `${w.head}${rows.join("")}${w.foot}`, stats: w.stats() };
 }

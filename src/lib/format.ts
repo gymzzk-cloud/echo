@@ -18,3 +18,6 @@ export function delta(n: number) {
   if (n < 0) return { text: `▼ ${n}`, tone: "bad" as const };
   return { text: "= 0", tone: "muted" as const };
 }
+export function dateTime(d: Date | string, locale: Locale = "ro") {
+  return new Intl.DateTimeFormat(L[locale], { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: locale === "hu" ? "Europe/Budapest" : "Europe/Bucharest" }).format(new Date(d));
+}

@@ -7,10 +7,13 @@ import type { FeedAction, FeedCondition } from "@/db/schema";
 import { audit, ownProject } from "@/lib/guard";
 import { randomToken } from "@/lib/util";
 import { CHANNELS, FIELDS, invalidateFeed, proposeTitleEdits } from "@/core/feed";
+import { enqueue } from "@/core/jobs";
 import type { FormState } from "./actions";
 
-const done = () => {
+/** După orice schimbare: golim cache-ul paginii și punem la coadă refacerea fișierelor de feed (în worker, nu aici). */
+const done = async (projectId: string) => {
   invalidateFeed();
+  await enqueue("feed", { projectId });
   revalidatePath("/panou/feed");
 };
 
@@ -22,7 +25,7 @@ export async function toggleChannel(form: FormData) {
   if (!o) await db.insert(schema.feedOutputs).values({ projectId: project.id, channel, token: randomToken(24) });
   else await db.update(schema.feedOutputs).set({ active: !o.active }).where(eq(schema.feedOutputs.id, o.id));
   await audit(org.id, user.id, "feed.channel", { channel });
-  done();
+  await done(project.id);
 }
 
 export async function addRule(_: FormState, form: FormData): Promise<FormState> {
@@ -44,7 +47,7 @@ export async function addRule(_: FormState, form: FormData): Promise<FormState> 
     priority: Number(form.get("priority")) || 100,
   });
   await audit(org.id, user.id, "feed.rule.add", { name });
-  done();
+  await done(project.id);
   return { ok: "Regula a fost adăugată. Se aplică la următoarea descărcare a feed-ului." };
 }
 
@@ -52,19 +55,20 @@ export async function toggleRule(form: FormData) {
   const { project } = await ownProject(String(form.get("projectId")));
   const [r] = await db.select().from(schema.feedRules).where(and(eq(schema.feedRules.id, String(form.get("id"))), eq(schema.feedRules.projectId, project.id)));
   if (r) await db.update(schema.feedRules).set({ active: !r.active }).where(eq(schema.feedRules.id, r.id));
-  done();
+  await done(project.id);
 }
 
 export async function deleteRule(form: FormData) {
   const { project } = await ownProject(String(form.get("projectId")));
   await db.delete(schema.feedRules).where(and(eq(schema.feedRules.id, String(form.get("id"))), eq(schema.feedRules.projectId, project.id)));
-  done();
+  await done(project.id);
 }
 
 export async function proposeTitles(form: FormData) {
   const { project } = await ownProject(String(form.get("projectId")));
   await proposeTitleEdits(project.id);
-  done();
+  invalidateFeed();
+  revalidatePath("/panou/feed");
 }
 
 /** Aprobă, respinge sau anulează (înapoi la propus) una sau toate modificările. */
@@ -78,5 +82,12 @@ export async function setEditStatus(form: FormData) {
     .where(and(inArray(schema.productEdits.id, ids), eq(schema.products.projectId, project.id)));
   if (own.length) await db.update(schema.productEdits).set({ status }).where(inArray(schema.productEdits.id, own.map((o) => o.id)));
   await audit(org.id, user.id, "feed.edits", { status, n: own.length });
-  done();
+  await done(project.id);
+}
+
+/** Regenerează acum fișierele de feed (în worker). Dacă e deja la coadă sau în lucru, nu se adaugă încă o dată. */
+export async function regenerateFeeds(form: FormData) {
+  const { project } = await ownProject(String(form.get("projectId")));
+  await enqueue("feed", { projectId: project.id });
+  revalidatePath("/panou/feed");
 }

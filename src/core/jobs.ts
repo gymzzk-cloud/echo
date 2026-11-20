@@ -6,7 +6,7 @@ import { db, schema } from "@/db";
  * O singură componentă în plus față de baza de date = mai puțin de administrat la început.
  * Când volumul crește, interfața rămâne, iar implementarea se mută pe BullMQ/Redis.
  */
-export type JobKind = "audit" | "sync" | "run_project" | "report" | "daily" | "watches" | "webhook" | "rivals" | "policies";
+export type JobKind = "audit" | "sync" | "run_project" | "report" | "daily" | "watches" | "webhook" | "rivals" | "feed" | "policies";
 
 /**
  * Pune o lucrare la coadă. Dacă exact aceeași lucrare (același tip și aceleași date) e deja la coadă

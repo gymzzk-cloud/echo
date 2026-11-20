@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, text, timestamp, integer, boolean, jsonb, numeric, date, uniqueIndex, index, primaryKey,
+  customType, pgTable, uuid, text, timestamp, integer, boolean, jsonb, numeric, date, uniqueIndex, index, primaryKey,
 } from "drizzle-orm/pg-core";
 import type { StorePolicies } from "../core/policies/extract";
 
@@ -361,12 +361,31 @@ export type FeedCondition = { field: string; op: "eq" | "neq" | "contains" | "lt
 export type FeedAction = { type: "set" | "prefix" | "suffix" | "exclude" | "label"; field?: string; value?: string };
 
 /** Ieșirile de feed: un URL secret per canal, actualizat automat. */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+export type FeedOutputSettings = {
+  returnPolicyUrl?: string; returnWindowDays?: number; privacyPolicyUrl?: string; termsUrl?: string;
+  // găsite automat pe site (folosite când magazinul n-a scris altă adresă)
+  detected?: { returnPolicyUrl?: string; privacyPolicyUrl?: string; termsUrl?: string }; detectedAt?: string;
+};
+/** Ce a ieșit la ultima generare: produse incluse, excluse și câmpurile lipsă (pentru avertismentele din panou). */
+export type FeedFileStats = { total: number; included: number; excluded: Record<string, number>; missing: Record<string, number> };
+
 export const feedOutputs = pgTable("feed_outputs", {
   id: id(),
   projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   channel: text("channel").notNull(), // google | meta | tiktok | openai | compari | arukereso | emag | glami
   token: text("token").notNull().unique(),
   active: boolean("active").notNull().default(true),
+  settings: jsonb("settings").$type<FeedOutputSettings>(), // date cerute de canal care nu sunt în catalog (ex. politica de retur pentru OpenAI)
+  // Fișierul gata generat de worker (comprimat gzip). Adresa publică îl servește așa cum e, fără calcul la cerere.
+  file: bytea("file"),
+  fileType: text("file_type"),
+  itemCount: integer("item_count"),
+  stats: jsonb("stats").$type<FeedFileStats>(),
+  stamp: text("stamp"), // amprenta datelor din care s-a generat (produse, reguli, titluri, setări): aceeași amprentă = nu regenerăm
+  generatedAt: timestamp("generated_at", { withTimezone: true }),
+  lastError: text("last_error"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("feed_outputs_project_channel_idx").on(t.projectId, t.channel)]);
 

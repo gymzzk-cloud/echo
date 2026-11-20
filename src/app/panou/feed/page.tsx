@@ -6,6 +6,7 @@ import { ActionForm } from "@/components/forms";
 import { SubmitButton } from "@/components/client";
 import { Badge, Card, Empty, Field, Input, PageHeader, Table, Td } from "@/components/ui";
 import { CHANNELS, buildFeed } from "@/core/feed";
+import { ChannelsCard, ChatGptCard } from "./channels";
 import { addRule, deleteRule, proposeTitles, setEditStatus, toggleChannel, toggleRule } from "@/app/actions-feed";
 import { money } from "@/lib/format";
 
@@ -17,13 +18,11 @@ const sel = "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm";
 
 export default async function FeedPage() {
   const { project } = await currentProject();
-  const outputs = await db.select().from(schema.feedOutputs).where(eq(schema.feedOutputs.projectId, project.id));
   const rules = await db.select().from(schema.feedRules).where(eq(schema.feedRules.projectId, project.id)).orderBy(schema.feedRules.priority);
   const edits = await db.select({ e: schema.productEdits, p: schema.products }).from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))
     .where(and(eq(schema.products.projectId, project.id))).orderBy(desc(schema.productEdits.createdAt)).limit(200);
   // Doar numărul de produse aici; etichetele și previzualizarea (calcul pe tot catalogul) vin separat, în Suspense.
   const [{ total }] = await db.select({ total: dsql<number>`count(*)::int` }).from(schema.products).where(eq(schema.products.projectId, project.id));
-  const app = process.env.APP_URL ?? "http://localhost:3000";
   const proposed = edits.filter((x) => x.e.status === "propus");
   const pid = <input type="hidden" name="projectId" value={project.id} />;
 
@@ -36,22 +35,8 @@ export default async function FeedPage() {
           <AutoLabels projectId={project.id} />
         </Suspense>
 
-        <Card title="Canale">
-          <Table head={["Canal", "Format", "Adresa feed-ului", ""]}>
-            {CHANNELS.map((c) => {
-              const o = outputs.find((x) => x.channel === c.id);
-              return (
-                <tr key={c.id}>
-                  <Td className="font-medium">{c.name}</Td>
-                  <Td className="text-xs uppercase text-muted">{c.format}</Td>
-                  <Td>{o?.active ? <code className="break-all text-xs">{app}/feed/{o.token}</code> : <span className="text-xs text-muted">oprit</span>}</Td>
-                  <Td><form action={toggleChannel}>{pid}<input type="hidden" name="channel" value={c.id} /><button className="text-sm text-primary hover:underline">{o?.active ? "Oprește" : "Pornește"}</button></form></Td>
-                </tr>
-              );
-            })}
-          </Table>
-          <p className="mt-3 text-xs text-muted">Adresa e secretă: o lipești în Merchant Center, Commerce Manager, TikTok, Compari etc. Feed-ul se regenerează la fiecare descărcare (cache 15 minute). Feed-ul OpenAI este pregătit pentru momentul în care ChatGPT acceptă magazine din RO/HU.</p>
-        </Card>
+        <ChatGptCard projectId={project.id} />
+        <ChannelsCard projectId={project.id} />
 
         <Card title={`Titluri optimizate${proposed.length ? ` (${proposed.length} de aprobat)` : ""}`} action={<form action={proposeTitles}>{pid}<button className="text-sm text-primary hover:underline">Caută titluri de îmbunătățit</button></form>}>
           {edits.length === 0 ? <p className="text-sm text-muted">Analizăm titlurile: marca lipsă, majuscule, categoria. AI-urile recomandă mai des produsele cu titluri clare „Marcă + tip + atribut”.</p> : (
