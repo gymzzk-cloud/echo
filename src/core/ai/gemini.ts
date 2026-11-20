@@ -34,7 +34,8 @@ export function flashCandidates(models: GeminiModel[]): string[] {
     .filter((m) => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes("generateContent"))
     .map((m) => m.name.replace(/^models\//, ""));
   const full = ids.filter((id) => flashVersion(id) !== null);
-  full.sort((a, b) => flashVersion(b)! - flashVersion(a)! || Number(a.includes("preview")) - Number(b.includes("preview")));
+  // Stabile întâi (cele „preview” sunt des supraîncărcate și mai scumpe), apoi după versiune.
+  full.sort((a, b) => Number(a.includes("preview")) - Number(b.includes("preview")) || flashVersion(b)! - flashVersion(a)!);
   const lite = ids.filter((id) => /^gemini-\d+(?:\.\d+)?-flash-lite$/.test(id)).sort().reverse();
   return [...full, ...lite];
 }
@@ -96,7 +97,8 @@ export function parseGemini(data: GeminiResponse) {
   return { answer, sources, inputTokens: u.promptTokenCount ?? 0, outputTokens: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0) };
 }
 
-export const isGeminiFreeTier = () => envValue("GEMINI_FREE_TIER", "1") !== "0";
+/** Cheia e pe planul gratuit doar dacă GEMINI_FREE_TIER=1; implicit socotim costul real (facturare activă). */
+export const isGeminiFreeTier = () => envValue("GEMINI_FREE_TIER", "0") === "1";
 
 type Attempt = { model: string; grounded: boolean };
 /** Ordinea încercărilor: întâi ce a mers ultima dată, apoi fiecare model cu căutare, apoi fără căutare. */
@@ -121,10 +123,13 @@ export const gemini: Runner = {
         contents: [{ role: "user", parts: [{ text: input.query }] }],
         ...(grounded ? { tools: [{ google_search: {} }] } : {}),
         generationConfig: { maxOutputTokens: costConfig().maxOutputTokens, ...(thinking ? { thinkingConfig: thinkingFor(model) } : {}) },
-      }, { "x-goog-api-key": key() }) as Promise<GeminiResponse>;
+      }, { "x-goog-api-key": key() }, Number(envValue("GEMINI_TIMEOUT_MS", "30000")) || 30000) as Promise<GeminiResponse>;
 
     let lastError: unknown = null;
+    // Fără căutare întrebăm doar dacă cheia nu are voie sau cotă la căutare; un model supraîncărcat nu e un motiv.
+    let groundingBlocked = working?.grounded === false;
     for (const a of attemptOrder(await candidateModels(), working)) {
+      if (!a.grounded && !groundingBlocked) continue;
       let data: GeminiResponse;
       try {
         try {
@@ -136,7 +141,10 @@ export const gemini: Runner = {
       } catch (e) {
         const msg = String(e);
         // Fără cotă pe acest model sau căutarea refuzată: încercăm următoarea variantă. Altă eroare: ne oprim.
-        if (isQuotaExhausted(msg) || (a.grounded && isGroundingRefused(msg)) || /HTTP 404/.test(msg)) { lastError = e; continue; }
+        // Model supraîncărcat (503 după reîncercări) sau care nu răspunde la timp: tot următorul model.
+        const unavailable = /HTTP 5\d\d|TimeoutError|timed out|aborted due to timeout/i.test(msg);
+        if (a.grounded && (isQuotaExhausted(msg) || isGroundingRefused(msg))) groundingBlocked = true;
+        if (isQuotaExhausted(msg) || (a.grounded && isGroundingRefused(msg)) || /HTTP 404/.test(msg) || unavailable) { lastError = e; continue; }
         throw e;
       }
       if (!working || working.model !== a.model || working.grounded !== a.grounded) console.log(`AI gemini: folosim ${a.model}${a.grounded ? " cu căutare Google" : " fără căutare"}`);
