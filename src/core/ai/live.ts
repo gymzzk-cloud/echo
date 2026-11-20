@@ -12,7 +12,9 @@ import { costConfig } from "./budget";
  * Întrebarea nu primește instrucțiuni în plus: ar costa tokeni și ar strica măsurătoarea.
  */
 
-const env = (k: string, d = "") => process.env[k] ?? d;
+/** Valoarea unei variabile de mediu fără spații, rânduri noi sau ghilimele lipite la copiere (cauză frecventă de 401). */
+export const cleanEnvValue = (v: string) => v.trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+const env = (k: string, d = "") => cleanEnvValue(process.env[k] ?? d);
 const price = (k: string, d: number) => parseFloat(env(k, String(d)));
 
 async function postJson(url: string, body: unknown, headers: Record<string, string>, timeoutMs = 60000) {
@@ -117,7 +119,7 @@ export const claude: Runner = {
   isLive: () => !!env("ANTHROPIC_API_KEY"),
   async run(input) {
     const t0 = Date.now();
-    anthropic ??= new Anthropic();
+    anthropic ??= new Anthropic({ apiKey: env("ANTHROPIC_API_KEY") });
     const model = env("ANTHROPIC_MODEL", "claude-haiku-5-5");
     const tier = claudeTier(model);
     const location = { type: "approximate" as const, country: input.country };
