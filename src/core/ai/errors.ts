@@ -4,6 +4,7 @@
  */
 export function failureReason(answer: string): string {
   const a = answer.toLowerCase();
+  if (/planului gratuit|creditele lunare serpapi/.test(a)) return "limita planului gratuit e atinsă; continuăm automat la următoarea rulare";
   if (/credit balance|insufficient_quota|billing/.test(a)) return "contul AI nu mai are credit";
   if (/\b401\b|authentication|api key|api-key|x-api-key|unauthorized/.test(a)) return "cheia API nu e validă";
   if (/\b403\b|permission|forbidden/.test(a)) return "cheia API nu are acces la acest model";

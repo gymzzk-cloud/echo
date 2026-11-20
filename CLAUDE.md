@@ -100,6 +100,7 @@ O sarcină e gata doar când:
 
 - Orice cod nou care apelează un AI trece prin adaptoarele din `src/core/ai/` și prin `runQuery`, care salvează costul și tokenii fiecărei rulări.
 - **Model ieftin implicit**: ChatGPT `gpt-5-mini` cu gândire `low`, Claude `claude-haiku-5-5`, Gemini Flash fără gândire, Perplexity `sonar`. Un model mare doar unde s-a arătat că e nevoie, prin variabila de mediu a adaptorului.
+- **Planuri gratuite respectate în motor** (`src/core/ai/limits.ts`): un adaptor își declară limitele (`limits()`: pe minut, pe zi, credite pe lună, zile de refolosire). Gemini gratuit: `GEMINI_RPM` / `GEMINI_DAILY_LIMIT`. Google AI Overviews prin SerpApi: `SERPAPI_MONTHLY_LIMIT` credite, rulare refolosită `SERP_REUSE_DAYS` zile, doar motoarele din `SERP_ENGINES`. Peste limită nu întrebăm, iar rularea apare ca „nu am putut întreba”, nu ca „nu ești recomandat”.
 - **Răspuns plafonat**: `AI_MAX_OUTPUT_TOKENS` (implicit 2000), cel mult 2 căutări web pe întrebare, context de căutare „low”.
 - **Întrebarea pleacă exact cum o scrie clientul**, fără instrucțiuni în plus: ar costa tokeni și ar strica măsurătoarea.
 - **Nicio întrebare plătită de două ori**: aceeași întrebare pe același AI rulează o singură dată pe zi și e folosită de toate magazinele care o urmăresc.

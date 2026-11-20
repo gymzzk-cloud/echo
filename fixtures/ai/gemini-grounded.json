@@ -1,0 +1,15 @@
+{
+  "candidates": [ {
+    "content": { "parts": [ { "text": "Poți cumpăra o bormașină Bosch de la Dedeman sau eMAG. " }, { "text": "Prețurile încep de la 450 lei." } ], "role": "model" },
+    "groundingMetadata": {
+      "webSearchQueries": ["bormasina bosch acumulator"],
+      "groundingChunks": [
+        { "web": { "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AAA", "title": "dedeman.ro" } },
+        { "web": { "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/BBB", "title": "eMAG.ro" } },
+        { "web": { "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/CCC", "title": "Ghid de cumpărare scule" } },
+        { "web": { "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/DDD", "title": "dedeman.ro" } }
+      ]
+    }
+  } ],
+  "usageMetadata": { "promptTokenCount": 9, "candidatesTokenCount": 40, "thoughtsTokenCount": 5, "totalTokenCount": 54 }
+}
