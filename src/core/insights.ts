@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Mention } from "@/db/schema";
 import { daysAgo, domainOf } from "@/lib/util";
@@ -59,7 +59,12 @@ export function perPrompt(rows: Rows, domain: string) {
 
 /** Produse: de câte ori e recomandat fiecare, de ce AI-uri, ce prețuri spun. */
 export async function productInsights(project: Project, rows: Rows) {
-  const prods = await db.select().from(schema.products).where(eq(schema.products.projectId, project.id)).limit(20000);
+  // Doar coloanele afișate: fără textul descrierilor (mult) pentru mii de produse.
+  const P = schema.products;
+  const prods = await db.select({
+    id: P.id, title: P.title, url: P.url, brand: P.brand, category: P.category, price: P.price, currency: P.currency, inStock: P.inStock, gtin: P.gtin,
+    hasDescription: dsql<boolean>`coalesce(${P.description}, '') <> ''`, hasImage: dsql<boolean>`coalesce(${P.imageUrl}, '') <> ''`,
+  }).from(P).where(eq(P.projectId, project.id)).limit(20000);
   const stats = new Map<string, { n: number; providers: Set<string>; prices: { provider: string; price: number }[]; positions: number[] }>();
   const where = new Map<string, number>();
   for (const { run } of rows) {
