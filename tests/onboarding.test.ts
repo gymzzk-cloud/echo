@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { buildTrialPrompts } from "@/core/onboarding/prompts";
 import { brandShare, computeTeaser, type TeaserRun } from "@/core/onboarding/teaser";
 import { extractHomeCatalog, homeLogo } from "@/core/onboarding/home";
-import { advance, cleanDomain, cleanList, TRIAL_QUESTIONS } from "@/core/onboarding/types";
+import { advance, cleanDomain, cleanList, domainFromName, TRIAL_QUESTIONS } from "@/core/onboarding/types";
 
 const base = { storeName: "ShopExpert", categories: ["Scule electrice", "Grădină"], brands: ["Makita", "Bosch"], products: ["Makita DHP485Z", "Bosch GSR 12V"], focus: "buy" as const, markets: ["RO" as const] };
 
@@ -92,7 +92,7 @@ describe("extractHomeCatalog", () => {
     expect(h.brands).toEqual(["Bosch", "Makita"]);
     expect(h.products).toEqual(["Bosch GSR 12V", "Makita DHP485Z mașină de găurit"]);
   });
-  it("pagină goală: liste goale, fără siglă", () => expect(extractHomeCatalog(cheerio.load(""), [])).toEqual({ categories: [], brands: [], products: [], logo: null }));
+  it("pagină goală: liste goale, fără siglă", () => expect(extractHomeCatalog(cheerio.load(""), [])).toEqual({ categories: [], brands: [], products: [], logo: null, logos: [], siteName: null }));
 });
 
 describe("homeLogo", () => {
@@ -123,5 +123,41 @@ describe("cleanList / cleanDomain / advance", () => {
     expect(advance("scan", "scan")).toBe("identity");
     expect(advance("markets", "identity")).toBe("markets");
     expect(advance("result", "result")).toBe("result");
+  });
+});
+
+describe("scanare: mărci cunoscute, nume, sigle", () => {
+  it("găsește marca din titlu și din textele alternative ale siglelor", async () => {
+    const { knownBrandsIn } = await import("@/core/onboarding/home");
+    expect(knownBrandsIn(["Scule electrice DEWALT", "logo makita", "Bosch Professional GSR"])).toEqual(expect.arrayContaining(["DeWalt", "Makita", "Bosch"]));
+    expect(knownBrandsIn(["Boschetti", "totaling"])).toEqual([]);
+  });
+  it("mărcile din pagina reală: titlu + caruselul de sigle", () => {
+    const $ = cheerio.load(`<title>Scule electrice DEWALT | Hardline Construct</title><div class="owl-carousel"><img alt="Stanley"><img alt="DeWalt logo"></div>`);
+    expect(extractHomeCatalog($, []).brands).toEqual(expect.arrayContaining(["DeWalt", "Stanley"]));
+  });
+  it("sigla încărcată leneș: ia data-src, nu înlocuitorul, și trece pe https", async () => {
+    const { homeLogos } = await import("@/core/onboarding/home");
+    const $ = cheerio.load(`<header><a class="logo"><img src="/img/lazy.gif" data-src="http://cdn.hl.ro/logo.png"></a></header><link rel="icon" href="/fav.ico">`);
+    expect(homeLogos($, [], "https://hl.ro/")).toEqual(["https://cdn.hl.ro/logo.png", "https://hl.ro/fav.ico"]);
+  });
+  it("numele magazinului nu e luat din titlul unei categorii", async () => {
+    const { storeNameFrom } = await import("@/core/onboarding");
+    const facts = { title: "Scule electrice DEWALT | Hardline Construct" } as never;
+    expect(storeNameFrom({ facts, home: { categories: [], brands: [], products: [] } }, "hardlineconstruct.ro")).toBe("Hardline Construct");
+    expect(storeNameFrom({ facts: { title: "Scule electrice DEWALT" } as never, home: { categories: [], brands: [], products: [] } }, "hardlineconstruct.ro")).toBeNull();
+    expect(storeNameFrom({ facts, home: { categories: [], brands: [], products: [], siteName: "Hardline" } }, "hardlineconstruct.ro")).toBe("Hardline");
+  });
+  it("„Promoții %” nu e o categorie", () => {
+    expect(extractHomeCatalog(cheerio.load(`<nav><a href="/a">Scule electrice</a><a href="/p">Promotii %</a></nav>`), []).categories).toEqual(["Scule electrice"]);
+  });
+});
+
+describe("domainFromName", () => {
+  it("concurent scris doar cu numele", () => {
+    expect(domainFromName("Dedeman")).toBe("dedeman.ro");
+    expect(domainFromName("Atelierul Tău")).toBe("atelierultau.ro");
+    expect(domainFromName("Praktiker", "hu")).toBe("praktiker.hu");
+    expect(domainFromName("x")).toBeNull();
   });
 });
