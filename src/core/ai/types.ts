@@ -10,6 +10,9 @@ export const PROVIDERS: { id: Provider; label: string; color: string }[] = [
 ];
 export const providerLabel = (p: string) => PROVIDERS.find((x) => x.id === p)?.label ?? p;
 
+/** Modelul trecut pe o rulare eșuată. */
+export const ERROR_MODEL = "eroare";
+
 export type RunInput = {
   query: string;
   language: "ro" | "hu";

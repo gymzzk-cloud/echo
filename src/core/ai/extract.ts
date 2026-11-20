@@ -1,6 +1,6 @@
 import type { Mention } from "@/db/schema";
 import { domainOf, keywords } from "@/lib/util";
-import type { KnownProduct, KnownStore } from "./types";
+import { ERROR_MODEL, type KnownProduct, type KnownStore } from "./types";
 
 /**
  * Extrage din răspunsul unui AI ce magazine și produse a menționat, în ce ordine și la ce preț.
@@ -92,4 +92,15 @@ export function extractMentions(
     if (world.stores.some((k) => k.domain === d)) mentions.push({ domain: d, position: mentions.length + 1 });
   }
   return mentions;
+}
+
+/**
+ * Mențiunile unei rulări. O rulare cu eroare (cheie greșită, AI căzut) nu recomandă pe nimeni:
+ * linkurile din mesajul de eroare (ex. platform.openai.com) nu sunt magazine.
+ */
+export function runMentions(
+  run: { answer: string; sources: { url: string; title?: string }[]; model: string | null; query?: string },
+  world: { stores: KnownStore[]; products: KnownProduct[] },
+): Mention[] {
+  return run.model === ERROR_MODEL ? [] : extractMentions(run.answer, run.sources, world, run.query);
 }
