@@ -69,7 +69,7 @@ export async function productInsights(project: Project, rows: Rows) {
   // Doar coloanele afișate: fără textul descrierilor (mult) pentru mii de produse.
   const P = schema.products;
   const prods = await db.select({
-    id: P.id, title: P.title, url: P.url, brand: P.brand, category: P.category, price: P.price, currency: P.currency, inStock: P.inStock, gtin: P.gtin,
+    id: P.id, title: P.title, url: P.url, popularityRank: P.popularityRank, brand: P.brand, category: P.category, price: P.price, currency: P.currency, inStock: P.inStock, gtin: P.gtin,
     hasDescription: dsql<boolean>`coalesce(${P.description}, '') <> ''`, hasImage: dsql<boolean>`coalesce(${P.imageUrl}, '') <> ''`,
   }).from(P).where(eq(P.projectId, project.id)).limit(20000);
   const stats = new Map<string, { n: number; providers: Set<string>; prices: { provider: string; price: number }[]; positions: number[] }>();

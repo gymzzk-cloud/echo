@@ -132,10 +132,12 @@ export const products = pgTable("products", {
   mpn: text("mpn"), // codul producătorului / SKU, cum îl caută clienții
   description: text("description"),
   delivery: text("delivery"), // ex. „1-2 zile lucrătoare · transport 20 RON”, din feed
+  popularityRank: integer("popularity_rank"), // 1 = cel mai vândut (de la platformă sau din feed); null = necunoscut
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("products_project_ext_idx").on(t.projectId, t.externalId),
   index("products_project_idx").on(t.projectId),
+  index("products_project_popularity_idx").on(t.projectId, t.popularityRank),
 ]);
 
 export const competitors = pgTable("competitors", {

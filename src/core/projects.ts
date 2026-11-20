@@ -8,6 +8,8 @@ import { db, schema } from "@/db";
 import type { Mention } from "@/db/schema";
 import { daysAgo, decrypt, domainOf, encrypt, parseStoreUrl, today } from "@/lib/util";
 import { runAudit, type AuditResult } from "./audit";
+import { refreshPopularity, savePopularity } from "./popularity";
+import { rankFromItems } from "./connectors/popularity";
 import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogItem, type ConnectorKind } from "./connectors";
 import { nextSyncAt } from "./connectors/polite";
 import { saveCatalogDelivery } from "./policies";
@@ -43,6 +45,8 @@ export async function syncCatalog(connectionId: string) {
       const r = await fetchFeedFull(c.url, p.currency, secret, { etag: c.etag, lastModified: c.lastModified });
       if (r.notModified || (r.hash && r.hash === c.contentHash)) {
         await db.update(schema.connections).set(base).where(eq(schema.connections.id, c.id));
+        // Catalogul e neschimbat, dar topul vânzărilor al unui API se poate schimba (un feed-fișier neschimbat, nu).
+        if (/openapi|swagger/i.test(c.url) && (await refreshPopularity(p.id, "feed", c.url, p.currency, secret))) await ensurePrompts(p.id);
         return c.productCount;
       }
       if (!r.items.length) throw new Error("Nu am găsit produse la acest link. Verifică să fie feed-ul (sau API-ul) de produse și cheia, dacă e nevoie.");
@@ -54,6 +58,7 @@ export async function syncCatalog(connectionId: string) {
       items = await fetchCatalog(c.kind as ConnectorKind, c.url, p.currency, secret);
       if (items.length) await saveChangedItems(p.id, items);
     }
+    await refreshPopularity(p.id, c.kind as ConnectorKind, c.url, p.currency, secret, items);
     await db.update(schema.connections).set({ ...base, productCount: items.length }).where(eq(schema.connections.id, c.id));
     await db.update(schema.projects).set({ platform: c.kind }).where(eq(schema.projects.id, p.id));
     invalidateWorld();
@@ -121,6 +126,7 @@ export async function importFeedFile(projectId: string, fileName: string, body: 
   const items = parseFeed(body, p.currency);
   if (!items.length) throw new Error("Nu am găsit produse în fișier. Verifică să aibă cel puțin titlu și link pentru fiecare produs.");
   await saveItems(projectId, items);
+  await savePopularity(projectId, rankFromItems(items));
   await db.insert(schema.connections).values({ projectId, kind: "upload", url: `fișier: ${fileName}`, status: "ok", productCount: items.length, lastSyncAt: new Date() });
   invalidateWorld();
   await ensurePrompts(projectId);
