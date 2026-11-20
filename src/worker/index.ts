@@ -8,6 +8,7 @@ import { checkWatches } from "@/core/watches";
 import { deliverWebhook } from "@/core/platform";
 import { isDemo } from "@/core/ai/engine";
 import { costConfig, isRunDue } from "@/core/ai/budget";
+import { generateFeedFiles, projectsWithStaleFeeds } from "@/core/feed-files";
 import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
 
 /**
@@ -19,7 +20,14 @@ import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
 async function handle(kind: string, payload: Record<string, string>) {
   switch (kind) {
     case "audit": return payload.auditId ? runAuditRow(payload.auditId) : auditProject(payload.projectId);
-    case "sync": return syncCatalog(payload.connectionId);
+    case "sync": {
+      const n = await syncCatalog(payload.connectionId);
+      // Catalog nou → fișierele de feed se refac (jobul nu face nimic dacă produsele nu s-au schimbat).
+      const [c] = await db.select({ projectId: schema.connections.projectId }).from(schema.connections).where(eq(schema.connections.id, payload.connectionId));
+      if (c) await enqueue("feed", { projectId: c.projectId });
+      return n;
+    }
+    case "feed": return generateFeedFiles(payload.projectId);
     case "run_project": return runProject(payload.projectId);
     case "report": {
       const r = await buildWeeklyReport(payload.projectId);
@@ -57,6 +65,10 @@ async function schedule() {
   // ca să nu lovim multe magazine deodată. Sincronizarea face cerere condiționată (304 = nimic de descărcat).
   for (const c of await dueConnections(5)) {
     if (!(await pendingJobs(["sync"], "connectionId", c.id))) await enqueue("sync", { connectionId: c.id });
+  }
+  // Feed-urile pe canale: reîmprospătare zilnică (etichetele automate se schimbă și fără catalog nou)
+  for (const projectId of await projectsWithStaleFeeds()) {
+    if (!(await pendingJobs(["feed"], "projectId", projectId))) await enqueue("feed", { projectId });
   }
   // Alerte de preț și stoc pentru cumpărători: la fiecare programare (10 min), după sincronizările de catalog
   if (!(await pendingJobs(["watches"], "all", "1"))) await enqueue("watches", { all: "1" });
