@@ -171,3 +171,23 @@ describe("registrul de magazine", () => {
     expect(mergeStableFacts({ ...base, cui: "RO999" }, { ...base, cui: "RO123" }, new Date()).facts.cui).toBe("RO999");
   });
 });
+
+import { nextSyncAt } from "@/core/connectors/polite";
+describe("nextSyncAt (preluare ușoară)", () => {
+  const t0 = new Date("2026-11-20T00:00:00Z");
+  it("decalaj stabil per magazin, între 12h și 14h", () => {
+    const a = nextSyncAt("conn-a", t0).getTime() - t0.getTime();
+    expect(a).toBe(nextSyncAt("conn-a", t0).getTime() - t0.getTime());
+    expect(a).toBeGreaterThanOrEqual(12 * 3600e3);
+    expect(a).toBeLessThan(14 * 3600e3);
+  });
+  it("magazine diferite nu cad la aceeași oră", () => {
+    const set = new Set(["c1", "c2", "c3", "c4", "c5"].map((id) => nextSyncAt(id, t0).getTime()));
+    expect(set.size).toBeGreaterThan(1);
+  });
+  it("după erori așteaptă mai mult, plafonat la x4", () => {
+    const d = (f: number) => nextSyncAt("x", t0, f).getTime() - nextSyncAt("x", t0, 0).getTime();
+    expect(d(1)).toBe(12 * 3600e3);
+    expect(d(5)).toBe(36 * 3600e3);
+  });
+});

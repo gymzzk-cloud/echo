@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { politeFetch, UA } from "./polite";
 import { parse as parseYaml } from "yaml";
 
 /**
@@ -25,11 +26,10 @@ export type CatalogItem = {
 export type ConnectorKind = "shopify" | "woocommerce" | "feed" | "gomag" | "merchantpro" | "prestashop" | "upload";
 export const API_KINDS = ["gomag", "merchantpro", "prestashop"] as const;
 
-const UA = "EchoCatalogBot/1.0 (+https://echo.ai/bot)";
 const MAX_ITEMS = 100000;
 
 async function fetchJson(url: string) {
-  const r = await fetch(url, { headers: { "user-agent": UA, accept: "application/json" }, signal: AbortSignal.timeout(20000) });
+  const r = await politeFetch(url, { headers: { accept: "application/json" }, timeoutMs: 20000 });
   if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
   const ct = r.headers.get("content-type") ?? "";
   if (!ct.includes("json")) throw new Error(`${url} nu a întors JSON`);
@@ -247,8 +247,8 @@ function parseCsv(body: string): Record<string, unknown>[] {
 }
 
 // ── Feed sau API cu cheie (inclusiv OpenAPI cu paginare) ───────────────────
-// Regula de bază: citim catalogul cât mai ușor pentru magazin. Cereri una după alta (niciodată în paralel),
-// pauză între pagini, pagini mari, If-None-Match / If-Modified-Since când serverul le oferă,
+// Regula de bază (ADR 0002): citim catalogul cât mai ușor pentru magazin. Cereri prin politeFetch (una odată, cu pauză),
+// pagini mari, If-None-Match / If-Modified-Since când serverul le oferă,
 // iar dacă nimic nu s-a schimbat (același hash), nu rescriem nimic în baza noastră.
 
 export type FeedAuth = { query: [string, string][]; headers: Record<string, string> };
@@ -279,11 +279,10 @@ function withQuery(url: string, params: [string, string][]) {
   return u.toString();
 }
 
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const PAGE_PAUSE_MS = 400;
 
 async function getText(url: string, auth: FeedAuth, extra: Record<string, string> = {}) {
-  const r = await fetch(withQuery(url, auth.query), { headers: { "user-agent": UA, ...auth.headers, ...extra }, signal: AbortSignal.timeout(90000) });
+  // politeFetch: o cerere odată pe host, pauză între cereri (CATALOG_PAGE_PAUSE_MS), respectă 429/503 + Retry-After.
+  const r = await politeFetch(withQuery(url, auth.query), { headers: { "accept-encoding": "gzip", ...auth.headers, ...extra }, timeoutMs: 90000 });
   if (r.status === 304) return { status: 304, body: "", etag: r.headers.get("etag"), lastModified: r.headers.get("last-modified") };
   if (r.status === 401 || r.status === 403) throw new Error(`Feed → HTTP ${r.status}: cheia lipsește sau nu e acceptată.`);
   if (!r.ok) throw new Error(`Feed → HTTP ${r.status}`);
@@ -370,7 +369,6 @@ async function fetchPaged(ep: ApiEndpoint, auth: FeedAuth, currency: string) {
     if (ep.limitParam) q.push([ep.limitParam, String(ep.limit)]);
     if (ep.pageParam === "offset") q.push(["offset", String(records.length)]);
     if (ep.pageParam === "page") q.push(["page", String(i + 1)]);
-    if (i > 0) await pause(PAGE_PAUSE_MS);
     const { body } = await getText(withQuery(ep.url, q), auth, { accept: "application/json" });
     requests++;
     const doc = JSON.parse(body);

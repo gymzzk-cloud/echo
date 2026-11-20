@@ -7,6 +7,7 @@ import type { Mention } from "@/db/schema";
 import { daysAgo, decrypt, domainOf, encrypt, parseStoreUrl, today } from "@/lib/util";
 import { runAudit, type AuditResult } from "./audit";
 import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogItem, type ConnectorKind } from "./connectors";
+import { nextSyncAt } from "./connectors/polite";
 import { invalidateWorld, loadWorld, runQuery } from "./ai/engine";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { suggestPrompts } from "./prompts";
@@ -23,12 +24,15 @@ export async function syncCatalog(connectionId: string) {
   const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, c.projectId));
   try {
     const secret = c.secret ? decrypt(c.secret) : undefined;
+    const now = new Date();
+    // La termen data viitoare (12h + decalaj stabil per magazin), contorul de erori se resetează.
+    const base = { status: "ok", lastError: null, lastSyncAt: now, failures: 0, nextSyncAt: nextSyncAt(c.id, now) };
     let items: CatalogItem[];
     if (c.kind === "feed") {
-      // Feed/API: cereri condiționate și hash; dacă nimic nu s-a schimbat, nu rescriem catalogul.
+      // Feed/API: cereri condiționate (ETag/Last-Modified) și hash; dacă nimic nu s-a schimbat, nu rescriem catalogul.
       const r = await fetchFeedFull(c.url, p.currency, secret, { etag: c.etag, lastModified: c.lastModified });
       if (r.notModified || (r.hash && r.hash === c.contentHash)) {
-        await db.update(schema.connections).set({ status: "ok", lastError: null, lastSyncAt: new Date() }).where(eq(schema.connections.id, c.id));
+        await db.update(schema.connections).set(base).where(eq(schema.connections.id, c.id));
         return c.productCount;
       }
       if (!r.items.length) throw new Error("Nu am găsit produse la acest link. Verifică să fie feed-ul (sau API-ul) de produse și cheia, dacă e nevoie.");
@@ -40,15 +44,23 @@ export async function syncCatalog(connectionId: string) {
       items = await fetchCatalog(c.kind as ConnectorKind, c.url, p.currency, secret);
       if (items.length) await saveChangedItems(p.id, items);
     }
-    await db.update(schema.connections).set({ status: "ok", lastError: null, lastSyncAt: new Date(), productCount: items.length }).where(eq(schema.connections.id, c.id));
+    await db.update(schema.connections).set({ ...base, productCount: items.length }).where(eq(schema.connections.id, c.id));
     await db.update(schema.projects).set({ platform: c.kind }).where(eq(schema.projects.id, p.id));
     invalidateWorld();
     await ensurePrompts(p.id);
     return items.length;
   } catch (e) {
-    await db.update(schema.connections).set({ status: "error", lastError: String(e).slice(0, 500) }).where(eq(schema.connections.id, c.id));
+    const failures = (c.failures ?? 0) + 1;
+    await db.update(schema.connections).set({ status: "error", lastError: String(e).slice(0, 500), failures, nextSyncAt: nextSyncAt(c.id, new Date(), failures) }).where(eq(schema.connections.id, c.id));
     throw e;
   }
+}
+
+/** Conexiunile care au nevoie de sincronizare acum (feed/API, nu fișiere încărcate), cele mai vechi întâi. */
+export async function dueConnections(limit = 5) {
+  return db.select({ id: schema.connections.id }).from(schema.connections)
+    .where(and(dsql`${schema.connections.kind} <> 'upload'`, dsql`coalesce(${schema.connections.nextSyncAt}, ${schema.connections.lastSyncAt} + interval '12 hours', now()) <= now()`))
+    .orderBy(dsql`coalesce(${schema.connections.nextSyncAt}, ${schema.connections.lastSyncAt}) nulls first`).limit(limit);
 }
 
 /**

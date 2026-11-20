@@ -1,5 +1,5 @@
 {
-  "id": "e0c59a84-85f4-4404-a83a-32b4e247053b",
+  "id": "8d0b5dc5-477e-49b0-acfb-bbfcddb55336",
   "prevId": "58fb9d21-8e0f-4671-97a0-93d9f1b39a28",
   "version": "7",
   "dialect": "postgresql",
@@ -872,8 +872,14 @@
           "primaryKey": false,
           "notNull": false
         },
-        "product_count": {
-          "name": "product_count",
+        "next_sync_at": {
+          "name": "next_sync_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failures": {
+          "name": "failures",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -891,11 +897,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "content_hash": {
-          "name": "content_hash",
-          "type": "text",
+        "product_count": {
+          "name": "product_count",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",

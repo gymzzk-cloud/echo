@@ -1,4 +1,5 @@
 import { mapRecord, type CatalogItem } from "./index";
+import { politeFetch } from "./polite";
 
 /**
  * Conectori prin API pentru platformele locale. Cheile vin criptate din baza de date și se decriptează doar aici.
@@ -6,11 +7,10 @@ import { mapRecord, type CatalogItem } from "./index";
  * Stare: scrise după documentația publică a fiecărei platforme. Se validează pe primul magazin real cu cheie.
  */
 
-const UA = "EchoCatalogBot/1.0 (+https://echo.ai/bot)";
 const MAX = 20000;
 
 async function getJson(url: string, headers: Record<string, string>) {
-  const r = await fetch(url, { headers: { "user-agent": UA, accept: "application/json", ...headers }, signal: AbortSignal.timeout(30000) });
+  const r = await politeFetch(url, { headers: { accept: "application/json", ...headers }, timeoutMs: 30000 });
   if (r.status === 401 || r.status === 403) throw new Error("Cheia API a fost refuzată. Verifică cheia și drepturile de citire a produselor.");
   if (!r.ok) throw new Error(`${new URL(url).host} → HTTP ${r.status}`);
   return r.json();

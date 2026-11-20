@@ -1,7 +1,7 @@
-import { and, eq, gte, isNull, lt, ne, or } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { finishJob, enqueue, pickJob, pendingJobs } from "@/core/jobs";
-import { allProjectIds, auditProject, runAuditRow, runProject, syncCatalog } from "@/core/projects";
+import { allProjectIds, auditProject, runAuditRow, runProject, syncCatalog, dueConnections } from "@/core/projects";
 import { buildWeeklyReport, sendReport } from "@/core/report";
 import { today } from "@/lib/util";
 import { checkWatches } from "@/core/watches";
@@ -41,12 +41,9 @@ async function schedule() {
       .where(and(eq(schema.audits.projectId, projectId), gte(schema.audits.createdAt, new Date(Date.now() - 7 * 864e5)))).limit(1);
     if (!recent.length && !(await pendingJobs(["audit"], "projectId", projectId))) await enqueue("audit", { projectId });
   }
-  // Catalog: o resincronizare la CATALOG_SYNC_HOURS (implicit 24h) de la ultima reușită, nu mai des.
-  // Feed-urile folosesc cereri condiționate și hash, deci o zi fără schimbări nu rescrie nimic.
-  const every = Math.max(1, Number(process.env.CATALOG_SYNC_HOURS) || 24);
-  const due = await db.select({ id: schema.connections.id }).from(schema.connections)
-    .where(and(ne(schema.connections.kind, "upload"), or(isNull(schema.connections.lastSyncAt), lt(schema.connections.lastSyncAt, new Date(Date.now() - every * 3600e3)))));
-  for (const c of due) {
+  // Cataloage: doar conexiunile ajunse la termen (12h + decalaj stabil per magazin), max 5 pe ciclu,
+  // ca să nu lovim multe magazine deodată. Sincronizarea face cerere condiționată (304 = nimic de descărcat).
+  for (const c of await dueConnections(5)) {
     if (!(await pendingJobs(["sync"], "connectionId", c.id))) await enqueue("sync", { connectionId: c.id });
   }
   // Alerte de preț și stoc pentru cumpărători: la fiecare programare (10 min), după sincronizările de catalog

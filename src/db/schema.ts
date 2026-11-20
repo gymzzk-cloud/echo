@@ -103,11 +103,12 @@ export const connections = pgTable("connections", {
   status: text("status").notNull().default("pending"), // pending | ok | error
   lastError: text("last_error"),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
-  productCount: integer("product_count").notNull().default(0),
-  // Sincronizare ușoară pentru magazin: cereri condiționate și hash-ul ultimului catalog citit
-  etag: text("etag"),
+  nextSyncAt: timestamp("next_sync_at", { withTimezone: true }), // sincronizări rare și împrăștiate, ca să nu încărcăm magazinul
+  failures: integer("failures").notNull().default(0),
+  etag: text("etag"),                  // descărcăm feed-ul doar dacă s-a schimbat
   lastModified: text("last_modified"),
-  contentHash: text("content_hash"),
+  contentHash: text("content_hash"),   // hash-ul ultimului catalog: dacă e același, nu rescriem nimic
+  productCount: integer("product_count").notNull().default(0),
   createdAt: createdAt(),
 });
 

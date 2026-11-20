@@ -54,15 +54,15 @@
     {
       "idx": 7,
       "version": "7",
-      "when": 1795161671125,
-      "tag": "0007_feed_sync",
+      "when": 1795161446375,
+      "tag": "0007_polite_sync",
       "breakpoints": true
     },
     {
       "idx": 8,
       "version": "7",
-      "when": 1795162128924,
-      "tag": "0008_product_delivery",
+      "when": 1795163371679,
+      "tag": "0008_feed_api_delivery",
       "breakpoints": true
     }
   ]
