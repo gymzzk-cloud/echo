@@ -71,3 +71,13 @@ export async function syncingConnections(connectionIds: string[]): Promise<Set<s
     and payload->>'connectionId' in ${connectionIds}`);
   return new Set((r as unknown as { id: string }[]).map((x) => x.id));
 }
+
+/**
+ * Are magazinul vreo lucrare la coadă sau în lucru (inclusiv sincronizarea conexiunilor lui)?
+ * O interogare mică, pentru ca pagina să se actualizeze singură când lucrarea se termină.
+ */
+export async function projectBusy(projectId: string): Promise<boolean> {
+  const r = await db.execute(dsql`select 1 from jobs where status in ('queued','running') and created_at > now() - interval '30 minutes'
+    and (payload->>'projectId' = ${projectId} or payload->>'connectionId' in (select id::text from connections where project_id = ${projectId})) limit 1`);
+  return (r as unknown as unknown[]).length > 0;
+}

@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { Card, Empty, PageHeader } from "@/components/ui";
-import { SubmitButton } from "@/components/client";
+import { RefreshWhenDone, SubmitButton } from "@/components/client";
 import { makeReport } from "@/app/actions";
 import { dateShort } from "@/lib/format";
 import { busyKinds } from "@/core/jobs";
@@ -20,9 +20,9 @@ export default async function Reports() {
         <form action={makeReport} className="flex flex-wrap items-center gap-4">
           <input type="hidden" name="projectId" value={project.id} />
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="send" defaultChecked /> Trimite și pe email la {user.email}</label>
-          {generating ? <span className="text-sm text-muted">Raportul se generează…</span> : <SubmitButton pendingText="Generez…">Generează raportul acum</SubmitButton>}
+          {generating ? <span className="text-sm text-muted">Raportul se generează…<RefreshWhenDone projectId={project.id} /></span> : <SubmitButton pendingText="Generez…">Generează raportul acum</SubmitButton>}
         </form>
-        <p className="mt-2 text-xs text-muted">Se generează în fundal; reîncarcă pagina după câteva secunde.</p>
+        <p className="mt-2 text-xs text-muted">Se generează în fundal; pagina se actualizează singură când e gata.</p>
       </Card>
       {list.length === 0 ? <Empty title="Niciun raport încă" /> : (
         <Card title="Rapoarte anterioare">

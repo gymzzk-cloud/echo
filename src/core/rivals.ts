@@ -1,4 +1,5 @@
 import type { Mention } from "@/db/schema";
+import { brandLabel } from "./ai/extract";
 
 /**
  * Concurenții „care apar mai bine ca tine”, găsiți în răspunsurile AI deja salvate (fără apeluri AI noi).
@@ -47,6 +48,9 @@ export type RivalReport = {
   answers: number;
 };
 
+/** Același magazin pe alt domeniu (aceeași marcă): nu e concurent. */
+export const isOwnBrand = (domain: string, ownDomain: string) => domain === ownDomain || brandLabel(domain) === brandLabel(ownDomain);
+
 const prettyName = (domain: string) => {
   const label = domain.split(".").slice(0, -1).pop() ?? domain;
   return label.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
@@ -64,7 +68,7 @@ export function rankRivals(rows: RivalRow[], ownDomain: string, excluded: string
     if (me) { mine++; minePos += me.position; totalStoreMentions++; myPrompts.add(r.promptId); }
     const seen = new Set<string>();
     for (const m of ms) {
-      if (skip.has(m.domain) || seen.has(m.domain) || !isStoreLike(m.domain)) continue;
+      if (skip.has(m.domain) || seen.has(m.domain) || isOwnBrand(m.domain, ownDomain) || !isStoreLike(m.domain)) continue;
       seen.add(m.domain);
       totalStoreMentions++;
       const a = acc.get(m.domain) ?? { name: m.name, appearances: 0, instead: 0, ahead: 0, prompts: new Set<string>(), pos: [] };
