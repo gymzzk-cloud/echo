@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { CopyButton, SubmitButton } from "@/components/client";
-import { Badge, Button, Card, btn, Notice, Table, Td } from "@/components/ui";
+import { Badge, Card, Notice, Table, Td, Working } from "@/components/ui";
 import { CHANNELS } from "@/core/feed";
 import { busyKinds } from "@/core/jobs";
 import { missingOpenAiSettings } from "@/core/feed-channels/openai";
@@ -46,7 +46,7 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
     <Card title="ChatGPT (OpenAI)" action={<Status o={o} busy={working} />}>
       <p className="mb-4 text-sm text-muted">Feed-ul de produse pentru ChatGPT, în formatul cerut de OpenAI (CSV). Echo îl generează singur din catalogul deja sincronizat, îl reface după fiecare sincronizare și cel puțin o dată pe zi. Magazinul nu e întrebat nimic în plus.</p>
       {!o?.active ? (
-        <form action={toggleChannel}>{pid}<input type="hidden" name="channel" value="openai" /><SubmitButton className={btn("primary")} pendingText="Pornim…">Pornește feed-ul ChatGPT</SubmitButton></form>
+        <form action={toggleChannel}>{pid}<input type="hidden" name="channel" value="openai" /><SubmitButton pendingText="Pornim…">Pornește feed-ul ChatGPT</SubmitButton></form>
       ) : (
         <div className="space-y-4">
           <div>
@@ -64,11 +64,11 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
           {missing.length > 0 && o.settings?.detectedAt && <Notice tone="warn">N-am găsit pe site: {missing.join(", ")}. OpenAI le cere; dacă există, pune un link spre ele în subsolul primei pagini și apasă „Regenerează acum”.</Notice>}
           {(excluded.length > 0 || gaps.length > 0) && (
             <div className="text-sm">
-              {excluded.length > 0 && <p><b>Nu intră în feed</b> (lipsește un câmp obligatoriu): {excluded.map(([k, n]) => `${num(n)} ${k}`).join(", ")}.</p>}
+              {excluded.length > 0 && <p><b className="font-semibold">Nu intră în feed</b> (lipsește un câmp obligatoriu): {excluded.map(([k, n]) => `${num(n)} ${k}`).join(", ")}.</p>}
               {gaps.length > 0 && <p className="text-muted">Intră, dar ar fi recomandate mai multe date: {gaps.map(([k, n]) => `${num(n)} ${MISSING[k] ?? k}`).join(", ")}.</p>}
             </div>
           )}
-          <ol className="list-decimal space-y-1 pl-5 text-sm">
+          <ol className="list-decimal space-y-1 pl-6 text-sm">
             <li>Copiază adresa de mai sus.</li>
             <li>În ChatGPT Merchants, la „Add products to ChatGPT”, alege <b>Use a hosted URL</b>.</li>
             <li>Lipește adresa și salvează. ChatGPT o descarcă singur, periodic.</li>
@@ -83,9 +83,9 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
             </ul>
           </div>
           <div className="flex flex-wrap gap-2">
-            {working ? <Button variant="secondary" disabled>Feed-ul e în lucru…</Button>
-              : <form action={regenerateFeeds}>{pid}<SubmitButton className={btn("secondary")}>Regenerează acum</SubmitButton></form>}
-            <form action={toggleChannel}>{pid}<input type="hidden" name="channel" value="openai" /><Button variant="ghost">Oprește feed-ul</Button></form>
+            {working ? <Working>Feed-ul e în lucru</Working>
+              : <form action={regenerateFeeds}>{pid}<SubmitButton variant="secondary" pendingText="Pornim…">Regenerează acum</SubmitButton></form>}
+            <form action={toggleChannel}>{pid}<input type="hidden" name="channel" value="openai" /><SubmitButton variant="ghost" pendingText="Oprim…">Oprește feed-ul</SubmitButton></form>
           </div>
         </div>
       )}
@@ -107,8 +107,8 @@ export async function ChannelsCard({ projectId }: { projectId: string }) {
             <tr key={c.id}>
               <Td className="font-medium">{c.name}<div className="text-xs uppercase text-muted">{c.format}</div></Td>
               <Td><Status o={o} busy={busy.has("feed")} /></Td>
-              <Td>{o?.active ? <div className="flex min-w-0 items-center gap-2"><code className="min-w-0 break-all text-xs">{feedUrl(o)}</code><CopyButton text={feedUrl(o)} /></div> : <span className="text-xs text-muted">–</span>}</Td>
-              <Td className="text-right"><form action={toggleChannel}>{pid}<input type="hidden" name="channel" value={c.id} /><Button variant="ghost" size="sm">{o?.active ? "Oprește" : "Pornește"}</Button></form></Td>
+              <Td className="min-w-48">{o?.active ? <div className="flex min-w-0 items-center gap-2"><code className="min-w-0 break-all text-xs">{feedUrl(o)}</code><CopyButton text={feedUrl(o)} /></div> : <span className="text-xs text-muted">–</span>}</Td>
+              <Td className="text-right"><form action={toggleChannel}>{pid}<input type="hidden" name="channel" value={c.id} /><SubmitButton variant="ghost" size="sm" pendingText="…">{o?.active ? "Oprește" : "Pornește"}</SubmitButton></form></Td>
             </tr>
           );
         })}

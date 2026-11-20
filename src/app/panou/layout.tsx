@@ -6,8 +6,8 @@ import { BRAND } from "@/lib/brand";
 import { isDemo } from "@/core/ai/engine";
 import { PanelNav } from "@/components/panel-nav";
 import { JobWatcher } from "@/components/job-watcher";
-import { ThemeToggle } from "@/components/client";
-import { Logo } from "@/components/ui";
+import { ProjectSwitcher, SubmitButton, ThemeToggle } from "@/components/client";
+import { Badge, Logo } from "@/components/ui";
 import { logout, selectProject } from "@/app/actions";
 import { getLang } from "@/lib/i18n";
 import { setLang } from "@/app/actions-lang";
@@ -23,33 +23,28 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     <div className="min-h-screen bg-surface lg:grid lg:grid-cols-[248px_1fr]" style={org.brandColor ? ({ "--primary": org.brandColor } as React.CSSProperties) : undefined}>
       {/* Meniul lateral închis la culoare, ca în ilustrații */}
       <aside className="bg-side text-side-fg lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
-        <div className="flex items-center justify-between gap-3 px-5 py-5">
-          <Link prefetch={false} href="/panou"><Logo name={org.brandName ?? BRAND.name} dark /></Link>
+        <div className="flex items-center gap-3 px-4 pt-4 sm:px-6 lg:px-4">
+          <Link prefetch={false} href="/panou" className="shrink-0"><Logo name={org.brandName ?? BRAND.name} dark /></Link>
+          <div className="min-w-0 flex-1 lg:hidden"><ProjectSwitcher projects={projects} current={project.id} action={selectProject} /></div>
         </div>
-        <form action={selectProject} className="mx-4 mb-4 flex items-center gap-1">
-          <label htmlFor="proj" className="sr-only">Magazin</label>
-          <select id="proj" name="projectId" defaultValue={project.id} className="w-full min-w-0 rounded-lg border border-side-active bg-side-active px-2 py-2 text-sm text-side-fg">
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <button className="rounded-lg border border-side-active px-2 py-2 text-xs text-side-muted hover:text-side-fg">OK</button>
-        </form>
-        <div className="px-3 pb-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"><PanelNav alerts={n} agency={org.kind === "agency"} client={role === "client"} lang={lang} /></div>
-        <div className="hidden space-y-1 border-t border-side-active px-5 py-4 text-xs text-side-muted lg:block">
-          <Link prefetch={false} href="/panou/magazin-nou" className="block hover:text-side-fg">+ Adaugă magazin</Link>
-          <div className="truncate">{user.email}</div>
-          <form action={logout}><button className="hover:text-side-fg">Ieșire</button></form>
+        <div className="hidden px-4 pt-4 lg:block"><ProjectSwitcher projects={projects} current={project.id} action={selectProject} /></div>
+        <div className="px-4 pb-2 pt-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-3 lg:pb-4 lg:pt-6"><PanelNav alerts={n} agency={org.kind === "agency"} client={role === "client"} lang={lang} /></div>
+        <div className="hidden space-y-2 border-t border-side-active px-4 py-4 text-xs text-side-muted lg:block">
+          <Link prefetch={false} href="/panou/magazin-nou" className="block px-3 hover:text-side-fg">+ Adaugă magazin</Link>
+          <div className="truncate px-3">{user.email}</div>
+          <form action={logout}><SubmitButton variant="side" size="sm" pendingText="Ieșim…">Ieșire</SubmitButton></form>
         </div>
       </aside>
       <div className="min-w-0">
-        <header className="flex items-center justify-between gap-3 border-b border-border bg-bg px-6 py-3">
-          <span className="label truncate">{project.domain}{project.pathPrefix} · {project.country === "HU" ? "Ungaria" : "România"}</span>
-          <div className="flex items-center gap-3 text-sm">
-            {isDemo() && <span className="rounded-full bg-warn-bg px-2.5 py-1 text-xs font-medium text-warn">Mod demo: răspunsuri AI simulate</span>}
-            <form action={setLang}><input type="hidden" name="lang" value={lang === "hu" ? "ro" : "hu"} /><button className="rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-surface">{lang === "hu" ? "RO" : "HU"}</button></form>
+        <header className="flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2 sm:px-6 lg:px-8">
+          <span className="label min-w-0 truncate">{project.domain}{project.pathPrefix} · {project.country === "HU" ? "Ungaria" : "România"}</span>
+          <div className="flex shrink-0 items-center gap-2">
+            {isDemo() && <Badge tone="warn"><span className="sm:hidden">Mod demo</span><span className="hidden sm:inline">Mod demo: răspunsuri AI simulate</span></Badge>}
+            <form action={setLang}><input type="hidden" name="lang" value={lang === "hu" ? "ro" : "hu"} /><SubmitButton variant="ghost" size="sm" pendingText="…">{lang === "hu" ? "RO" : "HU"}</SubmitButton></form>
             <ThemeToggle />
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
         <JobWatcher />
       </div>
     </div>

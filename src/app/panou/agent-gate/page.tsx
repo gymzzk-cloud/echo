@@ -1,7 +1,7 @@
 import { currentProject } from "@/lib/project";
 import { ActionForm } from "@/components/forms";
 import { SubmitButton } from "@/components/client";
-import { Badge, Card, Field, Input, PageHeader, Stat, Table, Td } from "@/components/ui";
+import { Badge, Card, Checkbox, Field, FieldGroup, FormActions, Input, PageHeader, Select, Stat, Table, Td } from "@/components/ui";
 import { DEFAULT_POLICY, KNOWN_AGENTS, recentAgentOrders } from "@/core/agent-gate";
 import { savePolicy, simulateOrder } from "@/app/actions-trust";
 import { money, dateShort } from "@/lib/format";
@@ -19,31 +19,33 @@ export default async function AgentGate() {
   return (
     <>
       <PageHeader eyebrow="Reparații" title="Agent Gate" subtitle="Ce faci cu comenzile plasate de agenți AI (ChatGPT, Claude, Gemini…): accepți, ceri confirmare prin SMS pentru ramburs, verifici manual sau respingi." />
-      <div className="mb-6 grid gap-4 sm:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-6 lg:grid-cols-4">
         {(["accepta", "confirma_sms", "verificare", "respinge"] as const).map((d) => <Stat key={d} label={DEC[d].label} value={orders.filter((o) => o.decision === d).length} hint="ultimele 50" />)}
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Regulile magazinului">
           <ActionForm action={savePolicy} className="space-y-4">
             {pid}
-            <fieldset><legend className="mb-2 text-sm font-medium">Agenți acceptați</legend>
-              <div className="flex flex-wrap gap-3 text-sm">{KNOWN_AGENTS.map((a) => <label key={a} className="flex items-center gap-1.5"><input type="checkbox" name="allowedAgents" value={a} defaultChecked={policy.allowedAgents.includes(a)} /> {a}</label>)}</div>
-            </fieldset>
+            <FieldGroup label="Agenți acceptați">
+              <div className="grid grid-cols-2 gap-x-4 sm:grid-cols-3">{KNOWN_AGENTS.map((a) => <Checkbox key={a} name="allowedAgents" value={a} defaultChecked={policy.allowedAgents.includes(a)} label={a} />)}</div>
+            </FieldGroup>
             <Field label="Alți agenți (separați prin virgulă)"><Input name="extraAgents" defaultValue={policy.allowedAgents.filter((a) => !KNOWN_AGENTS.includes(a)).join(", ")} /></Field>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="codRequiresSms" defaultChecked={policy.codRequiresSms} /> Rambursul comandat de un agent se confirmă prin SMS de către client</label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="blockUnknownAgents" defaultChecked={policy.blockUnknownAgents} /> Respinge agenții care nu sunt pe listă</label>
+            <div>
+              <Checkbox name="codRequiresSms" defaultChecked={policy.codRequiresSms} label="Rambursul comandat de un agent se confirmă prin SMS de către client" />
+              <Checkbox name="blockUnknownAgents" defaultChecked={policy.blockUnknownAgents} label="Respinge agenții care nu sunt pe listă" />
+            </div>
             <Field label="Peste această valoare, agenții neverificați trec prin verificare manuală"><Input name="maxOrderValueUnverified" type="number" defaultValue={policy.maxOrderValueUnverified} /></Field>
-            <SubmitButton className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg">Salvează</SubmitButton>
+            <SubmitButton>Salvează regulile</SubmitButton>
           </ActionForm>
         </Card>
         <Card title="Încearcă o comandă">
-          <ActionForm action={simulateOrder} className="grid gap-3 sm:grid-cols-2">
+          <ActionForm action={simulateOrder} className="grid items-start gap-4 sm:grid-cols-2">
             {pid}
             <Field label="Agent"><Input name="agent" defaultValue="ChatGPT" /></Field>
-            <Field label="Plată"><select name="paymentMethod" className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm"><option value="ramburs">Ramburs</option><option value="card">Card</option><option value="transfer">Transfer</option></select></Field>
+            <Field label="Plată"><Select name="paymentMethod"><option value="ramburs">Ramburs</option><option value="card">Card</option><option value="transfer">Transfer</option></Select></Field>
             <Field label="Valoare"><Input name="value" type="number" defaultValue={450} /></Field>
-            <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" name="verified" /> Agent verificat (semnătură)</label>
-            <div className="sm:col-span-2"><SubmitButton className="rounded-lg border border-primary px-4 py-2 text-sm font-medium text-primary">Vezi decizia</SubmitButton></div>
+            <FormActions><Checkbox name="verified" label="Agent verificat (semnătură)" /></FormActions>
+            <div className="sm:col-span-2"><SubmitButton variant="secondary">Testează decizia</SubmitButton></div>
           </ActionForm>
           <p className="mt-4 text-xs text-muted">Din magazin, decizia se cere prin API: <code>POST {app}/api/v1/agent-gate</code> cu cheia API (vezi API și MCP). Primești <code>accepta</code>, <code>confirma_sms</code>, <code>verificare</code> sau <code>respinge</code> și motivele.</p>
         </Card>
@@ -55,10 +57,10 @@ export default async function AgentGate() {
                   <Td className="whitespace-nowrap text-xs">{dateShort(o.createdAt)}</Td>
                   <Td>{o.agent}{o.verified && <span className="ml-1 text-xs text-good">✓</span>}</Td>
                   <Td>{o.paymentMethod}</Td>
-                  <Td className="num">{money(o.value, project.currency)}</Td>
-                  <Td className="num">{o.risk}</Td>
+                  <Td className="num text-right">{money(o.value, project.currency)}</Td>
+                  <Td className="num text-right">{o.risk}</Td>
                   <Td><Badge tone={DEC[o.decision]?.tone ?? "muted"}>{DEC[o.decision]?.label ?? o.decision}</Badge></Td>
-                  <Td className="text-xs text-muted">{o.reasons.join(" ")}</Td>
+                  <Td className="min-w-48 text-xs text-muted">{o.reasons.join(" ")}</Td>
                 </tr>
               ))}
             </Table>

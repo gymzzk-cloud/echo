@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, sql as dsql } from "drizzle-orm";
+import { PROBLEM_TITLES } from "./audit/problems";
 import { emitEvent } from "./platform";
 import { projectRuns } from "./project-runs";
 import { detectRivals } from "./rivals-job";
@@ -285,7 +286,9 @@ const IMPACT: Record<string, "mare" | "mediu" | "mic"> = { robots: "mare", firew
 const EFFORT: Record<string, "mic" | "mediu" | "mare"> = { robots: "mic", firewall: "mic", "jsonld-product": "mediu", "content-product": "mare", "jsonld-org": "mic", trust: "mic", llms: "mic", sitemap: "mic", meta: "mic", speed: "mare" };
 
 async function upsertAction(projectId: string, a: { key: string; title: string; why: string; howTo?: string; fixKind?: string; impact: string; effort: string }, baseline: number | null) {
-  await db.insert(schema.actions).values({ projectId, ...a, baselineVisibility: baseline }).onConflictDoNothing();
+  // Idempotent: rulat de două ori dă același rând; titlul și detaliul se actualizează (ex. timpul de răspuns măsurat acum).
+  await db.insert(schema.actions).values({ projectId, ...a, baselineVisibility: baseline })
+    .onConflictDoUpdate({ target: [schema.actions.projectId, schema.actions.key], set: { title: a.title, why: a.why } });
 }
 
 export async function generateActions(projectId: string) {
@@ -297,7 +300,7 @@ export async function generateActions(projectId: string) {
   if (audit?.result) {
     for (const c of (audit.result as AuditResult).checks) {
       if (c.status === "pass" || c.status === "info") continue;
-      await upsertAction(projectId, { key: `audit:${c.id}`, title: c.title, why: c.detail, fixKind: c.fixKind, impact: IMPACT[c.id] ?? "mediu", effort: EFFORT[c.id] ?? "mediu" }, baseline);
+      await upsertAction(projectId, { key: `audit:${c.id}`, title: PROBLEM_TITLES[c.id] ?? c.title, why: c.detail, fixKind: c.fixKind, impact: IMPACT[c.id] ?? "mediu", effort: EFFORT[c.id] ?? "mediu" }, baseline);
     }
   }
   // Surse unde apar concurenții, dar nu tu
