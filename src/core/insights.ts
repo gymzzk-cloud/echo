@@ -7,6 +7,7 @@ import { ERROR_MODEL, PROVIDERS } from "./ai/types";
 import { failureReason } from "./ai/errors";
 import { isStoreLike } from "./ai/domains";
 import { cleanAnswer } from "./ai/extract";
+import { classifySource, type SourceContext } from "./source-kind";
 
 type Project = typeof schema.projects.$inferSelect;
 export type Rows = Awaited<ReturnType<typeof projectRuns>>;
@@ -100,13 +101,14 @@ export async function productInsights(project: Project, rows: Rows) {
   return { list, recommended: list.filter((p) => p.mentions > 0).length, wrongPriceCount: list.filter((p) => p.wrongPrices.length).length, topDestinations: topDest };
 }
 
-/** Surse: ce site-uri citesc AI-urile și unde apar concurenții, dar tu nu. */
-export function sourceInsights(rows: Rows, domain: string, competitorDomains: string[]) {
+/** Surse: ce site-uri citesc AI-urile, ce fel de site e fiecare și unde poți face ceva realist (vezi source-kind.ts). */
+export function sourceInsights(rows: Rows, ctx: SourceContext) {
+  const comps = new Set(ctx.competitors);
   const all = new Map<string, { n: number; withMe: number; withComp: number; providers: Set<string> }>();
   for (const { run } of rows) {
     const ms = run.mentions as Mention[];
-    const me = ms.some((m) => m.domain === domain);
-    const comp = ms.some((m) => competitorDomains.includes(m.domain));
+    const me = ms.some((m) => m.domain === ctx.domain);
+    const comp = ms.some((m) => comps.has(m.domain));
     const seen = new Set<string>();
     for (const s of run.sources as { url: string }[]) {
       const d = domainOf(s.url);
@@ -117,10 +119,10 @@ export function sourceInsights(rows: Rows, domain: string, competitorDomains: st
       all.set(d, e);
     }
   }
-  const kind = (d: string) => d === domain ? "site propriu" : competitorDomains.includes(d) ? "concurent" : /forum|reddit|softpedia/.test(d) ? "forum" : /youtube|tiktok/.test(d) ? "video" : /compari|pricy|arukereso|price/.test(d) ? "comparator" : /emag|altex|flanco|dedeman|leroy|hornbach/.test(d) ? "marketplace / retailer" : "editorial / blog";
-  const list = [...all.entries()].map(([d, e]) => ({ domain: d, kind: kind(d), citations: e.n, withMe: e.withMe, gap: e.withComp - e.withMe, providers: [...e.providers] }))
+  const list = [...all.entries()].map(([d, e]) => ({ domain: d, ...classifySource(d, { ...ctx, competitors: comps }), citations: e.n, withMe: e.withMe, gap: e.withComp - e.withMe, providers: [...e.providers] }))
     .sort((a, b) => b.citations - a.citations);
-  return { list, gaps: list.filter((s) => s.gap > 0 && s.kind !== "concurent" && s.kind !== "site propriu").sort((a, b) => b.gap - a.gap) };
+  // Oportunități: doar sursele pe care magazinul le poate influența (nu producători, nu alte magazine, nu site-urile tale).
+  return { list, gaps: list.filter((s) => s.gap > 0 && s.actionable).sort((a, b) => b.gap - a.gap) };
 }
 
 export async function overview(project: Project) {
@@ -204,9 +206,4 @@ export function brandMentions(rows: Rows, brands: string[], top = 8) {
     .sort((a, b) => b.visibility - a.visibility || a.avgPosition - b.avgPosition).slice(0, top);
 }
 
-/** Mărcile cu cele mai multe produse în stoc din catalog (o interogare SQL, nu tot catalogul în memorie). */
-export async function catalogBrands(projectId: string, limit = 30) {
-  const r = await db.execute(dsql`select brand from products where project_id = ${projectId} and in_stock and coalesce(brand, '') <> ''
-    group by brand order by count(*) desc limit ${limit}`);
-  return (r as unknown as { brand: string }[]).map((x) => x.brand).filter((b) => b.trim().length >= 2);
-}
+export { catalogBrands, ownedDomains } from "./store-context";

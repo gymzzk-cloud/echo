@@ -6,6 +6,7 @@ import { runMentions } from "./ai/extract";
 import { invalidateWorld, loadWorld } from "./ai/engine";
 import { projectRuns } from "./project-runs";
 import { isOwnBrand, pickAutoRivals, rankRivals } from "./rivals";
+import { ownedDomains } from "./store-context";
 
 /** Fereastra în care căutăm concurenții: ultimele 30 de zile de răspunsuri. */
 export const RIVALS_WINDOW_DAYS = 30;
@@ -24,7 +25,9 @@ export async function detectRivals(projectId: string) {
   // înainte de recitire, ca mențiunile lui să fie socotite ale magazinului.
   const ownAuto = await db.select({ id: schema.competitors.id, domain: schema.competitors.domain }).from(schema.competitors)
     .where(and(eq(schema.competitors.projectId, projectId), eq(schema.competitors.suggested, true)));
-  const mine = ownAuto.filter((c) => isOwnBrand(c.domain, p.domain));
+  // Și celelalte magazine din același cont (ex. hardlineconstruct.ro în contul ShopExpert): nu sunt concurenți.
+  const owned = new Set(await ownedDomains(p));
+  const mine = ownAuto.filter((c) => isOwnBrand(c.domain, p.domain) || owned.has(c.domain));
   for (const c of mine) await db.delete(schema.competitors).where(eq(schema.competitors.id, c.id));
   if (mine.length) invalidateWorld();
 
@@ -39,7 +42,7 @@ export async function detectRivals(projectId: string) {
   }
   for (const r of rows) r.run.mentions = fresh.get(r.run.id)!;
 
-  const report = rankRivals(rows, p.domain);
+  const report = rankRivals(rows, p.domain, [...owned]);
   const [all, dismissed] = await Promise.all([
     db.select().from(schema.competitors).where(eq(schema.competitors.projectId, projectId)),
     db.select({ domain: schema.competitorDismissals.domain }).from(schema.competitorDismissals).where(eq(schema.competitorDismissals.projectId, projectId)),
@@ -47,7 +50,7 @@ export async function detectRivals(projectId: string) {
   const existing = all;
   const picks = pickAutoRivals(report.rivals, {
     tracked: existing.map((c) => c.domain),
-    dismissed: dismissed.map((d) => d.domain),
+    dismissed: [...dismissed.map((d) => d.domain), ...owned],
     autoCount: existing.filter((c) => c.suggested).length,
   });
   if (picks.length) {

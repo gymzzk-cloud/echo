@@ -1,5 +1,5 @@
 import { currentProject } from "@/lib/project";
-import { brandMentions, catalogBrands, loadBase, leaderboard, perPrompt, trend } from "@/core/insights";
+import { brandMentions, catalogBrands, loadBase, ownedDomains, leaderboard, perPrompt, trend } from "@/core/insights";
 import { PROVIDERS, providerLabel } from "@/core/ai/types";
 import { Badge, Card, Chips, Empty, PageHeader, SubCard, Table, TextLink, Td } from "@/components/ui";
 import { TrendChart } from "@/components/client";
@@ -14,14 +14,14 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const days = [7, 30, 90].includes(Number(sp.zile)) ? Number(sp.zile) : 30;
   const { project } = await currentProject();
-  const [base, brands] = await Promise.all([loadBase(project, days), catalogBrands(project.id)]);
+  const [base, brands, owned] = await Promise.all([loadBase(project, days), catalogBrands(project.id), ownedDomains(project)]);
   const rows = sp.ai ? base.rows.filter((r) => r.run.provider === sp.ai) : base.rows;
   if (!base.rows.length && !base.failed.length) return <><PageHeader eyebrow="Vizibilitate" title="Vizibilitate AI" /><Empty title="Încă nu avem răspunsuri de la AI-uri">Prima rulare pornește automat după înregistrare. Revino în câteva minute.</Empty></>;
 
   const board = leaderboard(rows, project.domain, base.competitors);
   const top = board.filter((b) => b.name !== "Tu").slice(0, 4);
   const chart = trend(rows, project.domain, top.map((c) => c.domain));
-  const rivals = rankRivals(rows, project.domain);
+  const rivals = rankRivals(rows, project.domain, owned);
   const topBrands = brandMentions(rows, brands);
   const failed = sp.ai ? base.failed.filter((r) => r.run.provider === sp.ai) : base.failed;
   const prompts = perPrompt(rows.filter((r) => r.run.runDate >= daysAgo(days)), project.domain, failed);

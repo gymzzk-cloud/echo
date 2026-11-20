@@ -7,17 +7,37 @@ import { PROVIDERS } from "./ai/types";
  * tonul fiecărui AI, ce afirmă despre tine și ce afirmații contrazic faptele verificate pe site.
  */
 
-const POS = ["încredere", "recomand", "bune", "bun ", "rapid", "competitiv", "clar", "gamă bună", "răspunde repede", "megbízható", "ajánl", "gyors", "jó"];
-const NEG = ["plâng", "întârzier", "greu de găsit", "nu am găsit", "puține", "lipsă", "probleme", "nu recomand", "țeapă", "panasz", "késés", "nem találtam", "kevés"];
+/**
+ * Tonul unei afirmații, fără apeluri AI: cuvinte negative și pozitive, cu negație.
+ * „nu a avut probleme”, „fără probleme”, „riscul de probleme e minim” sunt pozitive;
+ * „unul dintre puținele magazine care au…” e laudă, nu „puține”.
+ */
+const W = (src: string) => new RegExp(src, "iu");
+const NEG_WORDS = W(String.raw`(?<![\p{L}])(plâng\p{L}*|reclama\p{L}*|întârzi\p{L}*|probleme?|lips\p{L}+|țeap\p{L}*|refuz\p{L}*|anula\p{L}*|slab\p{L}*|dificil\p{L}*|greu de găsit|nu am găsit|puține|puțin[ei] (recenzii|informații|date|păreri)|negativ\p{L}*|nemulțum\p{L}*|panasz\p{L}*|késés\p{L}*|probléma\p{L}*|nem találtam|kevés)(?![\p{L}])`);
+const NEG_STRONG = W(String.raw`nu (îl |o |le )?recomand|evit(ă|ați)|țeapă|nu răspund|nu (mai )?livr|nu ajunge`);
+const POS_WORDS = W(String.raw`(?<![\p{L}])(încreder\p{L}*|recomand\p{L}*|bun[ăe]?|rapid\p{L}*|competitiv\p{L}*|clar\p{L}*|mulțum\p{L}*|liniștit|de top|gam(ă|a) (bună|largă|completă)|în stoc|autorizat\p{L}*|oficial\p{L}*|(unul|una) dintre puținele|megbízható|ajánl\p{L}*|gyors\p{L}*|jó)(?![\p{L}])`);
+// O vorbă negativă e anulată de o negație cu cel mult 4 cuvinte înainte sau de „minim / redus / rar” după ea.
+const NEGATED = W(String.raw`(?<![\p{L}])(nu|fără|niciun\p{L}*|nicio|n-a|n-au|nincs|nem|soha)(?![\p{L}])(\s+\S+){0,4}?\s+(probleme?|întârzi\p{L}*|plâng\p{L}*|reclama\p{L}*|probléma\p{L}*|késés\p{L}*)`);
+const MITIGATED = W(String.raw`(probleme?|risc\p{L}*)[^.]{0,60}(minim|redus|scăzut|mic|rar)`);
 
-export type Claim = { text: string; tone: "pozitiv" | "negativ" | "neutru"; provider: string; contradicts?: string };
+export type Claim = { text: string; tone: "pozitiv" | "negativ" | "neutru"; provider: string; contradicts?: string; sources: string[] };
 
-const sentences = (t: string) => t.replace(/\*\*/g, "").split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 15);
-const toneOf = (s: string): Claim["tone"] => {
-  const l = s.toLowerCase();
-  const n = NEG.filter((w) => l.includes(w)).length, p = POS.filter((w) => l.includes(w)).length;
-  return n > p ? "negativ" : p > n ? "pozitiv" : "neutru";
+const sentences = (t: string) => t.replace(/\*\*/g, "").split(/(?<=[.!?])\s+|\n+/).map((x) => x.replace(/^[-*•\s]+/, "").trim()).filter((x) => x.length > 15);
+export const toneOf = (s: string): Claim["tone"] => {
+  if (NEG_STRONG.test(s)) return "negativ";
+  const positive = POS_WORDS.test(s) || NEGATED.test(s) || MITIGATED.test(s);
+  const negative = NEG_WORDS.test(s.replace(NEGATED, "").replace(MITIGATED, "").replace(/(unul|una) dintre puținele/giu, ""));
+  return negative && !positive ? "negativ" : positive && !negative ? "pozitiv" : "neutru";
 };
+
+const DOMAIN_IN_TEXT = /\b([a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:ro|hu|com|net|org|eu|info|biz))\b/gi;
+/** De unde vine afirmația: site-ul numit în ea (ex. „un client de pe cumpar.net”), altfel sursele citate de AI în acel răspuns. */
+function sourcesOf(sentence: string, run: { sources: unknown }) {
+  const named = [...sentence.matchAll(DOMAIN_IN_TEXT)].map((m) => m[1].toLowerCase().replace(/^www\./, ""));
+  if (named.length) return [...new Set(named)].slice(0, 2);
+  const cited = ((run.sources as { url: string }[] | null) ?? []).map((x) => { try { return new URL(x.url).hostname.replace(/^www\./, ""); } catch { return null; } }).filter((x): x is string => !!x);
+  return [...new Set(cited)].slice(0, 2);
+}
 
 /** Afirmații pe care le putem verifica cu datele din audit. */
 function contradiction(s: string, facts: StoreFacts | null): string | undefined {
@@ -42,7 +62,7 @@ export function reputation(rows: Rows, domain: string, storeName: string, facts:
       for (const s of ss) {
         const t = toneOf(s);
         if (t === "pozitiv") pos++; if (t === "negativ") neg++;
-        if (t !== "neutru" || s.toLowerCase().includes(storeName.toLowerCase())) claims.push({ text: s, tone: t, provider: p.id, contradicts: contradiction(s, facts) });
+        if (t !== "neutru" || s.toLowerCase().includes(storeName.toLowerCase())) claims.push({ text: s, tone: t, provider: p.id, contradicts: contradiction(s, facts), sources: sourcesOf(s, r.run) });
       }
     }
     const score = pos + neg ? Math.round((pos / (pos + neg)) * 100) : null;
@@ -50,7 +70,7 @@ export function reputation(rows: Rows, domain: string, storeName: string, facts:
   });
   // Afirmațiile identice de la mai multe AI-uri se grupează.
   const grouped = new Map<string, Claim & { providers: string[] }>();
-  for (const c of claims) { const k = c.text.toLowerCase(); const e = grouped.get(k) ?? { ...c, providers: [] }; if (!e.providers.includes(c.provider)) e.providers.push(c.provider); grouped.set(k, e); }
+  for (const c of claims) { const k = c.text.toLowerCase(); const e = grouped.get(k) ?? { ...c, providers: [] }; if (!e.providers.includes(c.provider)) e.providers.push(c.provider); for (const x of c.sources) if (!e.sources.includes(x)) e.sources.push(x); grouped.set(k, e); }
   const list = [...grouped.values()].sort((a, b) => (b.contradicts ? 1 : 0) - (a.contradicts ? 1 : 0) || (a.tone === "negativ" ? -1 : 1) - (b.tone === "negativ" ? -1 : 1) || b.providers.length - a.providers.length);
   const trend = [...new Set(brand.map((r) => r.run.runDate))].sort().map((d) => {
     let pos = 0, neg = 0;
