@@ -84,6 +84,12 @@ const validCode = (s: string | null | undefined, title: string) => {
   // Un cod util are cifre, nu e doar un ID intern scurt și nu e deja în titlu (căutarea pe nume îl acoperă).
   return !!c && c.length >= 4 && c.length <= 40 && /\d/.test(c) && /[A-Za-z0-9]/.test(c) && !title.toLowerCase().includes(c.toLowerCase());
 };
+/** Titlul are un model (marcă + cod cu cifre, ex. „BOSCH GBH 18V-22”), nu doar o descriere. */
+export const modelLike = (p: Pick<CatalogProduct, "title" | "brand">) => {
+  const rest = p.brand ? p.title.replace(new RegExp(`^\\s*${p.brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+`, "i"), "") : p.title;
+  const first = rest.trim().split(/\s+/).slice(0, 2).join(" ");
+  return /^[A-Z0-9][A-Z0-9-]*\d|^[A-Z]{2,}[A-Z0-9-]*\s+[A-Z0-9-]*\d/.test(first);
+};
 const stableKey = (p: CatalogProduct) => createHash("sha1").update(p.externalId ?? p.id ?? p.title).digest("hex");
 
 /**
@@ -92,15 +98,19 @@ const stableKey = (p: CatalogProduct) => createHash("sha1").update(p.externalId 
  */
 export function pickProducts(products: CatalogProduct[], language: "ro" | "hu", n: number, popular = Math.ceil(n * 0.8)) {
   const usable = products.filter((p) => p.title.trim().length >= 4 && parseFloat(p.price ?? "") > 0);
+  // Fără top de vânzări: dacă sunt destule aparate cu model, accesoriile descrise în cuvinte nu mai intră.
+  const models = usable.filter(modelLike);
+  const pool = models.length >= n * 2 ? models : usable;
   const byCat = new Map<string, Map<string, CatalogProduct[]>>();
-  for (const p of usable) {
+  for (const p of pool) {
     const c = categoryType(p, language) ?? "altele";
     const b = (p.brand ?? "").trim().toLowerCase() || "-";
     const brands = byCat.get(c) ?? new Map<string, CatalogProduct[]>();
     brands.set(b, [...(brands.get(b) ?? []), p]);
     byCat.set(c, brands);
   }
-  const score = (p: CatalogProduct) => (validEan(p.gtin) ? 2 : 0) + (validCode(p.mpn, p.title) ? 1 : 0);
+  // Un aparat cu model („GBH 18V-22”) e căutat de oameni; un accesoriu descris în cuvinte („Burghiu HSS spiralat”) rar.
+  const score = (p: CatalogProduct) => (modelLike(p) ? 4 : 0) + (validEan(p.gtin) ? 2 : 0) + (validCode(p.mpn, p.title) ? 1 : 0);
   const size = (m: Map<string, CatalogProduct[]>) => [...m.values()].reduce((s, l) => s + l.length, 0);
   // Cu top de vânzări: categoriile cu cele mai vândute produse întâi; altfel, cele mai mari.
   const best = (m: Map<string, CatalogProduct[]>) => Math.min(...[...m.values()].flat().map((p) => p.rank ?? Infinity));
@@ -159,25 +169,26 @@ const brandName = (b: string) => (b === b.toUpperCase() ? b.charAt(0) + b.slice(
 
 type Tpl = { intent: PromptIntent; f: (t: string, b: string[]) => string | null };
 /**
- * Întrebări de cumpărător care încă nu știe de la cine cumpără: aici AI-ul numește magazine și mărci.
- * Ordinea contează: un tip de produs primește întâi o recomandare, apoi „de unde cumpăr”, apoi o comparație.
+ * Întrebări de cumpărător pe un tip de produs, cum le scrie un om care vrea să cumpere: prețul întâi,
+ * apoi pe fiecare marcă importantă, apoi comparația. Fără întrebări vagi („cum aleg”, „recomandă-mi”).
+ * Ordinea contează: cu ~16 locuri, fiecare tip primește prețul general și prețul pe primele două mărci.
  */
 const INTENT_Q: Record<"ro" | "hu", Tpl[]> = {
   ro: [
-    { intent: "comercial", f: (t) => `care sunt cele mai bune ${t}` },
-    { intent: "cumparare", f: (t) => `de unde pot cumpăra online ${t}` },
+    { intent: "cumparare", f: (t) => `${t} cel mai bun preț` },
+    { intent: "cumparare", f: (t, b) => (b[0] ? `${t} ${b[0]} cel mai bun preț` : null) },
+    { intent: "cumparare", f: (t, b) => (b[1] ? `${t} ${b[1]} cel mai bun preț` : null) },
     { intent: "comercial", f: (t, b) => (b.length >= 2 ? `${t} ${b[0]} sau ${b[1]}, ce să aleg?` : null) },
-    { intent: "cumparare", f: (t) => `${t} la cel mai bun preț` },
-    { intent: "informativ", f: (t) => `cum aleg ${t}` },
-    { intent: "comercial", f: (t, b) => (b.length ? `recomandă-mi ${t} ${b[0]}` : null) },
+    { intent: "cumparare", f: (t, b) => `de unde cumpăr ${t}${b[0] ? ` ${b[0]}` : ""}` },
+    { intent: "comercial", f: (t) => `care sunt cele mai bune ${t}` },
   ],
   hu: [
-    { intent: "comercial", f: (t) => `melyek a legjobb ${t}` },
-    { intent: "cumparare", f: (t) => `hol vásárolhatok online ${t}` },
-    { intent: "comercial", f: (t, b) => (b.length >= 2 ? `${b[0]} vagy ${b[1]} ${t}, melyiket válasszam?` : null) },
     { intent: "cumparare", f: (t) => `${t} legjobb áron` },
-    { intent: "informativ", f: (t) => `hogyan válasszak ${t}` },
-    { intent: "comercial", f: (t, b) => (b.length ? `ajánlj ${b[0]} ${t}` : null) },
+    { intent: "cumparare", f: (t, b) => (b[0] ? `${b[0]} ${t} legjobb áron` : null) },
+    { intent: "cumparare", f: (t, b) => (b[1] ? `${b[1]} ${t} legjobb áron` : null) },
+    { intent: "comercial", f: (t, b) => (b.length >= 2 ? `${b[0]} vagy ${b[1]} ${t}, melyiket válasszam?` : null) },
+    { intent: "cumparare", f: (t, b) => `hol vehetek ${b[0] ? `${b[0]} ` : ""}${t}` },
+    { intent: "comercial", f: (t) => `melyek a legjobb ${t}` },
   ],
 };
 
@@ -248,7 +259,8 @@ export function intentPrompts(products: CatalogProduct[], language: "ro" | "hu",
 
 /** Numele produsului cum îl tastează un om: „BOSCH GBH 18V-22” → „Bosch GBH 18V-22” (doar marca își schimbă forma). */
 export function humanName(p: Pick<CatalogProduct, "title" | "brand">) {
-  const q = productQuery(p);
+  // „(SOLO)”, „(fără acumulator)”: un om nu le tastează.
+  const q = productQuery(p).replace(/\s*\([^)]*\)/g, "").trim();
   const b = p.brand?.trim();
   if (!b || b.length <= 3 || b !== b.toUpperCase()) return q;
   return q.replace(new RegExp(`(^|\\s)${b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$)`), (m, sp: string) => sp + brandName(b));

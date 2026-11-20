@@ -39,8 +39,11 @@ describe("căutări urmărite din catalog", () => {
     ];
     const ps = suggestPrompts(cat, "ShopExpert RO", "ro", 30);
     const texts = ps.map((p) => p.text);
-    expect(texts).toContain("care sunt cele mai bune șurubelnițe cu impact");
-    expect(texts).toContain("de unde pot cumpăra online aspiratoare verticale");
+    expect(texts).toContain("șurubelnițe cu impact cel mai bun preț");
+    expect(texts).toContain("șurubelnițe cu impact Bosch cel mai bun preț");
+    expect(texts).toContain("aspiratoare verticale Dreame cel mai bun preț");
+    // Fără întrebări vagi.
+    expect(texts.some((t) => /^(cum aleg|recomandă-mi)/.test(t))).toBe(false);
     expect(texts).toContain("șurubelnițe cu impact Bosch sau Makita, ce să aleg?");
     expect(texts.some((t) => t.includes("Bosch GDS 18V-320"))).toBe(true);
     expect(texts.some((t) => t.includes("BOSCH"))).toBe(false);
