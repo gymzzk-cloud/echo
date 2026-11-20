@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, TextLink } from "@/components/ui";
 
 export default async function ReportView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,9 +12,9 @@ export default async function ReportView({ params }: { params: Promise<{ id: str
   if (!r) notFound();
   return (
     <div>
-      <PageHeader title={r.subject} action={<a href="/panou/rapoarte" className="text-sm text-primary hover:underline">Înapoi</a>} />
+      <PageHeader eyebrow="Rapoarte" title={r.subject} action={<TextLink href="/panou/rapoarte">Înapoi la rapoarte</TextLink>} />
       {/* Raportul e HTML generat de noi și escapat; îl afișăm izolat, fără scripturi */}
-      <iframe title="Raport" srcDoc={r.html} sandbox="" className="h-[900px] w-full rounded-xl border border-border bg-white" />
+      <iframe title="Raport" srcDoc={r.html} sandbox="" className="h-[900px] w-full rounded-xl border border-border bg-bg" />
     </div>
   );
 }

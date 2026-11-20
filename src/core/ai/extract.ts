@@ -1,5 +1,6 @@
 import type { Mention } from "@/db/schema";
 import { domainOf, keywords } from "@/lib/util";
+import { inMarket, isStoreLike } from "./domains";
 import { ERROR_MODEL, type KnownProduct, type KnownStore } from "./types";
 
 /**
@@ -7,6 +8,8 @@ import { ERROR_MODEL, type KnownProduct, type KnownStore } from "./types";
  * Combină: domenii scrise explicit, nume de magazine cunoscute și surse citate.
  */
 const DOMAIN_RE = /\b((?:[a-z0-9-]+\.)+(?:ro|hu|com|eu|net|shop|store))\b/gi;
+/** Orice domeniu (și din alte țări: .dk, .de, .pl), doar ca să știm de ce piață vorbește textul. */
+const ANY_DOMAIN_RE = /\b((?:[a-z0-9-]+\.)+(?:[a-z]{2}|com|net|org|eu|shop|store))\b/gi;
 const PRICE_RE = /(\d{1,3}(?:[.\s]\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(lei|ron|ft|huf|€|eur)/i;
 const IGNORE = new Set(["youtube.com", "facebook.com", "reddit.com", "google.com", "wikipedia.org", "instagram.com", "tiktok.com"]);
 
@@ -50,6 +53,7 @@ export function extractMentions(
   sources: { url: string; title?: string }[],
   world: { stores: KnownStore[]; products: KnownProduct[]; ownDomains?: string[] },
   query?: string,
+  country?: string,
 ): Mention[] {
   // Marcajele de citare ale ChatGPT („\ue200cite\ue202turn0search1\ue201”) nu sunt text.
   const text = cleanAnswer(answer);
@@ -62,7 +66,13 @@ export function extractMentions(
   for (const d of own) if (!ownBrand.has(brandLabel(d))) ownBrand.set(brandLabel(d), d);
   const byBrand = new Map<string, string>();
   for (const s of world.stores) if (!byBrand.has(brandLabel(s.domain))) byBrand.set(brandLabel(s.domain), s.domain);
-  const alias = (d: string) => (own.has(d) ? d : ownBrand.get(brandLabel(d)) ?? (known.has(d) ? d : byBrand.get(brandLabel(d)) ?? d));
+  // Doar pe piața magazinului: shopexpert.dk (Danemarca) nu e ShopExpert România.
+  const alias = (d: string) => (own.has(d) || !inMarket(d, country) ? d : ownBrand.get(brandLabel(d)) ?? (known.has(d) ? d : byBrand.get(brandLabel(d)) ?? d));
+  // Mărcile scrise în text doar cu un domeniu din altă țară („ShopExpert (shopexpert.dk)”): numele lor nu contează.
+  const domainsInText = [...text.matchAll(ANY_DOMAIN_RE)].map((m) => m[1].toLowerCase().replace(/^www\./, ""));
+  const foreignOnly = new Set<string>();
+  for (const d of domainsInText) if (!inMarket(d, country)) foreignOnly.add(brandLabel(d));
+  for (const d of domainsInText) if (inMarket(d, country)) foreignOnly.delete(brandLabel(d));
 
   for (const m of text.matchAll(DOMAIN_RE)) {
     const d = alias(m[1].toLowerCase().replace(/^www\./, ""));
@@ -73,6 +83,7 @@ export function extractMentions(
     // Numele magazinului („ShopExpert RO”) și marca din domeniu („ShopExpert” pentru shopexpert.com).
     // Marca din domeniu contează doar ca nume propriu (cu majusculă): „scule.ro” nu e „scule electrice”.
     const label = brandLabel(s.domain);
+    if (foreignOnly.has(label)) continue;
     const names: [string, boolean][] = [[s.name.toLowerCase(), false], ...(label.length >= 5 && !GENERIC_LABELS.has(label) ? [[label, true] as [string, boolean]] : [])];
     for (const [name, proper] of names) {
       if (name.length < 3) continue;
@@ -123,7 +134,8 @@ export function extractMentions(
     if (!d || IGNORE.has(d) || mentions.some((m) => m.domain === d)) continue;
     if (known.has(d)) mentions.push({ domain: d, position: mentions.length + 1 });
   }
-  return mentions;
+  // Doar magazine de pe piața clientului: fără directoare de firme, recenzii, presă sau magazine din alte țări.
+  return mentions.filter((m) => isStoreLike(m.domain) && inMarket(m.domain, country)).map((m, i) => ({ ...m, position: i + 1 }));
 }
 
 /**
@@ -139,8 +151,8 @@ export function cleanAnswer(answer: string) {
  * linkurile din mesajul de eroare (ex. platform.openai.com) nu sunt magazine.
  */
 export function runMentions(
-  run: { answer: string; sources: { url: string; title?: string }[]; model: string | null; query?: string },
+  run: { answer: string; sources: { url: string; title?: string }[]; model: string | null; query?: string; language?: string | null },
   world: { stores: KnownStore[]; products: KnownProduct[]; ownDomains?: string[] },
 ): Mention[] {
-  return run.model === ERROR_MODEL ? [] : extractMentions(run.answer, run.sources, world, run.query);
+  return run.model === ERROR_MODEL ? [] : extractMentions(run.answer, run.sources, world, run.query, run.language === "hu" ? "HU" : run.language === "ro" ? "RO" : undefined);
 }

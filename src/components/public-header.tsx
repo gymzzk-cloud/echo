@@ -3,25 +3,25 @@ import { BRAND } from "@/lib/brand";
 import { currentUser } from "@/lib/auth";
 import { getT } from "@/lib/i18n";
 import { setLang } from "@/app/actions-lang";
-import { ThemeToggle } from "./client";
-import { Logo } from "./ui";
+import { SubmitButton, ThemeToggle } from "./client";
+import { ButtonLink, btn, Logo } from "./ui";
 
 export async function PublicHeader() {
   const user = await currentUser();
   const { t, lang } = await getT();
   return (
     <header className="border-b border-border bg-bg">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <Link prefetch={false} href="/"><Logo name={BRAND.name} /></Link>
-        <nav className="flex items-center gap-1 text-sm">
-          <Link prefetch={false} href="/" className="hidden rounded-md px-3 py-1.5 text-muted hover:bg-surface hover:text-fg sm:block">{t("nav.search")}</Link>
-          <Link prefetch={false} href="/pentru-magazine" className="rounded-md px-3 py-1.5 text-muted hover:bg-surface hover:text-fg">{t("nav.forStores")}</Link>
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8">
+        <Link prefetch={false} href="/" className="shrink-0"><Logo name={BRAND.name} /></Link>
+        <nav className="flex min-w-0 items-center gap-1 text-sm">
+          <Link prefetch={false} href="/" className={`${btn("ghost", "sm")} hidden sm:inline-flex`}>{t("nav.search")}</Link>
+          <Link prefetch={false} href="/pentru-magazine" className={btn("ghost", "sm")}>{t("nav.forStores")}</Link>
           <form action={setLang}>
             <input type="hidden" name="lang" value={lang === "hu" ? "ro" : "hu"} />
-            <button className="rounded-md px-2 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-fg" aria-label={lang === "hu" ? "Română" : "Magyar"}>{lang === "hu" ? "RO" : "HU"}</button>
+            <SubmitButton variant="ghost" size="sm" pendingText="…">{lang === "hu" ? "RO" : "HU"}</SubmitButton>
           </form>
           <ThemeToggle />
-          <Link prefetch={false} href={user ? "/panou" : "/login"} className="rounded-lg border border-border px-3 py-1.5 font-medium hover:bg-surface">{user ? t("nav.account") : t("nav.login")}</Link>
+          <ButtonLink href={user ? "/panou" : "/login"} variant="secondary" size="sm">{user ? t("nav.account") : t("nav.login")}</ButtonLink>
         </nav>
       </div>
     </header>

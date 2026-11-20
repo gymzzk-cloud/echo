@@ -15,6 +15,16 @@ import { ERROR_MODEL, PROVIDERS, type KnownProduct, type KnownStore, type Provid
 
 export { ERROR_MODEL };
 
+const KNOWN_RETAILERS = [
+  "emag.ro|eMAG", "altex.ro|Altex", "flanco.ro|Flanco", "dedeman.ro|Dedeman", "leroymerlin.ro|Leroy Merlin", "hornbach.ro|Hornbach",
+  "bricodepot.ro|Brico Depot", "praktiker.ro|Praktiker", "mathaus.ro|Mathaus", "ebernardo.ro|eBernardo", "danibrum.ro|Danibrum",
+  "atelierultau.ro|Atelierul Tău", "sculemarket.ro|Scule Market", "unealta.ro|Unealta", "toolszone.ro|ToolsZone", "evomag.ro|evoMAG",
+  "cel.ro|CEL.ro", "pcgarage.ro|PC Garage", "mediagalaxy.ro|Media Galaxy", "ikea.ro|IKEA", "kaufland.ro|Kaufland", "lidl.ro|Lidl",
+  "notino.ro|Notino", "elefant.ro|Elefant", "decathlon.ro|Decathlon", "pethome.ro|PetHome", "vexio.ro|Vexio", "okazii.ro|Okazii",
+  "emag.hu|eMAG HU", "praktiker.hu|Praktiker HU", "obi.hu|OBI", "bauhaus.hu|Bauhaus", "mediamarkt.hu|MediaMarkt", "alza.hu|Alza",
+  "arukereso.hu|Árukereső",
+];
+
 export type World = { stores: KnownStore[]; products: KnownProduct[]; ownDomains: string[] };
 
 let worldCache: { at: number; w: World } | null = null;
@@ -31,7 +41,8 @@ export async function loadWorld(): Promise<World> {
   const stores = new Map<string, KnownStore>();
   for (const p of projects) stores.set(p.domain, { domain: p.domain, name: p.name });
   for (const c of comps) if (!stores.has(c.domain)) stores.set(c.domain, { domain: c.domain, name: c.name });
-  for (const r of ["emag.ro|eMAG", "altex.ro|Altex", "flanco.ro|Flanco", "dedeman.ro|Dedeman", "leroymerlin.ro|Leroy Merlin", "hornbach.ro|Hornbach", "pcgarage.ro|PC Garage", "notino.ro|Notino", "elefant.ro|Elefant", "decathlon.ro|Decathlon", "sculemarket.ro|Scule Market", "pethome.ro|PetHome", "arukereso.hu|Árukereső", "emag.hu|eMAG HU"]) {
+  // Magazine mari din RO/HU, recunoscute și după nume când AI-ul nu dă linkul („la Dedeman găsești…”).
+  for (const r of KNOWN_RETAILERS) {
     const [d, n] = r.split("|");
     if (!stores.has(d)) stores.set(d, { domain: d, name: n });
   }
@@ -91,12 +102,12 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
     out = live ? await runner.run(input) : demoRun(provider, input, w);
   } catch (e) {
     // Un AI căzut nu oprește restul: înregistrăm eroarea ca răspuns gol, fără cost.
-    const msg = String(e).slice(0, 200);
+    const msg = String(e).slice(0, 400);
     // Doar mesajul de eroare al API-ului (fără chei sau date personale), ca să se vadă în loguri.
     if (!skipReason) console.error(`AI ${provider} eroare: ${msg}`);
     out = { answer: `(Eroare ${provider}: ${msg})`, sources: [], model: ERROR_MODEL, mode: "live" as const, costUsd: 0, latencyMs: 0 };
   }
-  const mentions = runMentions({ ...out, query: input.query }, w);
+  const mentions = runMentions({ ...out, query: input.query, language: input.language }, w);
   const [row] = await db.insert(schema.runs).values({
     queryHash: qh, query: input.query, language: input.language, provider, model: out.model, mode: out.mode,
     answer: cleanAnswer(out.answer), sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs, runDate: day,

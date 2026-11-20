@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { Badge, Card, Delta, PageHeader, Table, Td } from "@/components/ui";
+import { SubmitButton } from "@/components/client";
 import { selectProject } from "@/app/actions";
 import { daysAgo } from "@/lib/util";
 import { money } from "@/lib/format";
@@ -28,11 +29,11 @@ export default async function Clients() {
           {rows.map((r) => (
             <tr key={r.p.id}>
               <Td><div className="font-medium">{r.p.name}</div><div className="text-xs text-muted">{r.p.domain}{r.p.pathPrefix}</div></Td>
-              <Td className="num font-display text-lg font-semibold">{r.score ?? "–"}</Td>
+              <Td className="num font-display text-xl font-semibold">{r.score ?? "–"}</Td>
               <Td><Delta value={r.delta} /></Td>
               <Td>{r.open ? <Badge tone="warn">{r.open}</Badge> : <span className="text-muted">0</span>}</Td>
-              <Td className="num">{money(r.sales, r.p.currency)}</Td>
-              <Td><form action={selectProject}><input type="hidden" name="projectId" value={r.p.id} /><button className="text-sm text-primary hover:underline">Deschide</button></form></Td>
+              <Td className="num text-right">{money(r.sales, r.p.currency)}</Td>
+              <Td className="text-right"><form action={selectProject}><input type="hidden" name="projectId" value={r.p.id} /><SubmitButton variant="secondary" size="sm" pendingText="Deschid…">Deschide</SubmitButton></form></Td>
             </tr>
           ))}
         </Table>

@@ -1,6 +1,6 @@
 import { and, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { finishJob, enqueue, pickJob, pendingJobs } from "@/core/jobs";
+import { finishJob, enqueue, pickJob, pendingJobs, requeueInterrupted } from "@/core/jobs";
 import { allProjectIds, auditProject, runAuditRow, runProject, syncCatalog, dueConnections } from "@/core/projects";
 import { buildWeeklyReport, sendReport } from "@/core/report";
 import { today } from "@/lib/util";
@@ -96,6 +96,10 @@ process.on("SIGINT", () => { stopping = true; });
 process.on("SIGTERM", () => { stopping = true; });
 
 console.log("Worker pornit.");
+try {
+  const n = await requeueInterrupted();
+  if (n) console.log(`Joburi întrerupte puse înapoi la coadă: ${n}`);
+} catch (e) { console.error("Nu am putut relua joburile întrerupte:", e); }
 let lastSchedule = 0;
 while (!stopping) {
   if (Date.now() - lastSchedule > 10 * 60e3) {

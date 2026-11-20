@@ -38,18 +38,18 @@ describe("ordonarea „populare” a unei platforme", () => {
 describe("întrebările urmărite cu top de vânzări", () => {
   const cat: CatalogProduct[] = [];
   for (let i = 0; i < 500; i++) cat.push({ id: String(i), externalId: String(i), title: `BRAND${i % 9} Model ${i}`, brand: `BRAND${i % 9}`, category: `Raft > Tip ${i % 15}`, price: "100", gtin: String(5900000000000 + i), rank: i >= 400 ? 500 - i : null });
-  it("cele mai vândute produse sunt urmărite întâi", () => {
+  it("produsele cu nume sunt cele mai vândute, iar tipurile lor au întâietate", () => {
     const ps = suggestPrompts(cat, "Magazin", "ro", 30);
     const names = ps.filter((p) => p.intent === "produs").map((p) => p.text);
-    expect(names.slice(0, 5)).toEqual(["BRAND4 Model 499", "BRAND3 Model 498", "BRAND2 Model 497", "BRAND1 Model 496", "BRAND0 Model 495"]);
+    expect(names).toEqual(["BRAND4 Model 499", "BRAND3 Model 498", "BRAND2 Model 497", "BRAND1 Model 496"]);
+    expect(ps[0].text).toBe("care sunt cele mai bune tip 4"); // tipul celui mai vândut produs (499 % 15 = 4)
     expect(ps).toHaveLength(30);
   });
-  it("amestec: ~25% tipuri de produs, ~10% coduri, restul produse, plus magazinul", () => {
+  it("amestec: 24 întrebări de cumpărător, 4 produse, 2 despre magazin", () => {
     const ps = suggestPrompts(cat, "Magazin", "ro", 30);
     const count = (k: string) => ps.filter((p) => p.intent === k).length;
     expect(count("brand")).toBe(2);
-    expect(count("categorie")).toBe(7);
-    expect(count("cod")).toBe(3);
-    expect(count("produs")).toBe(18);
+    expect(count("produs")).toBe(4);
+    expect(count("comercial") + count("cumparare") + count("informativ")).toBe(24);
   });
 });

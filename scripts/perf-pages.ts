@@ -6,13 +6,13 @@
 import { and, eq, like } from "drizzle-orm";
 import { db, schema, sql } from "../src/db";
 import { randomToken, sha256 } from "../src/lib/util";
+import { PANEL_PAGES } from "./panel-pages";
 
 const BASE = process.env.PERF_URL ?? "http://localhost:3000";
 const EMAIL = process.env.PERF_EMAIL ?? "demo@echo.local";
 const LIMIT = Number(process.env.PERF_LIMIT_MS ?? 100);
 const SEED = Number(process.env.PERF_SEED ?? 0);
-const PAGES = ["/panou", "/panou/vizibilitate", "/panou/produse", "/panou/surse", "/panou/reputatie", "/panou/asistent", "/panou/vanzari", "/panou/recenzii",
-  "/panou/audit", "/panou/actiuni", "/panou/roboti", "/panou/feed", "/panou/agent-gate", "/panou/rapoarte", "/panou/setari", "/panou/dezvoltatori", "/panou/cont"];
+const PAGES = PANEL_PAGES;
 
 const [user] = await db.select().from(schema.users).where(eq(schema.users.email, EMAIL));
 if (!user) throw new Error(`Nu există utilizatorul ${EMAIL}.`);

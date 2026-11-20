@@ -4,7 +4,8 @@ import { currentProject } from "@/lib/project";
 import { activeProviders, projectUsageThisMonth } from "@/core/ai/engine";
 import { budgetLeft, costConfig } from "@/core/ai/budget";
 import { providerLabel } from "@/core/ai/types";
-import { Badge, Button, Card, Field, FormActions, Input, PageHeader, Select } from "@/components/ui";
+import { Badge, btn, Card, Field, FileInput, FormActions, IconButton, Input, ListRow, Notice, PageHeader, Select, SubCard } from "@/components/ui";
+import { SubmitButton } from "@/components/client";
 import { ActionForm } from "@/components/forms";
 import { addCompetitor, addPrompt, connectFeed, removeCompetitor, removeConnection, syncNow, togglePrompt, uploadFeed } from "@/app/actions";
 import { FEED_HINTS } from "@/core/connectors/platforms";
@@ -15,7 +16,7 @@ import { promptLimit } from "@/core/prompts";
 // Tipurile noi (produs, cod, categorie) sunt primele; cele vechi rămân doar ca etichete pentru căutările adăugate înainte.
 const usd = (n: number) => `$${n.toFixed(2)}`;
 const INTENT_NEW: Record<string, string> = { produs: "Nume produs", cod: "Cod / EAN", categorie: "Tip de produs", brand: "Despre magazin", general: "Altă căutare" };
-const INTENT: Record<string, string> = { ...INTENT_NEW, comparatie: "Comparație", cumparare: "Cumpărare" };
+const INTENT: Record<string, string> = { ...INTENT_NEW, comparatie: "Comparație", cumparare: "Cumpărare", comercial: "Recomandare", informativ: "Informare" };
 
 export default async function Settings() {
   const { project } = await currentProject();
@@ -55,15 +56,15 @@ export default async function Settings() {
         <Field label="Cheie API (dacă e nevoie)" hint="Gomag, MerchantPro, PrestaShop sau feed/API cu cheie. Se păstrează criptată.">
           <Input name="api_key" type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" placeholder="cheie sau cheie:secret" />
         </Field>
-        <FormActions><Button>Conectează catalogul</Button></FormActions>
+        <FormActions><SubmitButton pendingText="Conectez…">Conectează catalogul</SubmitButton></FormActions>
       </ActionForm>
-      <div className="mt-6 border-t border-border pt-5">
+      <div className="mt-6 border-t border-border pt-6">
         <ActionForm action={uploadFeed} className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
           {hidden}
           <Field label="Sau încarcă un fișier de feed" hint="XML, CSV, TSV, JSON sau YAML, maxim 50 MB.">
-            <input type="file" name="file" required accept=".xml,.csv,.tsv,.txt,.json,.yaml,.yml" className="block h-11 w-full rounded-lg border border-border bg-bg px-1.5 py-1 text-sm text-muted file:mr-3 file:h-full file:rounded-md file:border-0 file:bg-surface file:px-3 file:text-sm file:font-medium file:text-fg sm:h-10" />
+            <FileInput name="file" required accept=".xml,.csv,.tsv,.txt,.json,.yaml,.yml" />
           </Field>
-          <FormActions><Button variant="secondary">Importă fișierul</Button></FormActions>
+          <FormActions><SubmitButton variant="secondary" pendingText="Import…">Importă fișierul</SubmitButton></FormActions>
         </ActionForm>
       </div>
     </>
@@ -71,40 +72,42 @@ export default async function Settings() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Setări" subtitle={`${project.name} · ${project.domain}${project.pathPrefix} · ${project.country === "HU" ? "Ungaria" : "România"} · ${project.currency}`} />
+      <PageHeader eyebrow="Cont" title="Setări magazin" subtitle={`${project.name} · ${project.domain}${project.pathPrefix} · ${project.country === "HU" ? "Ungaria" : "România"} · ${project.currency}`} />
 
       <Card title="Catalogul de produse">
         {conns.length > 0 && (
-          <ul className="mb-6 divide-y divide-border">
+          <ul className="mb-6 text-sm">
             {conns.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-                <span className="min-w-0 flex-1"><span className="font-medium capitalize">{c.kind}</span><span className="block truncate text-xs text-muted">{c.url}</span>{c.lastError && <span className="block text-xs text-bad">{c.lastError}</span>}</span>
-                <Badge tone={syncing.has(c.id) ? "warn" : c.status === "ok" ? "good" : c.status === "error" ? "bad" : "warn"}>{syncing.has(c.id) ? "În lucru" : c.status === "ok" ? `${c.productCount} produse` : c.status === "error" ? "Eroare" : "În lucru"}</Badge>
-                <span className="text-xs text-muted">{c.lastSyncAt ? `sincronizat ${dateShort(c.lastSyncAt)}` : "nesincronizat"}</span>
-                {!syncing.has(c.id) && <form action={syncNow}>{hidden}<input type="hidden" name="connectionId" value={c.id} /><Button variant="secondary" size="sm">Sincronizează</Button></form>}
-                <form action={removeConnection}>{hidden}<input type="hidden" name="connectionId" value={c.id} /><Button variant="secondary" size="sm">Șterge</Button></form>
-              </li>
+              <ListRow key={c.id} end={<>
+                <Badge tone={syncing.has(c.id) ? "warn" : c.status === "ok" ? "good" : c.status === "error" ? "bad" : "warn"}>{syncing.has(c.id) ? "Sincronizare în lucru" : c.status === "ok" ? `${c.productCount} produse` : c.status === "error" ? "Eroare" : "În lucru"}</Badge>
+                {!syncing.has(c.id) && <form action={syncNow}>{hidden}<input type="hidden" name="connectionId" value={c.id} /><SubmitButton variant="secondary" size="sm" pendingText="Pornesc…">Sincronizează</SubmitButton></form>}
+                <form action={removeConnection}>{hidden}<input type="hidden" name="connectionId" value={c.id} /><SubmitButton variant="danger" size="sm" pendingText="Șterg…">Șterge</SubmitButton></form>
+              </>}>
+                <span className="font-medium capitalize">{c.kind}</span>
+                <span className="block truncate text-xs text-muted">{c.url}</span>
+                <span className="block text-xs text-muted">{c.lastSyncAt ? `Sincronizat ${dateShort(c.lastSyncAt)}` : "Nesincronizat"}</span>
+                {c.lastError && <span className="block break-words text-xs text-bad">{c.lastError}</span>}
+              </ListRow>
             ))}
           </ul>
         )}
         {conns.length > 0 ? (
           <details className="group">
-            <summary className="inline-flex h-11 cursor-pointer list-none items-center rounded-lg border border-border bg-bg px-4 text-sm font-medium hover:bg-surface sm:h-10 [&::-webkit-details-marker]:hidden">
+            <summary className={`${btn("secondary")} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
               <span className="group-open:hidden">Schimbă sursa</span><span className="hidden group-open:inline">Ascunde</span>
             </summary>
-            <div className="mt-5">{connectForms}</div>
+            <div className="mt-6">{connectForms}</div>
           </details>
         ) : connectForms}
-        <details className="mt-4 text-xs text-muted"><summary className="cursor-pointer">Unde găsesc feed-ul sau cheia pe platforma mea?</summary><ul className="mt-2 space-y-1">{Object.values(FEED_HINTS).map((h) => <li key={h}>{h}</li>)}</ul></details>
+        <details className="mt-4 text-xs text-muted"><summary className="cursor-pointer font-medium text-primary">Unde găsesc feed-ul sau cheia pe platforma mea?</summary><ul className="mt-2 space-y-1">{Object.values(FEED_HINTS).map((h) => <li key={h}>{h}</li>)}</ul></details>
       </Card>
 
-      <Card title={`Concurenți (${comps.length})`}>
-        <p className="mb-3 text-xs text-muted">Îi comparăm cu tine în fiecare zi. Adăugăm automat magazinele pe care AI-urile le recomandă în locul tău sau înaintea ta. Dacă scoți unul, nu-l mai adăugăm.</p>
+      <Card title={`Concurenți (${comps.length})`} description="Îi comparăm cu tine în fiecare zi. Adăugăm automat magazinele pe care AI-urile le recomandă în locul tău sau înaintea ta. Dacă scoți unul, nu-l mai adăugăm.">
         <ul className="mb-4 flex flex-wrap gap-2">
           {comps.map((c) => (
-            <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border py-1 pl-3 pr-1 text-sm">
-              {c.name}<span className="text-xs text-muted">{c.domain}</span>
-              <form action={removeCompetitor}>{hidden}<input type="hidden" name="id" value={c.id} /><button aria-label={`Șterge ${c.name}`} className="rounded px-2 text-muted hover:bg-surface hover:text-bad">×</button></form>
+            <li key={c.id} className="flex min-w-0 max-w-full items-center gap-1 rounded-full border border-border pl-3 text-sm">
+              <span className="truncate">{c.name} <span className="text-xs text-muted">{c.domain}</span></span>
+              <form action={removeCompetitor}>{hidden}<input type="hidden" name="id" value={c.id} /><IconButton label={`Elimină ${c.name}`}>×</IconButton></form>
             </li>
           ))}
         </ul>
@@ -112,39 +115,39 @@ export default async function Settings() {
           {hidden}
           <Field label="Adresa"><Input name="url" autoComplete="off" placeholder="concurent.ro" required /></Field>
           <Field label="Nume (opțional)"><Input name="name" placeholder="Concurent" /></Field>
-          <FormActions><Button variant="secondary">Adaugă concurent</Button></FormActions>
+          <FormActions><SubmitButton variant="secondary" pendingText="Adaug…">Adaugă concurent</SubmitButton></FormActions>
         </ActionForm>
       </Card>
 
-      <Card title={`Căutări urmărite (${active} active din ${limit})`}>
-        <p className="mb-3 text-xs text-muted">Căutările pe care le punem fiecărui AI, scrise cum caută un client: numele produsului, codul sau EAN-ul, tipul de produs. Le alegem din catalogul tău real (produse în stoc, din categoriile mari, cu mărci diferite) și le reîmprospătăm după fiecare sincronizare. Poți opri oricare sau adăuga căutarea ta.</p>
-        {!prompts.some((p) => p.suggested && p.intent !== "brand") && <p className="mb-3 rounded-lg border border-border px-3 py-2 text-xs text-muted">Conectează catalogul real (mai sus) ca să propunem căutări pe produsele tale.</p>}
+      <Card title={`Căutări urmărite (${active} active din ${limit})`} description={<>Căutările pe care le punem fiecărui AI, scrise cum caută un client: numele produsului, codul sau EAN-ul, tipul de produs. Le alegem din catalogul tău real (produse în stoc, din categoriile mari, cu mărci diferite) și le reîmprospătăm după fiecare sincronizare. Poți opri oricare sau adăuga căutarea ta.</>}>
+        {!prompts.some((p) => p.suggested && p.intent !== "brand") && <div className="mb-4"><Notice tone="muted">Conectează catalogul real (mai sus) ca să propunem căutări pe produsele tale.</Notice></div>}
         <ActionForm action={addPrompt} className="mb-4 grid items-start gap-4 md:grid-cols-[1fr_200px_auto]">
           {hidden}
           <Field label="Căutare nouă"><Input name="text" placeholder="Bosch GSB 18V-55 sau 4053423841923" required /></Field>
           <Field label="Tip"><Select name="intent" className="w-full">{Object.entries(INTENT_NEW).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
-          <FormActions><Button variant="secondary">Adaugă căutarea</Button></FormActions>
+          <FormActions><SubmitButton variant="secondary" pendingText="Adaug…">Adaugă căutarea</SubmitButton></FormActions>
         </ActionForm>
-        <ul className="divide-y divide-border">
+        <ul className="text-sm">
           {prompts.map((p) => (
-            <li key={p.id} className={`flex flex-wrap items-center justify-between gap-3 py-2 text-sm ${p.active ? "" : "text-muted line-through"}`}>
-              <span className="min-w-0 flex-1">{p.text}</span>
-              <span className="flex gap-1"><Badge>{INTENT[p.intent] ?? p.intent}</Badge>{p.suggested && <Badge tone="primary">propusă</Badge>}</span>
-              <form action={togglePrompt}>{hidden}<input type="hidden" name="id" value={p.id} /><button className="text-xs text-primary hover:underline">{p.active ? "Oprește" : "Pornește"}</button></form>
-            </li>
+            <ListRow key={p.id} end={<>
+              <Badge>{INTENT[p.intent] ?? p.intent}</Badge>{p.suggested && <Badge tone="primary">Propusă</Badge>}{!p.active && <Badge>Oprită</Badge>}
+              <form action={togglePrompt}>{hidden}<input type="hidden" name="id" value={p.id} /><SubmitButton variant="ghost" size="sm" pendingText="…">{p.active ? "Oprește" : "Pornește"}</SubmitButton></form>
+            </>}>
+              <span className={`break-words ${p.active ? "" : "text-muted"}`}>{p.text}</span>
+            </ListRow>
           ))}
         </ul>
       </Card>
 
       <Card title="AI-uri și costuri">
-        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {providers.map((p) => <li key={p.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">{providerLabel(p.id)}<Badge tone={p.live ? "good" : undefined}>{p.live ? "activ" : "fără cheie"}</Badge></li>)}
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {providers.map((p) => <li key={p.id}><SubCard className="flex items-center justify-between gap-2 p-3 text-sm">{providerLabel(p.id)}<Badge tone={p.live ? "good" : undefined}>{p.live ? "Activ" : "Fără cheie"}</Badge></SubCard></li>)}
         </ul>
-        <dl className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div><dt className="label">Întrebări luna asta</dt><dd className="num mt-1 text-xl font-semibold">{fmtInt(usage.n)}</dd></div>
-          <div><dt className="label">Tokeni (intrare / ieșire)</dt><dd className="num mt-1 text-xl font-semibold">{fmtInt(usage.inputTokens)} / {fmtInt(usage.outputTokens)}</dd></div>
-          <div><dt className="label">Cost estimat</dt><dd className="num mt-1 text-xl font-semibold">{usd(usage.usd)}</dd></div>
-          <div><dt className="label">Buget lunar</dt><dd className="num mt-1 text-xl font-semibold">{left === null ? "fără plafon" : <>{usd(left)} <span className="text-sm font-normal text-muted">rămași din {usd(cfg.monthlyBudgetUsd)}</span></>}</dd></div>
+        <dl className="mt-6 grid gap-4 border-t border-border pt-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div><dt className="label">Întrebări luna asta</dt><dd className="num font-display mt-1 text-xl font-semibold">{fmtInt(usage.n)}</dd></div>
+          <div><dt className="label">Tokeni (intrare / ieșire)</dt><dd className="num font-display mt-1 text-xl font-semibold">{fmtInt(usage.inputTokens)} / {fmtInt(usage.outputTokens)}</dd></div>
+          <div><dt className="label">Cost estimat</dt><dd className="num font-display mt-1 text-xl font-semibold">{usd(usage.usd)}</dd></div>
+          <div><dt className="label">Buget lunar</dt><dd className="num font-display mt-1 text-xl font-semibold">{left === null ? "fără plafon" : <>{usd(left)} <span className="text-sm font-normal text-muted">rămași din {usd(cfg.monthlyBudgetUsd)}</span></>}</dd></div>
         </dl>
         <p className="mt-4 text-xs text-muted">Întrebările rulează automat o dată la {cfg.runEveryDays} {cfg.runEveryDays === 1 ? "zi" : "zile"}, pe modele ieftine, cu răspunsuri scurte. O întrebare pusă deja azi nu se mai plătește a doua oară, nici dacă o urmăresc mai multe magazine. AI-urile „fără cheie” nu sunt întrebate deloc. La atingerea bugetului ne oprim până luna viitoare.</p>
       </Card>

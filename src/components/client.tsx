@@ -1,13 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
+import { btn, cx } from "./ui";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 
 export function CopyButton({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
   return (
-    <button type="button" onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); }}
-      className="rounded-md border border-border bg-bg px-2.5 py-1 text-xs font-medium hover:bg-surface">
+    <button type="button" data-ui="button" onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); }}
+      className={btn("secondary", "sm")}>
       {ok ? "Copiat ✓" : "Copiază"}
     </button>
   );
@@ -15,12 +16,17 @@ export function CopyButton({ text }: { text: string }) {
 
 export function ThemeToggle() {
   const [t, setT] = useState<string | null>(null);
-  useEffect(() => { try { const v = localStorage.getItem("theme"); if (v) { document.documentElement.dataset.theme = v; setT(v); } } catch {} }, []);
+  useEffect(() => {
+    let v: string | null = null;
+    try { v = localStorage.getItem("theme"); } catch {}
+    if (v) document.documentElement.dataset.theme = v;
+    setT(v ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+  }, []);
   const next = t === "dark" ? "light" : "dark";
   return (
-    <button type="button" aria-label="Schimbă tema" className="rounded-md px-2 py-1 text-xs text-muted hover:bg-surface"
+    <button type="button" aria-label="Schimbă tema" className={btn("ghost", "sm")}
       onClick={() => { document.documentElement.dataset.theme = next; try { localStorage.setItem("theme", next); } catch {} setT(next); }}>
-      {t === "dark" ? "☀︎ Luminos" : "☾ Întunecat"}
+      <span aria-hidden>{t === "dark" ? "☀︎" : "☾"}</span><span className="hidden sm:inline">{t === "dark" ? "Luminos" : "Întunecat"}</span>
     </button>
   );
 }
@@ -43,12 +49,40 @@ export function TrendChart({ data, series, height = 260, unit = "%" }: { data: R
   );
 }
 
-export function SubmitButton({ children, pendingText = "Se lucrează…", className }: { children: React.ReactNode; pendingText?: string; className?: string }) {
+/** Butonul de trimitere al unui formular cu server action (DESIGN §6.1): aceeași variantă ca butonul normal, cu starea „Se lucrează…”. */
+export function SubmitButton({ children, pendingText = "Se lucrează…", variant = "primary", size = "md", className, name, value, formAction, disabled }: {
+  children: React.ReactNode; pendingText?: string; variant?: "primary" | "secondary" | "danger" | "ghost" | "side"; size?: "sm" | "md" | "lg"; className?: string;
+  name?: string; value?: string; formAction?: (f: FormData) => void | Promise<void>; disabled?: boolean;
+}) {
   // useFormStatus din react-dom: arată starea pentru butoanele din formulare cu server actions
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={className ?? "inline-flex items-center justify-center h-11 rounded-lg bg-primary px-4 text-sm font-medium sm:h-10 text-primary-fg hover:opacity-90 disabled:opacity-60"}>
+    <button type="submit" data-ui="button" disabled={pending || disabled} name={name} value={value} formAction={formAction} className={cx(btn(variant, size), className)}>
       {pending ? pendingText : children}
     </button>
+  );
+}
+
+/** Alegerea magazinului din meniul lateral: se schimbă direct la selectare, fără buton „OK”. */
+export function ProjectSwitcher({ projects, current, action }: { projects: { id: string; name: string }[]; current: string; action: (f: FormData) => void | Promise<void> }) {
+  return (
+    <form action={action}>
+      <label htmlFor="proj" className="sr-only">Magazin</label>
+      <select id="proj" name="projectId" defaultValue={current} onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        className="h-11 w-full min-w-0 rounded-lg border border-side-active bg-side-active px-3 text-sm text-side-fg sm:h-10">
+        {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      <noscript><button type="submit">OK</button></noscript>
+    </form>
+  );
+}
+
+/** Bloc de cod cu buton de copiere în antet (același aspect peste tot: audit, roboți, vânzări). */
+export function CodeBlock({ code, label }: { code: string; label?: string }) {
+  return (
+    <div className="mt-2 min-w-0 rounded-lg border border-border bg-surface">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 text-xs text-muted"><span>{label}</span><CopyButton text={code} /></div>
+      <pre className="max-h-56 overflow-auto p-3 font-mono text-xs">{code}</pre>
+    </div>
   );
 }

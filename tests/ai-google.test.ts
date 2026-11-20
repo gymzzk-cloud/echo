@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { daysAgo } from "../src/core/ai/budget";
 import { failureReason } from "../src/core/ai/errors";
-import { flashVersion, isGroundingRefused, parseGemini, pickFlashModel, thinkingFor } from "../src/core/ai/gemini";
-import { retryAfterMs } from "../src/core/ai/http";
+import { attemptOrder, flashCandidates, flashVersion, gemini, isGroundingRefused, isQuotaExhausted, parseGemini, pickFlashModel, thinkingFor } from "../src/core/ai/gemini";
+import { errorSummary, postJson, retryAfterMs } from "../src/core/ai/http";
 import { limitReason, waitForSlot } from "../src/core/ai/limits";
 import { NO_OVERVIEW, aioverview, overviewSources, overviewText } from "../src/core/ai/serpapi";
 import { PROVIDERS } from "../src/core/ai/types";
@@ -166,5 +166,82 @@ describe("limitele planurilor gratuite", () => {
 
   it("etichetele scurte din panou sunt unice", () => {
     expect(new Set(PROVIDERS.map((p) => p.short)).size).toBe(PROVIDERS.length);
+  });
+});
+
+describe("Gemini: cota gratuită", () => {
+  const google429 = JSON.stringify({ error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.", details: [{ "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests", quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier", quotaValue: "0" }] }, { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "31s" }] } }, null, 2);
+
+  it("mesajul de eroare păstrează cota atinsă, pe un rând", () => {
+    const s = errorSummary(google429);
+    expect(s).toBe("RESOURCE_EXHAUSTED [GenerateRequestsPerDayPerProjectPerModel-FreeTier limit: 0] You exceeded your current quota, please check your plan and billing details.");
+    expect(errorSummary("bad\n gateway")).toBe("bad gateway");
+  });
+
+  it("cota pe zi sau zero trece la alt model; o eroare de cheie nu", () => {
+    expect(isQuotaExhausted(`HTTP 429: ${errorSummary(google429)}`)).toBe(true);
+    expect(isQuotaExhausted("HTTP 401: API key not valid")).toBe(false);
+  });
+
+  it("Flash-Lite e rezerva de la urmă", () => {
+    expect(flashCandidates([{ name: "models/gemini-2.5-flash-lite" }, { name: "models/gemini-3-flash" }, { name: "models/gemini-2.5-flash" }]))
+      .toEqual(["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]);
+  });
+
+  it("încearcă întâi ce a mers, apoi fiecare model cu căutare, apoi fără", () => {
+    const m = ["gemini-3-flash", "gemini-2.5-flash"];
+    expect(attemptOrder(m, null).map((a) => `${a.model}${a.grounded ? "+s" : ""}`)).toEqual(["gemini-3-flash+s", "gemini-2.5-flash+s", "gemini-3-flash", "gemini-2.5-flash"]);
+    expect(attemptOrder(m, { model: "gemini-2.5-flash", grounded: true })[0]).toEqual({ model: "gemini-2.5-flash", grounded: true });
+  });
+
+  describe("adaptorul", () => {
+    afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+    it("fără cotă pe primul model, folosește următorul, fără să aștepte retryDelay", async () => {
+      vi.stubEnv("GEMINI_API_KEY", "k");
+      vi.stubEnv("GEMINI_MODEL", "");
+      vi.stubEnv("GEMINI_FREE_TIER", "1");
+      const calls: string[] = [];
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+        calls.push(url.replace(/^.*\/v1beta\//, ""));
+        if (url.includes("/models?")) return new Response(JSON.stringify({ models: [{ name: "models/gemini-3-flash" }, { name: "models/gemini-2.5-flash" }] }));
+        if (url.includes("gemini-3-flash:")) return new Response(google429, { status: 429 });
+        return new Response(JSON.stringify(fixture("gemini-grounded.json")));
+      }));
+      const t0 = Date.now();
+      const out = await gemini.run({ query: "bormasina bosch", language: "ro", country: "RO" });
+      expect(Date.now() - t0).toBeLessThan(2000);
+      expect(out.model).toBe("gemini-2.5-flash");
+      expect(out.costUsd).toBe(0);
+      expect(calls).toEqual(["models?pageSize=200", "models/gemini-3-flash:generateContent", "models/gemini-2.5-flash:generateContent"]);
+    });
+  });
+});
+
+describe("supraîncărcare (503)", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  const r503 = () => new Response(JSON.stringify({ error: { code: 503, status: "UNAVAILABLE", message: "This model is currently experiencing high demand." } }), { status: 503 });
+
+  it("reîncearcă de două ori cu pauze, apoi reușește", async () => {
+    const f = vi.fn().mockResolvedValueOnce(r503()).mockResolvedValueOnce(r503()).mockResolvedValueOnce(new Response("{\"ok\":1}"));
+    vi.stubGlobal("fetch", f);
+    expect(await postJson("https://x", {}, {}, 1000, [1, 1])).toEqual({ ok: 1 });
+    expect(f).toHaveBeenCalledTimes(3);
+  });
+
+  it("după reîncercări dă eroarea, scurtă și clară", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => r503()));
+    await expect(postJson("https://x", {}, {}, 1000, [1, 1])).rejects.toThrow("HTTP 503: UNAVAILABLE This model is currently experiencing high demand.");
+  });
+
+  it("o eroare de cheie (401) nu se reîncearcă", async () => {
+    const f = vi.fn(async () => new Response("bad key", { status: 401 }));
+    vi.stubGlobal("fetch", f);
+    await expect(postJson("https://x", {}, {}, 1000, [1, 1])).rejects.toThrow("HTTP 401");
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("modelele stabile înaintea celor preview, chiar dacă preview e mai nou", () => {
+    expect(flashCandidates([{ name: "models/gemini-3.5-flash-preview" }, { name: "models/gemini-3-flash" }, { name: "models/gemini-2.5-flash" }]))
+      .toEqual(["gemini-3-flash", "gemini-2.5-flash", "gemini-3.5-flash-preview"]);
   });
 });

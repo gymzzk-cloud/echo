@@ -13,7 +13,8 @@
     "db:seed": "tsx --env-file=.env src/db/seed.ts",
     "perf": "tsx --env-file-if-exists=.env scripts/perf-pages.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ui:check": "tsx --env-file-if-exists=.env scripts/ui-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.11.0",

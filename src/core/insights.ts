@@ -5,6 +5,7 @@ import { daysAgo, domainOf } from "@/lib/util";
 import { projectRuns, summarize, latestAudit } from "./projects";
 import { ERROR_MODEL, PROVIDERS } from "./ai/types";
 import { failureReason } from "./ai/errors";
+import { isStoreLike } from "./ai/domains";
 import { cleanAnswer } from "./ai/extract";
 
 type Project = typeof schema.projects.$inferSelect;
@@ -158,7 +159,7 @@ export function whoRecommends(rows: Rows, domain: string, audit: { result: unkno
     const others = new Map<string, number>();
     let wrongPrice = false;
     for (const r of rs) for (const m of r.run.mentions as Mention[]) {
-      if (m.domain !== domain) others.set(m.name ?? m.domain, (others.get(m.name ?? m.domain) ?? 0) + 1);
+      if (m.domain !== domain && isStoreLike(m.domain)) others.set(m.name ?? m.domain, (others.get(m.name ?? m.domain) ?? 0) + 1);
       else if (m.productTitle && m.statedPrice) { const real = priceOf.get(m.productTitle); if (real && Math.abs(m.statedPrice - real) / real > 0.05) wrongPrice = true; }
     }
     const instead = [...others.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
@@ -172,11 +173,40 @@ export function whoRecommends(rows: Rows, domain: string, audit: { result: unkno
 export function shareOfRecommendations(rows: Rows, domain: string, top = 3) {
   const n = new Map<string, number>();
   let all = 0;
-  for (const r of rows) for (const m of r.run.mentions as Mention[]) { all++; n.set(m.domain, (n.get(m.domain) ?? 0) + 1); }
+  for (const r of rows) for (const m of r.run.mentions as Mention[]) {
+    if (m.domain !== domain && !isStoreLike(m.domain)) continue; // directoare, recenzii, presă: nu sunt magazine
+    all++; n.set(m.domain, (n.get(m.domain) ?? 0) + 1);
+  }
   const sorted = [...n.entries()].sort((a, b) => b[1] - a[1]);
   const pick = sorted.slice(0, top).map(([d]) => d);
   if (!pick.includes(domain)) pick.push(domain);
   const list = pick.map((d) => ({ domain: d, me: d === domain, pct: all ? Math.round(((n.get(d) ?? 0) / all) * 100) : 0 }));
   const rest = Math.max(0, 100 - list.reduce((s, x) => s + x.pct, 0));
   return [...list.sort((a, b) => b.pct - a.pct), { domain: "Alții", me: false, pct: rest }];
+}
+
+/**
+ * Mărcile de produs din catalogul tău (Bosch, Makita…) menționate în răspunsuri: în câte răspunsuri apare fiecare
+ * și pe ce loc, în medie, între mărci. Pe ultimele răspunsuri (cel mult 150), cu o căutare simplă de text înaintea expresiei, ca pagina să rămână rapidă.
+ */
+export function brandMentions(rows: Rows, brands: string[], top = 8) {
+  const recent = rows.slice(-150);
+  const res = brands.map((b) => ({ brand: b, re: new RegExp(`(^|[^\\p{L}\\p{N}])${b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\p{L}\\p{N}]|$)`, "iu"), lower: b.toLowerCase(), hits: 0, posSum: 0 }));
+  for (const r of recent) {
+    if (r.run.model === ERROR_MODEL) continue;
+    const text = r.run.answer;
+    const lower = text.toLowerCase();
+    const found = res.filter((x) => lower.includes(x.lower)).map((x) => ({ x, i: text.search(x.re) })).filter((f) => f.i >= 0).sort((a, b) => a.i - b.i);
+    found.forEach((f, k) => { f.x.hits++; f.x.posSum += k + 1; });
+  }
+  const answers = recent.filter((r) => r.run.model !== ERROR_MODEL).length;
+  return res.filter((x) => x.hits).map((x) => ({ brand: x.brand, visibility: Math.round((x.hits / Math.max(1, answers)) * 100), avgPosition: +(x.posSum / x.hits).toFixed(1) }))
+    .sort((a, b) => b.visibility - a.visibility || a.avgPosition - b.avgPosition).slice(0, top);
+}
+
+/** Mărcile cu cele mai multe produse în stoc din catalog (o interogare SQL, nu tot catalogul în memorie). */
+export async function catalogBrands(projectId: string, limit = 30) {
+  const r = await db.execute(dsql`select brand from products where project_id = ${projectId} and in_stock and coalesce(brand, '') <> ''
+    group by brand order by count(*) desc limit ${limit}`);
+  return (r as unknown as { brand: string }[]).map((x) => x.brand).filter((b) => b.trim().length >= 2);
 }

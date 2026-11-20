@@ -24,7 +24,7 @@ export type CatalogProduct = {
   /** Locul în topul vânzărilor (1 = cel mai vândut), dacă platforma sau feed-ul îl dă. */
   rank?: number | null;
 };
-export type PromptIntent = "produs" | "cod" | "categorie" | "brand";
+export type PromptIntent = "produs" | "cod" | "categorie" | "brand" | "comercial" | "cumparare" | "informativ";
 export type SuggestedPrompt = { text: string; category: string; intent: PromptIntent; productId?: string };
 
 /** Câte căutări urmărim pe magazin, după plan (cele adăugate de mână intră în limită). */
@@ -154,42 +154,123 @@ const STORE_Q = {
 /** Numele magazinului cum îl caută lumea: „ShopExpert RO” → „ShopExpert”. */
 export const storeSearchName = (name: string) => name.replace(/\s+(RO|HU)$/i, "").trim() || name;
 
+/** Marca cum o scrie lumea: „MAKITA” → „Makita”, „DeWALT” rămâne. */
+const brandName = (b: string) => (b === b.toUpperCase() ? b.charAt(0) + b.slice(1).toLowerCase() : b);
+
+type Tpl = { intent: PromptIntent; f: (t: string, b: string[]) => string | null };
 /**
- * Lista propusă, cel mult `max` căutări: ~25% tipuri de produs, ~10% coduri sau EAN, restul produse anume
- * (cele mai vândute întâi, dacă știm topul), plus 2 căutări despre magazin.
+ * Întrebări de cumpărător care încă nu știe de la cine cumpără: aici AI-ul numește magazine și mărci.
+ * Ordinea contează: un tip de produs primește întâi o recomandare, apoi „de unde cumpăr”, apoi o comparație.
+ */
+const INTENT_Q: Record<"ro" | "hu", Tpl[]> = {
+  ro: [
+    { intent: "comercial", f: (t) => `care sunt cele mai bune ${t}` },
+    { intent: "cumparare", f: (t) => `de unde pot cumpăra online ${t}` },
+    { intent: "comercial", f: (t, b) => (b.length >= 2 ? `${t} ${b[0]} sau ${b[1]}, ce să aleg?` : null) },
+    { intent: "cumparare", f: (t) => `${t} la cel mai bun preț` },
+    { intent: "informativ", f: (t) => `cum aleg ${t}` },
+    { intent: "comercial", f: (t, b) => (b.length ? `recomandă-mi ${t} ${b[0]}` : null) },
+  ],
+  hu: [
+    { intent: "comercial", f: (t) => `melyek a legjobb ${t}` },
+    { intent: "cumparare", f: (t) => `hol vásárolhatok online ${t}` },
+    { intent: "comercial", f: (t, b) => (b.length >= 2 ? `${b[0]} vagy ${b[1]} ${t}, melyiket válasszam?` : null) },
+    { intent: "cumparare", f: (t) => `${t} legjobb áron` },
+    { intent: "informativ", f: (t) => `hogyan válasszak ${t}` },
+    { intent: "comercial", f: (t, b) => (b.length ? `ajánlj ${b[0]} ${t}` : null) },
+  ],
+};
+
+/** Domeniul (primul nivel din calea de categorii): „Scule Electrice > Ferăstraie sabie > MAKITA” → „scule electrice”. */
+const topicOf = (p: CatalogProduct) => (p.category ?? "").split(/\s*(?:>|\/|\|)\s*/)[0]?.trim().toLowerCase() || "altele";
+
+/**
+ * Tipurile de produs importante: cele cu produse în topul vânzărilor întâi, apoi cele mai mari,
+ * luate pe rând din fiecare domeniu (scule electrice, grădină, măsură…), ca lista să acopere tot magazinul.
+ */
+export function productTypes(products: CatalogProduct[], language: "ro" | "hu", n: number) {
+  const types = new Map<string, { type: string; topic: string; size: number; best: number; brands: Map<string, number> }>();
+  for (const p of products) {
+    if (p.title.trim().length < 4 || !(parseFloat(p.price ?? "") > 0)) continue;
+    const t = categoryType(p, language);
+    if (!t || t.length < 4) continue;
+    const e = types.get(t) ?? { type: t, topic: topicOf(p), size: 0, best: Infinity, brands: new Map<string, number>() };
+    e.size++;
+    if (p.rank) e.best = Math.min(e.best, p.rank);
+    const b = p.brand?.trim();
+    if (b) e.brands.set(b, (e.brands.get(b) ?? 0) + 1);
+    types.set(t, e);
+  }
+  const order = (a: { best: number; size: number; type: string }, b: { best: number; size: number; type: string }) => a.best - b.best || b.size - a.size || a.type.localeCompare(b.type);
+  const byTopic = new Map<string, { best: number; size: number; type: string; list: ReturnType<typeof types.get>[] }>();
+  for (const e of [...types.values()].filter((x) => x.size >= 2).sort(order)) {
+    const g = byTopic.get(e.topic) ?? { best: e.best, size: 0, type: e.topic, list: [] };
+    g.size += e.size; g.list.push(e);
+    byTopic.set(e.topic, g);
+  }
+  const topics = [...byTopic.values()].sort(order);
+  const out: { type: string; topic: string; brands: string[] }[] = [];
+  for (let round = 0; out.length < n; round++) {
+    let any = false;
+    for (const g of topics) {
+      const e = g.list[round];
+      if (!e || out.length >= n) continue;
+      any = true;
+      out.push({ type: e.type, topic: e.topic, brands: [...e.brands.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 2).map(([b]) => brandName(b)) });
+    }
+    if (!any) break;
+  }
+  return out;
+}
+
+/** `n` întrebări de cumpărător pe tipurile importante: ~3 pe tip (recomandare, de unde cumpăr, comparație). */
+export function intentPrompts(products: CatalogProduct[], language: "ro" | "hu", n: number): SuggestedPrompt[] {
+  if (n <= 0) return [];
+  const tpls = INTENT_Q[language];
+  const types = productTypes(products, language, Math.max(1, Math.ceil(n / 3)));
+  const out: SuggestedPrompt[] = [];
+  const seen = new Set<string>();
+  for (let round = 0; round < tpls.length && out.length < n; round++) {
+    for (const t of types) {
+      if (out.length >= n) break;
+      // Dacă un șablon nu se potrivește tipului (ex. o singură marcă), trecem la următorul.
+      for (let k = round; k < tpls.length; k++) {
+        const text = tpls[k].f(t.type, t.brands);
+        if (!text || seen.has(text)) continue;
+        seen.add(text);
+        out.push({ text, category: t.type, intent: tpls[k].intent });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Lista propusă, cel mult `max` căutări, ca un cumpărător real:
+ * - ~80% fără numele magazinului: recomandări, „de unde cumpăr”, comparații și „cum aleg”, pe tipurile de produs
+ *   importante (cele mai vândute întâi, toate domeniile magazinului). Aici AI-ul numește magazine și mărci.
+ * - ~20% cu numele: 2 despre magazin (Reputație) și produsele cele mai vândute (nume sau cod).
  */
 export function suggestPrompts(products: CatalogProduct[], storeName: string, language: "ro" | "hu" = "ro", max = 30): SuggestedPrompt[] {
   const store = STORE_Q[language].map((f) => ({ text: f(storeSearchName(storeName)), category: "magazin", intent: "brand" as const }));
   const room = Math.max(0, max - store.length);
   if (!room || !products.length) return store.slice(0, max);
-  const catCount = Math.max(1, Math.round(room * 0.25));
-  const codeCount = Math.round(room * 0.1);
-  const nameCount = Math.max(1, room - catCount - codeCount);
-  const { picked, categories } = pickProducts(products, language, nameCount);
+  const branded = Math.min(room, Math.max(1, Math.round(max * 0.2) - store.length));
+  const intent = intentPrompts(products, language, room - branded);
+  // Ce nu acoperă întrebările de cumpărător (catalog mic) trece la produse anume.
+  const nameCount = room - intent.length;
+  const { picked } = pickProducts(products, language, nameCount);
 
   const out: SuggestedPrompt[] = [];
   const seen = new Set<string>();
-  const push = (x: SuggestedPrompt) => { const k = x.text.toLowerCase(); if (!seen.has(k) && x.text.length >= 3) { seen.add(k); out.push(x); } };
-
-  // Tipuri de produs: întâi categoria singură, apoi categoria + marca dominantă („șurubelnițe cu impact bosch”).
-  const catQ: SuggestedPrompt[] = [];
-  for (const c of categories) if (c.category !== "altele") catQ.push({ text: c.category, category: c.category, intent: "categorie" });
-  for (const c of categories) if (c.category !== "altele" && c.topBrand) catQ.push({ text: `${c.category} ${c.topBrand.toLowerCase()}`, category: c.category, intent: "categorie" });
-
-  const prodQ: SuggestedPrompt[] = picked.map(({ product: p, category }) => ({ text: productQuery(p), category, intent: "produs", productId: p.id }));
-  // Coduri: alternăm codul producătorului și EAN-ul, pe produsele alese, în aceeași ordine.
-  const codeQ: SuggestedPrompt[] = [];
-  picked.forEach(({ product: p, category }, i) => {
-    const code = validCode(p.mpn, p.title) ? p.mpn!.trim() : null;
-    const ean = validEan(p.gtin) ? p.gtin!.trim() : null;
-    const first = i % 2 === 0 ? code ?? ean : ean ?? code;
-    if (first) codeQ.push({ text: first, category, intent: "cod", productId: p.id });
-  });
-
-  for (const x of catQ.slice(0, catCount)) push(x);
-  for (const x of prodQ) push(x);
-  for (const x of codeQ) { if (out.length >= catCount + prodQ.length + codeCount || out.length >= room) break; push(x); }
-  // Dacă nu sunt destule coduri, completăm cu alte tipuri de produs.
-  for (const x of catQ.slice(catCount)) { if (out.length >= room) break; push(x); }
-  return [...out.slice(0, room), ...store];
+  const push = (x: SuggestedPrompt) => { const k = x.text.toLowerCase(); if (!seen.has(k) && x.text.length >= 3 && out.length < room) { seen.add(k); out.push(x); } };
+  for (const x of intent) push(x);
+  for (const { product: p, category } of picked) push({ text: productQuery(p), category, intent: "produs", productId: p.id });
+  // Codurile (EAN, cod producător) doar dacă mai e loc: un cod rar aduce numele altor magazine.
+  for (const { product: p, category } of picked) {
+    const code = validCode(p.mpn, p.title) ? p.mpn!.trim() : validEan(p.gtin) ? p.gtin!.trim() : null;
+    if (code) push({ text: code, category, intent: "cod", productId: p.id });
+  }
+  return [...out, ...store];
 }

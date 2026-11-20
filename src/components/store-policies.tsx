@@ -43,18 +43,18 @@ export function StorePoliciesView({ projectId, policies, busy }: { projectId: st
         <Row label="Livrare">
           <div>Pe fiecare produs, din catalog: termenul și stocul.</div>
           {p?.catalogDelivery && <div className="text-xs text-muted">Cele mai dese termene: {p.catalogDelivery}</div>}
-          {p?.delivery && <div className="mt-1 line-clamp-3 text-xs text-muted">{p.delivery.freeOver && <b>Transport gratuit peste {p.delivery.freeOver}. </b>}{p.delivery.text}</div>}
+          {p?.delivery && <div className="mt-1 line-clamp-3 text-xs text-muted">{p.delivery.freeOver && <b className="font-semibold">Transport gratuit peste {p.delivery.freeOver}. </b>}{p.delivery.text}</div>}
         </Row>
         <Row label="Retur" url={p?.returns?.url}>
           {p?.returns ? <>{p.returns.days && <Badge tone="good">{p.returns.days} zile</Badge>} <span className="line-clamp-3 text-xs text-muted">{p.returns.text}</span></>
             : missing(p?.checkedAt ? "Nu am găsit pagina de retur pe site. Agenții spun termenul legal de 14 zile. Pune un link „Retur” în subsolul site-ului." : "Se citește de pe site.")}
         </Row>
         <Row label="Plată" url={p?.payment?.url}>
-          {p?.payment ? <div className="flex flex-wrap gap-1.5">{p.payment.methods.map((m) => <Badge key={m}>{m}</Badge>)}</div>
+          {p?.payment ? <div className="flex flex-wrap gap-1">{p.payment.methods.map((m) => <Badge key={m}>{m}</Badge>)}</div>
             : missing(p?.checkedAt ? "Nu am găsit metodele de plată pe site. Pune un link „Metode de plată” în subsolul site-ului." : "Se citește de pe site.")}
         </Row>
         <Row label="Întrebări frecvente" url={p?.faq?.url}>
-          {p?.faq ? <><div>{p.faq.items.length === 1 ? "O întrebare citită" : `${p.faq.items.length} întrebări citite`}</div><ul className="mt-1 space-y-0.5 text-xs text-muted">{p.faq.items.slice(0, 3).map((f) => <li key={f.q} className="truncate">{f.q}</li>)}</ul></>
+          {p?.faq ? <><div>{p.faq.items.length === 1 ? "O întrebare citită" : `${p.faq.items.length} întrebări citite`}</div><ul className="mt-1 space-y-1 text-xs text-muted">{p.faq.items.slice(0, 3).map((f) => <li key={f.q} className="truncate">{f.q}</li>)}</ul></>
             : missing(p?.checkedAt ? "Nu am găsit o pagină de întrebări frecvente pe site." : "Se citește de pe site.")}
         </Row>
       </div>
