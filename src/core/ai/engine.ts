@@ -12,6 +12,9 @@ import { PROVIDERS, type KnownProduct, type KnownStore, type Provider, type RunI
  * între toți clienții și cumpărătorii. Asta ține costul mic.
  */
 
+/** Modelul trecut pe o rulare eșuată. */
+export const ERROR_MODEL = "eroare";
+
 export type World = { stores: KnownStore[]; products: KnownProduct[]; ownDomains: string[] };
 
 let worldCache: { at: number; w: World } | null = null;
@@ -59,7 +62,8 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
   const existing = await db.select().from(schema.runs)
     .where(and(eq(schema.runs.queryHash, qh), eq(schema.runs.provider, provider), eq(schema.runs.runDate, day)))
     .limit(1);
-  if (existing[0]) return existing[0];
+  // O rulare reușită azi se refolosește. Una cu eroare (AI căzut, parametru respins) se reîncearcă.
+  if (existing[0] && existing[0].model !== ERROR_MODEL) return existing[0];
 
   const w = world ?? (await loadWorld());
   const runner = LIVE[provider];
@@ -68,13 +72,21 @@ export async function runQuery(provider: Provider, input: RunInput, world?: Worl
     out = runner.isLive() ? await runner.run(input) : demoRun(provider, input, w);
   } catch (e) {
     // Un AI căzut nu oprește restul: înregistrăm eroarea ca răspuns gol, fără cost.
-    out = { answer: `(Eroare ${provider}: ${String(e).slice(0, 200)})`, sources: [], model: "eroare", mode: "live" as const, costUsd: 0, latencyMs: 0 };
+    const msg = String(e).slice(0, 200);
+    // Doar mesajul de eroare al API-ului (fără chei sau date personale), ca să se vadă în loguri.
+    console.error(`AI ${provider} eroare: ${msg}`);
+    out = { answer: `(Eroare ${provider}: ${msg})`, sources: [], model: ERROR_MODEL, mode: "live" as const, costUsd: 0, latencyMs: 0 };
   }
   const mentions = extractMentions(out.answer, out.sources, w);
   const [row] = await db.insert(schema.runs).values({
     queryHash: qh, query: input.query, language: input.language, provider, model: out.model, mode: out.mode,
     answer: out.answer, sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs, runDate: day,
-  }).onConflictDoNothing().returning();
+  }).onConflictDoUpdate({
+    target: [schema.runs.queryHash, schema.runs.provider, schema.runs.runDate],
+    // Suprascriem doar o rulare cu eroare; una reușită (scrisă între timp de alt job) rămâne.
+    set: { model: out.model, mode: out.mode, answer: out.answer, sources: out.sources, mentions, costUsd: out.costUsd.toFixed(5), inputTokens: out.inputTokens ?? 0, outputTokens: out.outputTokens ?? 0, latencyMs: out.latencyMs },
+    setWhere: dsql`${schema.runs.model} = ${ERROR_MODEL}`,
+  }).returning();
   if (row) return row;
   const again = await db.select().from(schema.runs)
     .where(and(eq(schema.runs.queryHash, qh), eq(schema.runs.provider, provider), eq(schema.runs.runDate, day))).limit(1);
