@@ -65,6 +65,14 @@ O sarcină e gata doar când:
 - Nume clare în engleză pentru cod, iar textele pentru utilizator în română.
 - Fișiere mici: o componentă sau o funcție pe responsabilitate. Peste ~300 de rânduri, împărțim.
 
+## Lucrări în fundal: fără dubluri (regulă permanentă)
+
+- **Orice buton care pornește o lucrare** (analiză, audit, sincronizare, raport, rulare AI etc.) **dispare sau e înlocuit cu „… e în lucru”** cât timp acea lucrare e **la coadă sau în lucru**. „În așteptare” contează la fel ca „în lucru”.
+- Pagina află starea prin `busyKinds(projectId)` / `syncingConnections(ids)` din `src/core/jobs.ts`.
+- **Serverul refuză dublurile oricum**: `enqueue()` nu adaugă un job identic (același tip și aceleași date) dacă unul e deja la coadă sau în lucru. Butonul ascuns e doar pentru claritate, protecția reală e pe server.
+- Un job mai vechi de 30 de minute e considerat blocat, ca butonul să revină după un restart.
+- Orice funcție nouă care pornește lucru în fundal respectă aceste trei puncte.
+
 ## Securitate: niciodată
 
 - Nu punem secrete în cod, în commituri sau în loguri (chei API, chei de magazin, parole).

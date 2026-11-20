@@ -9,6 +9,8 @@ import { SubmitButton, TrendChart } from "@/components/client";
 import { ScoreRing } from "@/components/audit-view";
 import { markAlertsRead, runNow, setActionStatus } from "@/app/actions";
 import { dateShort } from "@/lib/format";
+import { busyKinds } from "@/core/jobs";
+import { isDemo } from "@/core/ai/engine";
 
 const COLORS = ["var(--primary)", "#94a3b8", "#64748b", "#cbd5e1"];
 
@@ -23,6 +25,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
     db.select().from(schema.actions).where(and(eq(schema.actions.projectId, project.id), eq(schema.actions.status, "noua"))).limit(50),
     db.select({ title: schema.products.title, price: schema.products.price }).from(schema.products).where(eq(schema.products.projectId, project.id)).limit(5000),
   ]);
+  const busy = await busyKinds(project.id, conns.map((c) => c.id));
+  const analysing = busy.has("audit") || busy.has("run_project") || busy.has("sync");
+  const noAi = isDemo() && process.env.ALLOW_DEMO_AI !== "1";
   const working = jobs.filter((j) => (j.payload as Record<string, string>).projectId === project.id || conns.some((c) => c.id === (j.payload as Record<string, string>).connectionId));
   const rank: Record<string, number> = { mare: 0, mediu: 1, mic: 2 };
   const top3 = actions.sort((a, b) => rank[a.impact] - rank[b.impact] || rank[a.effort] - rank[b.effort]).slice(0, 3);
@@ -44,11 +49,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
           <ul className="space-y-2 text-sm">
             <li className="flex justify-between"><span>Audit tehnic</span>{o.audit ? <Badge tone="good">Gata ({o.audit.score}/100)</Badge> : <Badge tone="warn">În lucru</Badge>}</li>
             <li className="flex justify-between"><span>Catalog de produse</span>{conns.some((c) => c.status === "ok") ? <Badge tone="good">{conns.reduce((s, c) => s + c.productCount, 0)} produse</Badge> : conns.length ? <Badge tone={conns.some((c) => c.status === "error") ? "bad" : "warn"}>{conns.some((c) => c.status === "error") ? "Eroare" : "În lucru"}</Badge> : <Badge tone="warn">Neconectat</Badge>}</li>
-            <li className="flex justify-between"><span>Întrebări la AI-uri</span>{working.some((j) => j.kind === "run_project") ? <Badge tone="warn">În lucru</Badge> : <Badge>În așteptare</Badge>}</li>
+            <li className="flex justify-between"><span>Întrebări la AI-uri</span>{noAi ? <Badge>Lipsește cheia AI</Badge> : working.some((j) => j.kind === "run_project") ? <Badge tone="warn">În lucru</Badge> : <Badge>În așteptare</Badge>}</li>
           </ul>
           {!conns.some((c) => c.status === "ok") && <p className="mt-4 text-sm text-muted">Nu am putut conecta automat catalogul. <Link href="/panou/setari" className="text-primary underline">Adaugă feed-ul de produse</Link> (Google XML sau CSV) ca să urmărim fiecare produs.</p>}
-          <form action={runNow} className="mt-4"><input type="hidden" name="projectId" value={project.id} /><SubmitButton pendingText="Pornesc…">Pornește analiza acum</SubmitButton></form>
-          <p className="mt-3 text-xs text-muted">Analiza rulează în fundal; reîncarcă pagina în câteva minute.</p>
+          {analysing
+            ? <p className="mt-4 text-sm text-muted">Analiza e în lucru. Reîncarcă pagina în câteva minute.</p>
+            : <><form action={runNow} className="mt-4"><input type="hidden" name="projectId" value={project.id} /><SubmitButton pendingText="Pornesc…">Pornește analiza acum</SubmitButton></form>
+              <p className="mt-3 text-xs text-muted">Analiza rulează în fundal; reîncarcă pagina în câteva minute.</p></>}
         </Card>
       </div>
     );
@@ -68,7 +75,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
               <span>· apari în {o.sum.total.visibility}% din răspunsuri · cotă față de concurenți {o.sum.total.sov}%</span>
             </div>
           </div>
-          <form action={runNow}><input type="hidden" name="projectId" value={project.id} /><SubmitButton pendingText="Pornesc…" className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface disabled:opacity-60">Rulează acum</SubmitButton></form>
+          {analysing
+            ? <span className="text-xs text-muted">Analiza e în lucru…</span>
+            : <form action={runNow}><input type="hidden" name="projectId" value={project.id} /><SubmitButton pendingText="Pornesc…" className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface disabled:opacity-60">Rulează acum</SubmitButton></form>}
         </div>
       </Card>
 
