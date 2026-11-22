@@ -6,7 +6,7 @@ import { cx } from "./ui";
 
 type Item = readonly [href: string, label: string];
 const GROUPS: { label: string; icon: LucideIcon; items: Item[]; hideForClient?: boolean }[] = [
-  { label: "Vizibilitate", icon: Radar, items: [["/panou", "Acasă"], ["/panou/vizibilitate", "Vizibilitate AI"], ["/panou/produse", "Produse"], ["/panou/surse", "Surse"], ["/panou/reputatie", "Ce spune AI-ul"], ["/panou/asistent", "Întreabă asistentul"]] },
+  { label: "Vizibilitate", icon: Radar, items: [["/panou", "Acasă"], ["/panou/vizibilitate", "Vizibilitate AI"], ["/panou/produse", "Produse"], ["/panou/produse-ai", "Produse în AI"], ["/panou/surse", "Surse"], ["/panou/reputatie", "Ce spune AI-ul"], ["/panou/asistent", "Întreabă asistentul"]] },
   { label: "Vânzări", icon: ShoppingCart, items: [["/panou/vanzari", "Vânzări din AI"], ["/panou/recenzii", "Recenzii verificate"]] },
   { label: "Reparații", icon: Wrench, items: [["/panou/audit", "Audit tehnic"], ["/panou/actiuni", "Acțiuni"], ["/panou/reparatii", "Reparații produse"], ["/panou/roboti", "Roboții AI"], ["/panou/feed", "Feed și canale"], ["/panou/agent-gate", "Agent Gate"]] },
   { label: "Cont", icon: Settings, items: [["/panou/rapoarte", "Rapoarte"], ["/panou/setari", "Setări magazin"], ["/panou/dezvoltatori", "API și MCP"], ["/panou/cont", "Echipă și abonament"]], hideForClient: true },
@@ -14,7 +14,7 @@ const GROUPS: { label: string; icon: LucideIcon; items: Item[]; hideForClient?: 
 
 const HU: Record<string, string> = {
   Vizibilitate: "Láthatóság", Vânzări: "Eladások", Reparații: "Javítások", Cont: "Fiók",
-  "Acasă": "Kezdőlap", "Vizibilitate AI": "AI-láthatóság", Produse: "Termékek", Surse: "Források", "Ce spune AI-ul": "Mit mond az AI", "Întreabă asistentul": "Kérdezd az asszisztenst",
+  "Acasă": "Kezdőlap", "Vizibilitate AI": "AI-láthatóság", Produse: "Termékek", "Produse în AI": "Termékek az AI-ban", Surse: "Források", "Ce spune AI-ul": "Mit mond az AI", "Întreabă asistentul": "Kérdezd az asszisztenst",
   "Vânzări din AI": "Eladások AI-ból", "Recenzii verificate": "Ellenőrzött vélemények", "Audit tehnic": "Technikai audit", "Acțiuni": "Teendők", "Reparații produse": "Termékjavítások", "Roboții AI": "AI-robotok",
   "Feed și canale": "Feed és csatornák", "Agent Gate": "Agent Gate", Rapoarte: "Jelentések", "Setări magazin": "Webshop beállítások", "API și MCP": "API és MCP",
   "Echipă și abonament": "Csapat és előfizetés", "Toți clienții": "Összes ügyfél",
@@ -28,7 +28,7 @@ export function PanelNav({ alerts, agency, client, lang = "ro" }: { alerts: numb
   const path = usePathname();
   const tr = (s: string) => (lang === "hu" ? HU[s] ?? s : s);
   const groups = GROUPS.filter((g) => !(client && g.hideForClient)).map((g) => g.label === "Vizibilitate" && agency && !client ? { ...g, items: [["/panou/clienti", "Toți clienții"] as Item, ...g.items] } : g);
-  const isActive = (href: string) => (href === "/panou" ? path === href : path.startsWith(href));
+  const isActive = (href: string) => (href === "/panou" ? path === href : path === href || path.startsWith(`${href}/`));
   const current = groups.find((g) => g.items.some(([href]) => isActive(href))) ?? groups[0];
   const link = ([href, label]: Item) => {
     const active = isActive(href);

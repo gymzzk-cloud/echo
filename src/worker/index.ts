@@ -13,6 +13,7 @@ import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
 import { projectsDueForPolicies, refreshPolicies } from "@/core/policies";
 import { pruneMcpCalls } from "@/core/mcp";
 import { generateFixes, projectsDueForFixes } from "@/core/fixes";
+import { computeProductVisibility, projectsDueForProductAi } from "@/core/product-visibility-job";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -30,6 +31,8 @@ async function handle(kind: string, payload: Record<string, string>) {
       if (c) await enqueue("feed", { projectId: c.projectId });
       // Catalog nou → reparațiile de produs se recalculează (regulile sunt ieftine; AI-ul doar pentru produsele schimbate).
       if (c) await enqueue("fixes", { projectId: c.projectId });
+      // Produse noi sau redenumite → vizibilitatea pe produs se recalculează (din răspunsurile salvate, fără AI).
+      if (c) await enqueue("product_ai", { projectId: c.projectId });
       return n;
     }
     case "feed": return generateFeedFiles(payload.projectId);
@@ -39,7 +42,13 @@ async function handle(kind: string, payload: Record<string, string>) {
       if (r.auto) await enqueue("feed", { projectId: payload.projectId });
       return r;
     }
-    case "run_project": return runProject(payload.projectId);
+    case "run_project": {
+      const r = await runProject(payload.projectId);
+      // Răspunsuri noi → cifrele pe produs se refac imediat, ca pagina „Produse în AI” să le arate.
+      await enqueue("product_ai", { projectId: payload.projectId });
+      return r;
+    }
+    case "product_ai": return computeProductVisibility(payload.projectId);
     case "report": {
       const r = await buildWeeklyReport(payload.projectId);
       if (payload.email) await sendReport(r.id, payload.email);
@@ -75,6 +84,10 @@ async function schedule() {
   // Concurenții care apar mai bine ca tine: o dată pe zi, din răspunsurile deja salvate (fără apeluri AI).
   for (const projectId of await projectsDueForRivals()) {
     if (!(await pendingJobs(["rivals", "run_project"], "projectId", projectId))) await enqueue("rivals", { projectId });
+  }
+  // Vizibilitatea pe produs: o dată pe zi, din răspunsurile deja salvate (fără apeluri AI).
+  for (const projectId of await projectsDueForProductAi()) {
+    if (!(await pendingJobs(["product_ai", "run_project"], "projectId", projectId))) await enqueue("product_ai", { projectId });
   }
   // Condițiile magazinului (retur, plată, livrare, întrebări frecvente) de pe site: o dată pe lună, câte 5 magazine pe ciclu.
   for (const projectId of (await projectsDueForPolicies()).slice(0, 5)) {

@@ -7,6 +7,7 @@ import { ERROR_MODEL, PROVIDERS } from "./ai/types";
 import { failureReason } from "./ai/errors";
 import { isStoreLike } from "./ai/domains";
 import { cleanAnswer } from "./ai/extract";
+import { savedProductStats } from "./product-ai-read";
 
 type Project = typeof schema.projects.$inferSelect;
 export type Rows = Awaited<ReturnType<typeof projectRuns>>;
@@ -73,27 +74,13 @@ export async function productInsights(project: Project, rows: Rows) {
     id: P.id, title: P.title, url: P.url, popularityRank: P.popularityRank, brand: P.brand, category: P.category, price: P.price, currency: P.currency, inStock: P.inStock, gtin: P.gtin,
     hasDescription: dsql<boolean>`coalesce(${P.description}, '') <> ''`, hasImage: dsql<boolean>`coalesce(${P.imageUrl}, '') <> ''`,
   }).from(P).where(eq(P.projectId, project.id)).limit(20000);
-  const stats = new Map<string, { n: number; providers: Set<string>; prices: { provider: string; price: number }[]; positions: number[] }>();
+  // Cifrele pe produs vin din calculul salvat de worker (aceleași ca în „Produse în AI”); aici doar destinațiile.
+  const saved = new Map((await savedProductStats(project.id)).map((s) => [s.productId, s]));
   const where = new Map<string, number>();
-  for (const { run } of rows) {
-    const ms = run.mentions as Mention[];
-    for (const m of ms) {
-      where.set(m.domain, (where.get(m.domain) ?? 0) + 1);
-      if (m.domain !== project.domain || !m.productTitle) continue;
-      const s = stats.get(m.productTitle) ?? { n: 0, providers: new Set(), prices: [], positions: [] };
-      s.n++; s.providers.add(run.provider); s.positions.push(m.position);
-      if (m.statedPrice) s.prices.push({ provider: run.provider, price: m.statedPrice });
-      stats.set(m.productTitle, s);
-    }
-  }
+  for (const { run } of rows) for (const m of run.mentions as Mention[]) where.set(m.domain, (where.get(m.domain) ?? 0) + 1);
   const list = prods.map((p) => {
-    const s = stats.get(p.title);
-    const real = p.price ? parseFloat(p.price) : null;
-    // Un singur preț greșit pe AI: cel mai recent spus (rândurile vin în ordine cronologică).
-    const byProv = new Map<string, { provider: string; price: number }>();
-    for (const x of s?.prices ?? []) if (real && Math.abs(x.price - real) / real > 0.05) byProv.set(x.provider, x);
-    const wrong = [...byProv.values()];
-    return { ...p, mentions: s?.n ?? 0, providers: s ? [...s.providers] : [], avgPosition: s?.positions.length ? +(s.positions.reduce((a, b) => a + b, 0) / s.positions.length).toFixed(1) : null, wrongPrices: wrong };
+    const s = saved.get(p.id);
+    return { ...p, mentions: s?.appearances ?? 0, providers: s ? Object.keys(s.providers) : [], avgPosition: s ? parseFloat(s.avgPosition) : null, wrongPrices: s?.wrongPrices ?? [] };
   });
   list.sort((a, b) => b.mentions - a.mentions || (b.inStock ? 1 : 0) - (a.inStock ? 1 : 0));
   const topDest = [...where.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
