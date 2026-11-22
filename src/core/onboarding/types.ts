@@ -77,4 +77,4 @@ export function cleanDomain(raw: string) {
 }
 
 /** AI-urile adăugate după alegerea unui plan (analiza completă rulează din nou, cu toate). Ordinea din pagini. */
-export const PLAN_PROVIDERS = ["claude", "perplexity", "aioverview"] as const;
+export const PLAN_PROVIDERS = ["claude", "perplexity", "aioverview", "aimode", "copilot", "grok"] as const;

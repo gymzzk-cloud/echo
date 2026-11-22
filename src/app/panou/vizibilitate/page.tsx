@@ -1,6 +1,7 @@
 import { currentProject } from "@/lib/project";
 import { brandMentions, catalogBrands, loadBase, leaderboard, perPrompt, trend } from "@/core/insights";
 import { PROVIDERS, providerLabel } from "@/core/ai/types";
+import { activeProviders } from "@/core/ai/engine";
 import { Badge, Card, Chips, Empty, PageHeader, SubCard, Table, TextLink, Td } from "@/components/ui";
 import { TrendChart } from "@/components/client";
 import { daysAgo } from "@/lib/util";
@@ -25,6 +26,10 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
   const topBrands = brandMentions(rows, brands);
   const failed = sp.ai ? base.failed.filter((r) => r.run.provider === sp.ai) : base.failed;
   const prompts = perPrompt(rows.filter((r) => r.run.runDate >= daysAgo(days)), project.domain, failed);
+  // Doar AI-urile pornite sau care au răspuns în perioadă: un AI fără cheie nu umple rândurile cu „–”.
+  const live = new Set(activeProviders().filter((p) => p.live).map((p) => p.id));
+  const seen = new Set([...base.rows, ...base.failed].map((r) => r.run.provider));
+  const shown = PROVIDERS.filter((p) => live.has(p.id) || seen.has(p.id) || sp.ai === p.id);
   const link = (q: Record<string, string | undefined>) => "?" + new URLSearchParams(Object.entries({ zile: String(days), ai: sp.ai, ...q }).filter(([, v]) => v) as [string, string][]).toString();
 
   return (
@@ -34,7 +39,7 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
           <Chips items={[7, 30, 90].map((d) => ({ href: link({ zile: String(d) }), label: `${d} zile`, active: d === days }))} />
           <span aria-hidden className="hidden h-6 w-px bg-border lg:block" />
-          <Chips items={[{ href: link({ ai: "" }), label: "Toate AI-urile", active: !sp.ai }, ...PROVIDERS.map((p) => ({ href: link({ ai: p.id }), label: p.label, active: sp.ai === p.id }))]} />
+          <Chips items={[{ href: link({ ai: "" }), label: "Toate AI-urile", active: !sp.ai }, ...shown.map((p) => ({ href: link({ ai: p.id }), label: p.label, active: sp.ai === p.id }))]} />
         </div>
       </div>
 
@@ -78,14 +83,14 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
       <Card title={`Pe fiecare întrebare (${prompts.length})`} description="Ultimul răspuns de la fiecare AI. Numărul e poziția ta în răspuns; „–” înseamnă că lipsești; „!” înseamnă că AI-ul nu a putut fi întrebat (motivul e în rând) și nu se socotește. Deschide rândul ca să vezi cine apare în locul tău.">
         <div className="divide-y divide-border">
           {prompts.map((p) => {
-            const hits = PROVIDERS.filter((x) => p.byProvider[x.id]?.me).length;
-            const asked = PROVIDERS.filter((x) => p.byProvider[x.id] && !p.byProvider[x.id].failure).length;
+            const hits = shown.filter((x) => p.byProvider[x.id]?.me).length;
+            const asked = shown.filter((x) => p.byProvider[x.id] && !p.byProvider[x.id].failure).length;
             return (
               <details key={p.id} className="group py-3">
                 <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
                   <span className="min-w-0 flex-1 text-sm font-medium">{p.prompt}{p.category && <span className="ml-2 text-xs font-normal text-muted">{p.category}</span>}</span>
                   <span className="flex flex-wrap gap-1">
-                    {PROVIDERS.map((x) => {
+                    {shown.map((x) => {
                       const b = p.byProvider[x.id];
                       if (b?.failure) return <Badge key={x.id} tone="warn"><span title={`Nu am putut întreba: ${b.failure}`}>{x.short} !</span></Badge>;
                       return <Badge key={x.id} tone={!b ? "muted" : b.me ? "good" : "bad"}>{x.short} {b?.me ? `#${b.me}` : "–"}</Badge>;
@@ -94,7 +99,7 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
                   <span className="w-16 text-right text-xs text-muted">{asked ? `${hits}/${asked}` : "–"}</span>
                 </summary>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {PROVIDERS.map((x) => {
+                  {shown.map((x) => {
                     const b = p.byProvider[x.id];
                     if (!b) return null;
                     return (

@@ -127,7 +127,7 @@ describe("Google AI Overviews (SerpApi)", () => {
       await expect(aioverview.run({ query: "x", language: "ro", country: "RO" })).rejects.toThrow(/Invalid API key/);
     });
 
-    it("pornește doar motoarele din SERP_ENGINES (implicit doar AI Overviews)", () => {
+    it("pornește doar motoarele din SERP_ENGINES", () => {
       vi.stubEnv("SERPAPI_API_KEY", "k");
       expect(aioverview.isLive()).toBe(true);
       vi.stubEnv("SERP_ENGINES", "aimode");
