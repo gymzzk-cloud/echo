@@ -1,12 +1,12 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import type { FeedAction, FeedCondition } from "@/db/schema";
 import { audit, ownProject } from "@/lib/guard";
 import { randomToken } from "@/lib/util";
-import { CHANNELS, FIELDS, invalidateFeed, proposeTitleEdits } from "@/core/feed";
+import { CHANNELS, FIELDS, invalidateFeed } from "@/core/feed";
 import { enqueue } from "@/core/jobs";
 import type { FormState } from "./actions";
 
@@ -61,27 +61,6 @@ export async function toggleRule(form: FormData) {
 export async function deleteRule(form: FormData) {
   const { project } = await ownProject(String(form.get("projectId")));
   await db.delete(schema.feedRules).where(and(eq(schema.feedRules.id, String(form.get("id"))), eq(schema.feedRules.projectId, project.id)));
-  await done(project.id);
-}
-
-export async function proposeTitles(form: FormData) {
-  const { project } = await ownProject(String(form.get("projectId")));
-  await proposeTitleEdits(project.id);
-  invalidateFeed();
-  revalidatePath("/panou/feed");
-}
-
-/** Aprobă, respinge sau anulează (înapoi la propus) una sau toate modificările. */
-export async function setEditStatus(form: FormData) {
-  const { project, org, user } = await ownProject(String(form.get("projectId")));
-  const status = String(form.get("status"));
-  if (!["aprobat", "respins", "propus"].includes(status)) return;
-  const ids = form.getAll("id").map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x));
-  if (!ids.length) return;
-  const own = await db.select({ id: schema.productEdits.id }).from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))
-    .where(and(inArray(schema.productEdits.id, ids), eq(schema.products.projectId, project.id)));
-  if (own.length) await db.update(schema.productEdits).set({ status }).where(inArray(schema.productEdits.id, own.map((o) => o.id)));
-  await audit(org.id, user.id, "feed.edits", { status, n: own.length });
   await done(project.id);
 }
 

@@ -1,13 +1,14 @@
 import { Suspense } from "react";
-import { and, desc, eq, sql as dsql } from "drizzle-orm";
+import { eq, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { ActionForm } from "@/components/forms";
 import { SubmitButton } from "@/components/client";
-import { Badge, Card, Empty, Field, Input, PageHeader, RowActions, Select, Table, Td } from "@/components/ui";
+import { Badge, ButtonLink, Card, Empty, Field, Input, PageHeader, RowActions, Select, Table, Td } from "@/components/ui";
 import { CHANNELS, buildFeed } from "@/core/feed";
 import { ChannelsCard, ChatGptCard } from "./channels";
-import { addRule, deleteRule, proposeTitles, setEditStatus, toggleChannel, toggleRule } from "@/app/actions-feed";
+import { addRule, deleteRule, toggleChannel, toggleRule } from "@/app/actions-feed";
+import { fixCounts } from "@/core/fixes";
 import { money } from "@/lib/format";
 
 const OPS: Record<string, string> = { eq: "este", neq: "nu este", contains: "conține", lt: "mai mic decât", gt: "mai mare decât", empty: "lipsește", not_empty: "există" };
@@ -18,11 +19,9 @@ const LABELS: Record<string, string> = { recomandat_ai: "Recomandat de AI", popu
 export default async function FeedPage() {
   const { project } = await currentProject();
   const rules = await db.select().from(schema.feedRules).where(eq(schema.feedRules.projectId, project.id)).orderBy(schema.feedRules.priority);
-  const edits = await db.select({ e: schema.productEdits, p: schema.products }).from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))
-    .where(and(eq(schema.products.projectId, project.id))).orderBy(desc(schema.productEdits.createdAt)).limit(200);
+  const fixes = await fixCounts(project.id);
   // Doar numărul de produse aici; etichetele și previzualizarea (calcul pe tot catalogul) vin separat, în Suspense.
   const [{ total }] = await db.select({ total: dsql<number>`count(*)::int` }).from(schema.products).where(eq(schema.products.projectId, project.id));
-  const proposed = edits.filter((x) => x.e.status === "propus");
   const pid = <input type="hidden" name="projectId" value={project.id} />;
 
   return (
@@ -37,29 +36,8 @@ export default async function FeedPage() {
         <ChatGptCard projectId={project.id} />
         <ChannelsCard projectId={project.id} />
 
-        <Card title={`Titluri optimizate${proposed.length ? ` (${proposed.length} de aprobat)` : ""}`} action={<form action={proposeTitles}>{pid}<SubmitButton variant="secondary" size="sm" pendingText="Caut…">Caută titluri</SubmitButton></form>}>
-          {edits.length === 0 ? <p className="text-sm text-muted">Analizăm titlurile: marca lipsă, majuscule, categoria. AI-urile recomandă mai des produsele cu titluri clare „Marcă + tip + atribut”.</p> : (
-            <>
-              {proposed.length > 1 && <form action={setEditStatus} className="mb-4">{pid}<input type="hidden" name="status" value="aprobat" />{proposed.map((x) => <input key={x.e.id} type="hidden" name="id" value={x.e.id} />)}<SubmitButton pendingText="Aprob…">Aprobă toate ({proposed.length})</SubmitButton></form>}
-              <Table head={["Înainte", "Propus", "Stare", ""]}>
-                {edits.slice(0, 40).map(({ e }) => (
-                  <tr key={e.id}>
-                    <Td className="text-muted">{e.previous}</Td>
-                    <Td className="font-medium">{e.value}</Td>
-                    <Td><Badge tone={e.status === "aprobat" ? "good" : e.status === "respins" ? "muted" : "warn"}>{e.status === "aprobat" ? "Aprobat" : e.status === "respins" ? "Respins" : "Propus"}</Badge></Td>
-                    <Td>
-                      <RowActions>
-                        {e.status === "propus" ? (<>
-                          <form action={setEditStatus}>{pid}<input type="hidden" name="id" value={e.id} /><input type="hidden" name="status" value="aprobat" /><SubmitButton variant="secondary" size="sm" pendingText="…">Aprobă</SubmitButton></form>
-                          <form action={setEditStatus}>{pid}<input type="hidden" name="id" value={e.id} /><input type="hidden" name="status" value="respins" /><SubmitButton variant="ghost" size="sm" pendingText="…">Respinge</SubmitButton></form>
-                        </>) : <form action={setEditStatus}>{pid}<input type="hidden" name="id" value={e.id} /><input type="hidden" name="status" value="propus" /><SubmitButton variant="ghost" size="sm" pendingText="…">Anulează</SubmitButton></form>}
-                      </RowActions>
-                    </Td>
-                  </tr>
-                ))}
-              </Table>
-            </>
-          )}
+        <Card title={fixes.pending ? `${fixes.pending} reparații de produs așteaptă aprobarea ta` : "Reparații de produs"} action={<ButtonLink href="/panou/reparatii" variant="secondary" size="sm">Vezi reparațiile</ButtonLink>}>
+          <p className="text-sm text-muted">Titluri, descrieri, GTIN, marcă și categorie, propuse pentru fiecare produs cu un scor de încredere. {fixes.approved ? `${fixes.approved} sunt deja aplicate în feed.` : "Ce aprobi se aplică doar aici, în feed."}</p>
         </Card>
 
         <Card title="Reguli">

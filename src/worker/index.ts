@@ -12,6 +12,7 @@ import { generateFeedFiles, projectsWithStaleFeeds } from "@/core/feed-files";
 import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
 import { projectsDueForPolicies, refreshPolicies } from "@/core/policies";
 import { pruneMcpCalls } from "@/core/mcp";
+import { generateFixes, projectsDueForFixes } from "@/core/fixes";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -27,9 +28,17 @@ async function handle(kind: string, payload: Record<string, string>) {
       // Catalog nou → fișierele de feed se refac (jobul nu face nimic dacă produsele nu s-au schimbat).
       const [c] = await db.select({ projectId: schema.connections.projectId }).from(schema.connections).where(eq(schema.connections.id, payload.connectionId));
       if (c) await enqueue("feed", { projectId: c.projectId });
+      // Catalog nou → reparațiile de produs se recalculează (regulile sunt ieftine; AI-ul doar pentru produsele schimbate).
+      if (c) await enqueue("fixes", { projectId: c.projectId });
       return n;
     }
     case "feed": return generateFeedFiles(payload.projectId);
+    case "fixes": {
+      const r = await generateFixes(payload.projectId);
+      // Reparațiile aprobate automat intră în feed: fișierele se refac (doar dacă s-a schimbat ceva).
+      if (r.auto) await enqueue("feed", { projectId: payload.projectId });
+      return r;
+    }
     case "run_project": return runProject(payload.projectId);
     case "report": {
       const r = await buildWeeklyReport(payload.projectId);
@@ -75,6 +84,10 @@ async function schedule() {
   // ca să nu lovim multe magazine deodată. Sincronizarea face cerere condiționată (304 = nimic de descărcat).
   for (const c of await dueConnections(5)) {
     if (!(await pendingJobs(["sync"], "connectionId", c.id))) await enqueue("sync", { connectionId: c.id });
+  }
+  // Reparațiile de produs: o dată pe săptămână pe magazin (și după fiecare sincronizare), câte 5 pe ciclu.
+  for (const projectId of await projectsDueForFixes(5)) {
+    if (!(await pendingJobs(["fixes", "sync"], "projectId", projectId))) await enqueue("fixes", { projectId });
   }
   // Feed-urile pe canale: reîmprospătare zilnică (etichetele automate se schimbă și fără catalog nou)
   for (const projectId of await projectsWithStaleFeeds()) {
