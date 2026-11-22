@@ -1,46 +1,153 @@
+import type { Metadata } from "next";
 import { PublicFooter, PublicHeader } from "@/components/public-header";
 import { ActionForm } from "@/components/forms";
 import { SubmitButton } from "@/components/client";
-import { Card, Input } from "@/components/ui";
+import { Badge, ButtonLink, Card, Checkbox, cx, Field, FormActions, Input, TextLink } from "@/components/ui";
 import { startAudit } from "@/app/actions";
-import { BRAND } from "@/lib/brand";
+import { PLANS } from "@/core/billing";
+import { legal } from "@/lib/legal";
+import { getStorePageText } from "@/lib/i18n-stores";
 
-export const metadata = { title: "Pentru magazine: audit gratuit de vizibilitate AI" };
+/** Testul gratuit pornește din înregistrare; după cont, panoul duce direct la /start. */
+const TRIAL_HREF = "/inregistrare";
 
-const FEATURES = [
-  ["Te recomandă AI-urile?", "Vezi zilnic dacă ChatGPT, Gemini, Perplexity și Claude te recomandă, pe ce loc și față de ce concurenți."],
-  ["Ce produse și la ce preț", "Ce produse recomandă AI-ul și când spune un preț greșit despre tine."],
-  ["Unde lipsești", "Site-urile pe care AI-urile le citesc și unde apar concurenții, dar tu nu."],
-  ["Reparare dintr-un click", "Roboți blocați, date de produs lipsă, llms.txt: generăm exact ce trebuie pus pe site."],
-  ["Raport și alerte", "Raport săptămânal pe email și alertă imediată când ieși din recomandări."],
-  ["Clienți noi din căutarea noastră", "Cumpărătorii care caută la noi ajung direct la produsele tale, cu prețul verificat."],
-];
+export async function generateMetadata(): Promise<Metadata> {
+  const { s } = await getStorePageText();
+  return { title: s.metaTitle, description: s.metaDesc };
+}
 
-export default function ForStores() {
+const Section = ({ id, title, sub, children }: { id?: string; title: string; sub?: string; children: React.ReactNode }) => (
+  <section id={id} className="mt-16 scroll-mt-16">
+    <h2 className="text-2xl font-semibold">{title}</h2>
+    {sub && <p className="mt-2 max-w-2xl text-base text-muted">{sub}</p>}
+    <div className="mt-6">{children}</div>
+  </section>
+);
+
+/** Pagina de prezentare pentru magazine: ce face Echo, cum, cât costă, întrebări și încredere. Fără date din baza de date. */
+export default async function ForStores() {
+  const { s } = await getStorePageText();
+  const l = legal();
+  const company = [l.company, l.companyId, l.address].filter(Boolean).join(", ");
+
   return (
     <>
       <PublicHeader />
-      <main className="mx-auto max-w-5xl px-4 py-12">
-        <section className="mx-auto max-w-2xl text-center">
-          <h1 className="text-3xl font-semibold sm:text-4xl">Te recomandă ChatGPT când clienții întreabă de produsele tale?</h1>
-          <p className="mt-4 text-base text-muted">{BRAND.tagline} Audit gratuit în 2 minute, fără cont.</p>
-          <ActionForm action={startAudit} className="mt-8 text-left">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input name="url" required placeholder="magazinul-tau.ro" aria-label="Adresa magazinului" className="text-base" />
-              <SubmitButton pendingText="Verific… (până la 1 minut)" className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-fg hover:opacity-90 disabled:opacity-60">Verifică gratuit</SubmitButton>
+      <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+        {/* Mesajul principal */}
+        <section className="mx-auto max-w-3xl text-center">
+          <p className="label">{s.eyebrow}</p>
+          <h1 className="mt-4 text-3xl font-semibold sm:text-5xl">{s.h1}</h1>
+          <p className="mx-auto mt-4 max-w-2xl text-base text-muted">{s.sub}</p>
+          <div className="mt-8 flex flex-col justify-center gap-2 sm:flex-row">
+            <ButtonLink href={TRIAL_HREF} size="lg">{s.ctaTrial}</ButtonLink>
+            <ButtonLink href="#preturi" variant="secondary" size="lg">{s.ctaPrices}</ButtonLink>
+          </div>
+          <p className="mt-4 text-xs text-muted">{s.ctaNote}</p>
+        </section>
+
+        {/* Captură reală din panou, câte una pentru fiecare temă */}
+        <figure className="mt-12">
+          <div className="overflow-hidden rounded-xl border border-border bg-bg">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/img/panou-concurenti-luminos.webp" width={1200} height={637} alt={s.shotAlt} className="only-light h-auto w-full" fetchPriority="high" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/img/panou-concurenti-intunecat.webp" width={1200} height={637} alt={s.shotAlt} className="only-dark h-auto w-full" loading="lazy" />
+          </div>
+          <figcaption className="mt-2 text-center text-xs text-muted">{s.shotCaption}</figcaption>
+        </figure>
+
+        <Section title={s.stepsTitle}>
+          <ol className="grid gap-6 md:grid-cols-3">
+            {s.steps.map((st, i) => (
+              <li key={st.t}>
+                <Card className="h-full">
+                  <span className="num flex size-8 items-center justify-center rounded-full bg-primary-bg text-sm font-semibold text-primary">{i + 1}</span>
+                  <h3 className="mt-4 text-base font-semibold">{st.t}</h3>
+                  <p className="mt-2 text-sm text-muted">{st.d}</p>
+                </Card>
+              </li>
+            ))}
+          </ol>
+        </Section>
+
+        <Section title={s.featuresTitle}>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {s.features.map((f) => (
+              <Card key={f.t} className="h-full"><h3 className="text-base font-semibold">{f.t}</h3><p className="mt-2 text-sm text-muted">{f.d}</p></Card>
+            ))}
+          </div>
+        </Section>
+
+        <Section id="preturi" title={s.pricingTitle} sub={s.pricingSub}>
+          <div className="grid gap-6 md:grid-cols-3">
+            {PLANS.map((p) => {
+              const txt = s.plans[p.id];
+              const featured = p.id === "pro";
+              return (
+                <section key={p.id} className={cx("flex min-w-0 flex-col rounded-xl bg-bg p-4 sm:p-6", featured ? "border-2 border-primary" : "border border-border")}>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-base font-semibold">{p.name}</h3>
+                    {featured && <Badge tone="primary">{s.popular}</Badge>}
+                  </div>
+                  <p className="mt-2 text-sm text-muted">{txt.tagline}</p>
+                  <p className="mt-4"><span className="num font-display text-3xl font-semibold">{p.lei}</span> <span className="text-sm text-muted">{s.currency} {s.perMonth}</span></p>
+                  <ul className="mt-4 flex-1 space-y-2 text-sm">
+                    {txt.features.map((f) => <li key={f} className="flex gap-2"><span aria-hidden className="text-good">✓</span><span>{f}</span></li>)}
+                  </ul>
+                  <ButtonLink href={TRIAL_HREF} variant={featured ? "primary" : "secondary"} className="mt-6 w-full">{s.choose}</ButtonLink>
+                </section>
+              );
+            })}
+          </div>
+          <p className="mt-4 text-xs text-muted">{s.pricingNote}</p>
+        </Section>
+
+        <Section id="audit" title={s.auditTitle} sub={s.auditSub}>
+          <Card>
+            <ActionForm action={startAudit}>
+              <div className="grid items-start gap-4 md:grid-cols-[1fr_1fr_auto]">
+                <Field label={s.auditUrl}><Input name="url" required placeholder="magazinul-tau.ro" /></Field>
+                <Field label={s.auditEmail}><Input name="email" type="email" autoComplete="email" /></Field>
+                <FormActions><SubmitButton pendingText={s.auditPending}>{s.auditButton}</SubmitButton></FormActions>
+              </div>
+              <Checkbox name="consent" label={s.auditConsent} className="mt-2" />
+              <p className="mt-2 text-xs text-muted">{s.auditNote}</p>
+            </ActionForm>
+          </Card>
+        </Section>
+
+        <Section title={s.trustTitle}>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {s.trust.map((t) => (
+              <Card key={t.t} className="h-full"><h3 className="text-base font-semibold">{t.t}</h3><p className="mt-2 text-sm text-muted">{t.d}</p></Card>
+            ))}
+          </div>
+          <p className="mt-4 text-sm text-muted">
+            {company && <>{s.operatedBy} {company}. </>}
+            <TextLink href="/confidentialitate">{s.privacyLink}</TextLink>
+          </p>
+        </Section>
+
+        <Section title={s.faqTitle}>
+          <Card>
+            <div className="divide-y divide-border">
+              {s.faq.map((f) => (
+                <details key={f.q} className="group py-3 first:pt-0 last:pb-0">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-base font-medium sm:min-h-10">
+                    {f.q}<span aria-hidden className="shrink-0 text-muted transition-transform group-open:rotate-45">+</span>
+                  </summary>
+                  <p className="mt-2 max-w-3xl text-sm text-muted">{f.a}</p>
+                </details>
+              ))}
             </div>
-            <Input name="email" type="email" placeholder="Email (opțional, îți trimitem raportul)" aria-label="Email" className="mt-2" />
-            <label className="mt-2 flex items-start gap-2 text-xs text-muted"><input type="checkbox" name="consent" className="mt-0.5" /> Vreau să primesc și sfaturi ocazionale despre vizibilitatea în AI. Mă pot dezabona oricând.</label>
-            <p className="mt-2 text-xs text-muted">Păstrăm rezultatul auditului (date publice de pe site-ul magazinului) ca să nu verificăm din nou totul de fiecare dată.</p>
-          </ActionForm>
-        </section>
-        <section className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(([t, d]) => (
-            <Card key={t}><h2 className="font-semibold">{t}</h2><p className="mt-2 text-sm text-muted">{d}</p></Card>
-          ))}
-        </section>
-        <section className="mt-12 text-center">
-          <a href="/inregistrare" className="inline-flex rounded-lg bg-primary px-5 py-3 text-sm font-medium text-primary-fg hover:opacity-90">Creează cont: 14 zile gratuit</a>
+          </Card>
+        </Section>
+
+        <section className="mt-16 rounded-xl border border-border bg-bg p-6 text-center sm:p-12">
+          <h2 className="text-2xl font-semibold">{s.finalTitle}</h2>
+          <p className="mt-2 text-base text-muted">{s.finalSub}</p>
+          <ButtonLink href={TRIAL_HREF} size="lg" className="mt-6">{s.ctaTrial}</ButtonLink>
         </section>
       </main>
       <PublicFooter />

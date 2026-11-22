@@ -9,9 +9,9 @@ import { afterPlanChosen } from "./onboarding";
  * Prețurile sunt ipoteza de lucru din DECIZII.md și se schimbă doar în Stripe (ID-urile de preț din .env).
  */
 export const PLANS = [
-  { id: "start", name: "Start", price: "199 lei / lună", features: ["1 magazin", "30 de întrebări urmărite", "3 AI-uri, săptămânal", "Audit și acțiuni"] },
-  { id: "pro", name: "Pro", price: "499 lei / lună", features: ["3 magazine", "100 de întrebări", "Toate AI-urile, zilnic", "Feed-uri pe canale, Agent Gate, API"] },
-  { id: "agentie", name: "Agenție", price: "999 lei / lună", features: ["Magazine nelimitate pentru clienți", "Conturi de client", "Rapoarte cu marca agenției", "Suport prioritar"] },
+  { id: "start", name: "Start", lei: 199, price: "199 lei / lună", features: ["1 magazin", "30 de întrebări urmărite", "3 AI-uri, săptămânal", "Audit și acțiuni"] },
+  { id: "pro", name: "Pro", lei: 499, price: "499 lei / lună", features: ["3 magazine", "100 de întrebări", "Toate AI-urile", "Feed-uri pe canale, Agent Gate, API"] },
+  { id: "agentie", name: "Agenție", lei: 999, price: "999 lei / lună", features: ["Magazine nelimitate pentru clienți", "Conturi de client", "Rapoarte cu marca agenției", "Suport prioritar"] },
 ] as const;
 export type PlanId = (typeof PLANS)[number]["id"];
 
