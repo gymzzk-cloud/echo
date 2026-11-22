@@ -1,6 +1,7 @@
 import type { Mention } from "@/db/schema";
 import { domainOf, keywords } from "@/lib/util";
 import { inMarket, isStoreLike } from "./domains";
+import { fold, storeOpinions } from "./sentiment";
 import { ERROR_MODEL, type KnownProduct, type KnownStore } from "./types";
 
 /**
@@ -135,7 +136,22 @@ export function extractMentions(
     if (known.has(d)) mentions.push({ domain: d, position: mentions.length + 1 });
   }
   // Doar magazine de pe piața clientului: fără directoare de firme, recenzii, presă sau magazine din alte țări.
-  return mentions.filter((m) => isStoreLike(m.domain) && inMarket(m.domain, country)).map((m, i) => ({ ...m, position: i + 1 }));
+  const kept = mentions.filter((m) => isStoreLike(m.domain) && inMarket(m.domain, country));
+  // Sentimentul: ce spune AI-ul despre fiecare magazin, din același text (fără apel AI în plus).
+  const names = new Map<string, string[]>();
+  for (const m of kept) {
+    const ns = new Set([fold(m.domain)]);
+    for (const n of [m.name, world.stores.find((s) => s.domain === m.domain)?.name]) if (n && n.length >= 3) ns.add(fold(n));
+    // Marca din domeniu doar dacă apare în text ca nume propriu („ShopExpert”), nu ca vorbă obișnuită („scule”).
+    const label = brandLabel(m.domain);
+    if (label.length >= 4 && !GENERIC_LABELS.has(label) && firstWord(text, label, true) >= 0) ns.add(fold(label));
+    names.set(m.domain, [...ns]);
+  }
+  const opinions = storeOpinions(text, names);
+  return kept.map((m, i) => {
+    const ops = opinions.get(m.domain);
+    return { ...m, position: i + 1, ...(ops?.length ? { opinions: ops } : {}) };
+  });
 }
 
 /**

@@ -7,6 +7,8 @@ import { TrendChart } from "@/components/client";
 import { daysAgo } from "@/lib/util";
 import { rankRivals } from "@/core/rivals";
 import { RivalsCard } from "@/components/rivals-card";
+import { SentimentCard } from "@/components/sentiment-card";
+import { sampleQuotes, sentimentBoard } from "@/core/ai/sentiment";
 
 // Tu: culoarea de marcă; concurenții: nuanțe de gri (DESIGN §9).
 const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
@@ -24,6 +26,9 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
   const chart = trend(rows, project.domain, top.map((c) => c.domain));
   const rivals = rankRivals(rows, project.domain);
   const topBrands = brandMentions(rows, brands);
+  // Sentimentul: din părerile deja extrase la salvarea răspunsurilor (fără apeluri AI, fără calcule pe catalog).
+  const tone = sentimentBoard(rows, [project.domain, ...base.competitors.map((c) => c.domain)]);
+  const quotes = sampleQuotes(rows, project.domain);
   const failed = sp.ai ? base.failed.filter((r) => r.run.provider === sp.ai) : base.failed;
   const prompts = perPrompt(rows.filter((r) => r.run.runDate >= daysAgo(days)), project.domain, failed);
   // Doar AI-urile pornite sau care au răspuns în perioadă: un AI fără cheie nu umple rândurile cu „–”.
@@ -44,6 +49,9 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
       </div>
 
       <RivalsCard report={rivals} projectId={project.id} projectName={project.name} competitors={base.competitors} />
+
+      <SentimentCard board={tone} quotes={quotes} projectName={project.name}
+        visibility={new Map(board.map((b) => [b.domain, b.visibility]))} names={new Map(base.competitors.map((c) => [c.domain, c.name]))} />
 
       {topBrands.length > 0 && (
         <Card title="Mărcile din catalogul tău, în răspunsurile AI">
