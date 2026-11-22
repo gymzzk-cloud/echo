@@ -57,8 +57,11 @@ export async function loadWorld(): Promise<World> {
 }
 export const invalidateWorld = () => { worldCache = null; };
 
-export function activeProviders(): { id: Provider; live: boolean }[] {
-  return PROVIDERS.map((p) => ({ id: p.id, live: LIVE[p.id].isLive() }));
+export function activeProviders(): { id: Provider; live: boolean; off: "key" | "off" | null }[] {
+  return PROVIDERS.map((p) => {
+    const live = LIVE[p.id].isLive();
+    return { id: p.id, live, off: live ? null : (LIVE[p.id].offReason?.() ?? "key") };
+  });
 }
 export const isDemo = () => activeProviders().every((p) => !p.live);
 /**

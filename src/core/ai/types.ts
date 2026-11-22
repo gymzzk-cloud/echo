@@ -1,4 +1,4 @@
-export type Provider = "chatgpt" | "gemini" | "perplexity" | "claude" | "aioverview" | "aimode" | "copilot";
+export type Provider = "chatgpt" | "gemini" | "perplexity" | "claude" | "aioverview" | "aimode" | "copilot" | "grok" | "meta";
 
 /** `short` e eticheta de 3 litere din insignele panoului; trebuie să fie unică. */
 export const PROVIDERS: { id: Provider; label: string; short: string; color: string }[] = [
@@ -9,6 +9,8 @@ export const PROVIDERS: { id: Provider; label: string; short: string; color: str
   { id: "aioverview", label: "Google AI Overviews", short: "Goo", color: "#34a853" },
   { id: "aimode", label: "Google AI Mode", short: "AIM", color: "#188038" },
   { id: "copilot", label: "Copilot", short: "Cop", color: "#0078d4" },
+  { id: "grok", label: "Grok", short: "Grk", color: "#6b7280" },
+  { id: "meta", label: "Meta AI", short: "Met", color: "#0866ff" },
 ];
 export const providerLabel = (p: string) => PROVIDERS.find((x) => x.id === p)?.label ?? p;
 
@@ -47,6 +49,8 @@ export type RunnerLimits = { rpm?: number; perDay?: number; perMonthCredits?: nu
 export interface Runner {
   id: Provider;
   isLive(): boolean;
+  /** De ce nu e pornit: „key” = lipsește cheia, „off” = are cheie, dar e oprit din configurare. */
+  offReason?(): "key" | "off";
   limits?(): RunnerLimits;
   run(input: RunInput): Promise<RunOutput>;
 }

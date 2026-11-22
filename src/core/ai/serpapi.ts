@@ -6,7 +6,7 @@ import type { Provider, Runner, RunInput, RunOutput } from "./types";
  * Le citim prin SerpApi (serpapi.com), pe google.ro / google.hu, în limba magazinului.
  *
  * Cost mic: o căutare SerpApi costă un credit (planul gratuit are puține pe lună), așa că:
- * - pornim doar motoarele din SERP_ENGINES (implicit doar „aioverview”);
+ * - pornim doar motoarele din SERP_ENGINES (implicit toate trei: aioverview, aimode, copilot);
  * - motorul refolosește o rulare reușită SERP_REUSE_DAYS zile (implicit 7), nu o reface la fiecare clic;
  * - plafonul lunar SERPAPI_MONTHLY_LIMIT (implicit 100) oprește întrebările înainte să depășim planul.
  */
@@ -14,7 +14,7 @@ import type { Provider, Runner, RunInput, RunOutput } from "./types";
 type Source = { url: string; title?: string };
 
 const key = () => envValue("SERPAPI_API_KEY");
-const enabledEngines = () => envValue("SERP_ENGINES", "aioverview").split(/[,\s]+/).filter(Boolean);
+const enabledEngines = () => envValue("SERP_ENGINES", "aioverview,aimode,copilot").split(/[,\s]+/).filter(Boolean);
 /** Câte credite are planul pe lună. */
 export const serpMonthlyLimit = () => Math.max(0, Number(envValue("SERPAPI_MONTHLY_LIMIT", "100")) || 0);
 export const serpReuseDays = () => Math.max(1, Number(envValue("SERP_REUSE_DAYS", "7")) || 7);
@@ -75,6 +75,7 @@ const googleDomain = (country: RunInput["country"]) => (country === "HU" ? "goog
 export const aioverview: Runner = {
   id: "aioverview",
   isLive: () => !!key() && enabledEngines().includes("aioverview"),
+  offReason: () => (key() ? "off" : "key"),
   limits: () => ({ perMonthCredits: serpMonthlyLimit(), reuseDays: serpReuseDays() }),
   async run(input) {
     const t0 = Date.now();
@@ -100,8 +101,9 @@ export const aioverview: Runner = {
   },
 };
 
-// ── Google AI Mode și Copilot (opționale, doar dacă sunt în SERP_ENGINES) ──
-// Câmpurile răspunsului diferă între versiuni, așa că citim defensiv text și linkuri din orice bloc.
+// ── Google AI Mode și Copilot (pornite implicit, se pot opri din SERP_ENGINES) ──
+// Ambele dau „text_blocks” + „references”, ca AI Overviews; Copilot pune și un „header” cu răspunsul scurt.
+// Dacă forma se schimbă, citim defensiv text și linkuri din orice bloc.
 function collectSerp(node: unknown, out: { text: string[]; sources: Source[] }, depth = 0) {
   if (depth > 6 || !node) return;
   if (Array.isArray(node)) { for (const x of node) collectSerp(x, out, depth + 1); return; }
@@ -111,25 +113,47 @@ function collectSerp(node: unknown, out: { text: string[]; sources: Source[] }, 
   if (typeof o.link === "string" && /^https?:/.test(o.link)) out.sources.push({ url: o.link, title: typeof o.title === "string" ? o.title : undefined });
   for (const v of Object.values(o)) if (typeof v === "object") collectSerp(v, out, depth + 1);
 }
-function serpRunner(id: Extract<Provider, "aimode" | "copilot">, engine: string): Runner {
+
+/** Răspunsul AI Mode / Copilot din JSON-ul SerpApi. Logică pură, testată pe fixture. */
+export function parseSerpAnswer(data: Record<string, unknown>): { answer: string; sources: Source[] } {
+  const header = typeof data.header === "string" ? data.header.trim() : "";
+  const blocks = Array.isArray(data.text_blocks) ? (data.text_blocks as Block[]) : [];
+  const body = overviewText(blocks);
+  let answer = [header, body].filter(Boolean).join("\n\n");
+  if (!answer && typeof data.reconstructed_markdown === "string") answer = data.reconstructed_markdown.trim();
+  let sources = overviewSources({ references: data.references as Overview["references"] });
+  if (!answer) {
+    const out = { text: [] as string[], sources: [] as Source[] };
+    collectSerp(data.answer ?? data.ai_overview ?? null, out);
+    answer = [...new Set(out.text)].join("\n");
+    const seen = new Set<string>();
+    if (!sources.length) sources = out.sources.filter((s) => !seen.has(s.url) && !!seen.add(s.url)).slice(0, 20);
+  }
+  return { answer, sources: answer ? sources : [] };
+}
+/** Răspunsul salvat când motorul nu a dat un răspuns AI. */
+export const NO_ANSWER = "(Motorul nu a dat un răspuns AI pentru această căutare.)";
+
+function serpRunner(id: Extract<Provider, "aimode" | "copilot">, engine: string, local: boolean): Runner {
   return {
     id,
     isLive: () => !!key() && enabledEngines().includes(id),
+    offReason: () => (key() ? "off" : "key"),
     limits: () => ({ perMonthCredits: serpMonthlyLimit(), reuseDays: serpReuseDays() }),
     async run(input): Promise<RunOutput> {
       const t0 = Date.now();
-      const data = await serpGet({ engine, q: input.query, gl: input.country.toLowerCase(), hl: input.language });
-      const out = { text: [] as string[], sources: [] as Source[] };
-      collectSerp(data.text_blocks ?? data.answer ?? data.ai_overview ?? data, out);
-      const seen = new Set<string>();
+      // Copilot nu primește țară/limbă: întrebarea în română sau maghiară ajunge, la fel ca la un om.
+      const loc: Record<string, string> = local ? { gl: input.country.toLowerCase(), hl: input.language } : {};
+      const data = await serpGet({ engine, q: input.query, ...loc });
+      const { answer, sources } = parseSerpAnswer(data);
       return {
-        answer: [...new Set(out.text)].join("\n"), sources: out.sources.filter((s) => !seen.has(s.url) && !!seen.add(s.url)).slice(0, 20),
-        model: engine, mode: "live", costUsd: envPrice("SERPAPI_PER_CALL", 0.015), latencyMs: Date.now() - t0,
+        answer: answer || NO_ANSWER, sources,
+        model: `serpapi:${engine}`, mode: "live", costUsd: envPrice("SERPAPI_PER_CALL", 0.015), latencyMs: Date.now() - t0,
       };
     },
   };
 }
-export const aimode = serpRunner("aimode", envValue("AIMODE_ENGINE", "google_ai_mode"));
-export const copilot = serpRunner("copilot", envValue("COPILOT_ENGINE", "bing_copilot"));
+export const aimode = serpRunner("aimode", envValue("AIMODE_ENGINE", "google_ai_mode"), true);
+export const copilot = serpRunner("copilot", envValue("COPILOT_ENGINE", "bing_copilot"), false);
 /** Providerii care consumă credite SerpApi (plafonul lunar e comun). */
 export const SERP_PROVIDERS: Provider[] = ["aioverview", "aimode", "copilot"];
