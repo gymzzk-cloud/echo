@@ -3,7 +3,7 @@ import { currentProject } from "@/lib/project";
 import { loadBase, productInsights } from "@/core/insights";
 import { providerLabel } from "@/core/ai/types";
 import { SubmitButton } from "@/components/client";
-import { Badge, ButtonLink, Card, Chips, Empty, Input, PageHeader, Stat, Table, Td } from "@/components/ui";
+import { Badge, ButtonLink, Card, Chips, Empty, Input, PageHeader, Stat, Table, Td, TextLink } from "@/components/ui";
 import { money } from "@/lib/format";
 import { trackedProducts } from "@/core/tracked-prompts";
 import { trackProduct } from "@/app/actions";
@@ -39,12 +39,12 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
   if (sp.f === "incomplete") list = list.filter((p) => !p.gtin || !p.brand || !p.hasDescription || !p.hasImage);
   if (q) list = list.filter((p) => p.title.toLowerCase().includes(q));
   const missing = (p: (typeof list)[number]) => [!p.gtin && "GTIN", !p.brand && "brand", !p.hasDescription && "descriere", !p.hasImage && "imagine"].filter(Boolean) as string[];
-  const filters = [["", "Toate"], ["urmarite", "Urmărite în AI"], ["populare", "Cele mai vândute"], ["recomandate", "Recomandate de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
+  const filters = [["", "Toate"], ["urmarite", "Urmărite în AI"], ["populare", "Cele mai vândute"], ["recomandate", "Numite de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
 
   return (
     <>
       <div className="grid gap-6 sm:grid-cols-3">
-        <Stat label="Produse recomandate de AI" value={`${pi.recommended} / ${pi.list.length}`} hint="ultimele 30 de zile" />
+        <Stat label="Produse numite de AI" value={`${pi.recommended} / ${pi.list.length}`} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
         <Stat label="Prețuri greșite spuse de AI" value={pi.wrongPriceCount} hint={pi.wrongPriceCount ? "verifică datele structurate" : "totul corect"} />
         <Stat label="Produse cu date incomplete" value={pi.list.filter((p) => missing(p).length).length} hint="GTIN, brand, descriere, imagine" />
       </div>
@@ -58,7 +58,7 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
             <Input id="q" name="q" defaultValue={sp.q} placeholder="Caută produs…" />
           </form>
         </div>
-        <Table head={["Produs", "Preț", "Recomandat", "De cine", "Poziție", "Probleme", "Urmărit în AI"]}>
+        <Table head={["Produs", "Preț", "În AI", "De cine", "Loc mediu", "Probleme", "Urmărit în AI"]}>
           {list.slice(0, 100).map((p) => (
             <tr key={p.id}>
               <Td className="min-w-56"><a href={p.url} target="_blank" rel="noopener" className="font-medium hover:underline">{p.title}</a><span className="block text-xs text-muted">{[p.popularityRank && `Top vânzări #${p.popularityRank}`, p.brand, p.category].filter(Boolean).join(" · ")}</span></Td>

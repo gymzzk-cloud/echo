@@ -113,6 +113,13 @@
       "when": 1795382385217,
       "tag": "0015_product_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795383005190,
+      "tag": "0016_product_ai",
+      "breakpoints": true
     }
   ]
 }

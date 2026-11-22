@@ -6,7 +6,7 @@ import { db, schema } from "@/db";
  * O singură componentă în plus față de baza de date = mai puțin de administrat la început.
  * Când volumul crește, interfața rămâne, iar implementarea se mută pe BullMQ/Redis.
  */
-export type JobKind = "audit" | "sync" | "run_project" | "report" | "daily" | "watches" | "webhook" | "rivals" | "feed" | "policies" | "fixes";
+export type JobKind = "audit" | "sync" | "run_project" | "report" | "daily" | "watches" | "webhook" | "rivals" | "feed" | "policies" | "fixes" | "product_ai";
 
 /**
  * Pune o lucrare la coadă. Dacă exact aceeași lucrare (același tip și aceleași date) e deja la coadă
@@ -86,7 +86,7 @@ export async function syncingConnections(connectionIds: string[]): Promise<Set<s
 /** Numele lucrărilor pe care le vede omul (cele interne, ca `daily` sau `webhook`, nu se afișează). */
 export const JOB_LABELS: Partial<Record<JobKind, string>> = {
   audit: "Auditul tehnic", sync: "Sincronizarea catalogului", run_project: "Analiza AI", report: "Raportul",
-  feed: "Feed-ul de produse", rivals: "Căutarea concurenților", policies: "Citirea politicilor magazinului", fixes: "Căutarea reparațiilor de produs",
+  feed: "Feed-ul de produse", rivals: "Căutarea concurenților", policies: "Citirea politicilor magazinului", fixes: "Căutarea reparațiilor de produs", product_ai: "Calculul vizibilității pe produs",
 };
 
 export type JobState = { id: string; kind: JobKind; label: string; status: "queued" | "running" | "done" | "failed"; error: string | null };
