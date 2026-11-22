@@ -3,6 +3,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { StorePolicies } from "../core/policies/extract";
 import type { Onboarding } from "../core/onboarding/types";
+import type { Opinion } from "../core/ai/sentiment";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -202,6 +203,8 @@ export type Mention = {
   position: number;      // 1 = primul menționat
   productTitle?: string;
   statedPrice?: number;  // prețul spus de AI, dacă există
+  /** Ce spune AI-ul despre magazin (laude, critici, pe aspecte); extras din text, fără apel AI. */
+  opinions?: Opinion[];
 };
 
 // Legătura dintre întrebările unui proiect și rulări (pentru costuri pe client)

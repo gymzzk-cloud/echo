@@ -49,6 +49,9 @@ const REASONS = [
   "garanție extinsă și service în țară",
   "potrivit pentru utilizare intensă",
   "recomandat frecvent pe forumuri",
+  "stoc limitat la unele modele",
+  "prețul e puțin mai mare decât media, dar livrare gratuită",
+  "recenzii mixte despre livrare",
 ];
 
 const BRAND_POS = ["are recenzii în general bune pentru livrare", "prețurile sunt competitive", "politica de retur e clară", "răspunde repede la întrebări", "are o gamă bună de produse"];
