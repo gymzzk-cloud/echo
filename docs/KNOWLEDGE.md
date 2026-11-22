@@ -157,7 +157,7 @@
 41. **Feed-ul ChatGPT se pornește din panou** (Reparații → Feed și canale), cu adresă `/feed/<token>.csv` pusă în ChatGPT ca „hosted URL”. OpenAI a acceptat 27.818 din 27.828 de produse ShopExpert (20.11.2026).
 42. **MCP-ul nu e un feed.** E conectorul prin care un AI întreabă magazinul live. Ajunge la public doar după listarea în directoarele Claude și ChatGPT; un conector adăugat în contul tău îl vede doar contul tău.
 43. **Pentru listarea MCP mai trebuie:** domeniu propriu, Render plătit, datele firmei, logo pătrat; Cloudflare de pe shopexpert.com trebuie să lase roboții AI verificați. Recomandat: un singur conector Echo pentru toate magazinele.
-44. **Cheile AI sunt puse** (OpenAI, Anthropic, Gemini cu facturare). Nu le mai cerem. Google AI Overviews merge prin SerpApi (`SERPAPI_API_KEY`, 100 de căutări gratuite pe lună).
+44. **Cheile AI sunt puse** (OpenAI, Anthropic, Gemini cu facturare). Nu le mai cerem. Google AI Overviews merge prin SerpApi (`SERPAPI_API_KEY`, 100 de căutări gratuite pe lună). Din 22.11.2026: Google AI Mode și Copilot tot prin SerpApi (aceleași credite, pornite implicit), Grok prin `XAI_API_KEY` (console.x.ai), Meta AI prin `META_API_KEY` (Meta Model API, doar din SUA în 2026, fără căutare web). Un AI fără cheie apare „Fără cheie” în Setări și nu e întrebat.
 
 ### A12. Securitate și infrastructură
 
