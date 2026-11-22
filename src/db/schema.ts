@@ -87,6 +87,8 @@ export const projects = pgTable("projects", {
   storeInfo: jsonb("store_info").$type<StoreInfo>(), // condițiile citite automat de pe site: răspunsurile MCP ale magazinului
   rivalsCheckedAt: timestamp("rivals_checked_at", { withTimezone: true }), // ultima căutare automată de concurenți în răspunsurile AI
   onboarding: jsonb("onboarding").$type<Onboarding>(), // testul gratuit de la prima logare; gol = magazin obișnuit
+  fixAutoThreshold: integer("fix_auto_threshold"), // reparațiile de produs cu încredere de cel puțin atât se aplică singure; gol = oprit
+  fixesCheckedAt: timestamp("fixes_checked_at", { withTimezone: true }), // ultima căutare de reparații de produs
   createdAt: createdAt(),
 }, (t) => [index("projects_org_idx").on(t.orgId), index("projects_domain_idx").on(t.domain)]);
 
@@ -396,17 +398,49 @@ export const feedOutputs = pgTable("feed_outputs", {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("feed_outputs_project_channel_idx").on(t.projectId, t.channel)]);
 
-/** Modificări propuse pentru produse (titluri optimizate, atribute completate). Se aplică doar după aprobare și se pot anula. */
+/**
+ * Reparații de produs propuse (titlu, descriere, GTIN, marcă, categorie), fiecare cu un scor de încredere.
+ * Se aplică doar în feed-ul Echo, după aprobare (de mână sau automat peste pragul magazinului), și se pot anula.
+ * Un singur rând pe produs și câmp: o propunere nouă îl actualizează doar dacă datele produsului s-au schimbat (input_hash).
+ */
 export const productEdits = pgTable("product_edits", {
   id: id(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-  field: text("field").notNull(), // title | description | brand | gtin | category | color
+  field: text("field").notNull(), // title | description | brand | gtin | category
   value: text("value").notNull(),
   previous: text("previous"),
   source: text("source").notNull().default("ai"), // ai | regula | manual
   status: text("status").notNull().default("propus"), // propus | aprobat | respins
+  confidence: integer("confidence").notNull().default(50), // 0–100, calculat de Echo (nu declarat de AI)
+  reason: text("reason"), // de ce propunem, pe scurt, pentru om
+  inputHash: text("input_hash"), // amprenta datelor produsului din care a ieșit propunerea
+  auto: boolean("auto").notNull().default(false), // aprobat automat, peste pragul magazinului
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
   createdAt: createdAt(),
-}, (t) => [index("product_edits_product_idx").on(t.productId)]);
+}, (t) => [
+  index("product_edits_product_idx").on(t.productId),
+  uniqueIndex("product_edits_product_field_idx").on(t.productId, t.field),
+  index("product_edits_project_status_idx").on(t.projectId, t.status, t.field),
+]);
+
+/**
+ * Apeluri AI care nu sunt întrebări de vizibilitate (ex. propunerile de titluri și descrieri):
+ * costul și tokenii lor intră în bugetul lunar al magazinului, la fel ca rulările.
+ */
+export const aiTasks = pgTable("ai_tasks", {
+  id: id(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // fixes
+  provider: text("provider").notNull(),
+  model: text("model"),
+  items: integer("items").notNull().default(0),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  costUsd: numeric("cost_usd", { precision: 10, scale: 5 }).notNull().default("0"),
+  error: text("error"),
+  createdAt: createdAt(),
+}, (t) => [index("ai_tasks_project_idx").on(t.projectId, t.createdAt)]);
 
 /** Recenzii verificate: doar de la comenzi reale urmărite. */
 export const reviews = pgTable("reviews", {

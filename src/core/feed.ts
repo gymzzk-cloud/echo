@@ -119,18 +119,6 @@ export function suggestTitle(p: { title: string; brand: string | null; category:
   return t.slice(0, 150);
 }
 
-/** Propune titluri noi pentru produsele unde diferența contează (fără marcă, prea scurte, majuscule). */
-export async function proposeTitleEdits(projectId: string) {
-  const products = await db.select().from(schema.products).where(eq(schema.products.projectId, projectId)).limit(5000);
-  const existing = await db.select({ productId: schema.productEdits.productId }).from(schema.productEdits)
-    .innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))
-    .where(and(eq(schema.products.projectId, projectId), eq(schema.productEdits.field, "title")));
-  const done = new Set(existing.map((e) => e.productId));
-  const rows = products.filter((p) => !done.has(p.id)).map((p) => ({ p, s: suggestTitle(p) })).filter(({ p, s }) => s !== p.title);
-  if (rows.length) await db.insert(schema.productEdits).values(rows.map(({ p, s }) => ({ productId: p.id, field: "title", value: s, previous: p.title, source: "regula" })));
-  return rows.length;
-}
-
 /**
  * Feed-ul calculat se păstrează 10 minute în memorie (pagina Feed și descărcările canalelor îl refolosesc).
  * Se recalculează când se schimbă catalogul (număr de produse / ultima actualizare) sau când se modifică regulile ori titlurile (invalidateFeed).
