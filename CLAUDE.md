@@ -9,6 +9,8 @@ AgentReady are două părți pe același motor:
 - **căutarea pentru cumpărători** (gratuită), care întreabă toate AI-urile, verifică prețurile și arată magazine de încredere;
 - **panoul pentru magazine** (abonament), care arată dacă le recomandă AI-urile, de ce nu, și le repară problemele.
 
+**Primul fișier de citit: `docs/KNOWLEDGE.md`**, memoria permanentă a proiectului: ce urmărim (partea A) și greșelile pe care nu le mai repetăm (partea B). Când ZoZo spune că ceva e greșit sau bun, punctul se adaugă imediat acolo, în partea potrivită (regula din partea C).
+
 Toate funcțiile sunt în `docs/FUNCTII.md`, planul tehnic în `docs/PLAN-TEHNIC.md`, iar regulile vizuale în `docs/DESIGN.md`. **Toate trei sunt obligatorii.**
 
 ## Priorități, în ordinea asta
@@ -123,7 +125,8 @@ O sarcină e gata doar când:
 
 ## Când lucrează Claude
 
-- Citește `PLAN-TEHNIC.md`, `DESIGN.md` și acest fișier înainte de prima modificare.
+- Citește `KNOWLEDGE.md`, `PLAN-TEHNIC.md`, `DESIGN.md` și acest fișier înainte de prima modificare.
+- Când ZoZo corectează ceva sau confirmă că e bun, adaugă punctul în `docs/KNOWLEDGE.md` în aceeași tură (și în copia din `fundatie/`).
 - Face pași mici, verificabili, fiecare cu testele lui. Nu rescrie module întregi neîntrebat.
 - Nu adaugă dependențe noi fără un motiv scris în PR.
 - Când nu e sigur de o decizie de produs, întreabă. Când e o decizie tehnică mică, alege varianta simplă și o notează în PR.
