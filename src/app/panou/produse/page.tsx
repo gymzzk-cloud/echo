@@ -37,7 +37,7 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
   return (
     <>
       <div className="grid gap-6 sm:grid-cols-3">
-        <Stat label="Produse numite de AI" value={`${pi.recommended} / ${pi.total}`} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
+        <Stat label="Produse numite de AI" value={pi.recommended.toLocaleString("ro-RO")} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
         <Stat label="Prețuri greșite spuse de AI" value={pi.wrongPriceCount} hint={pi.wrongPriceCount ? <TextLink href="/panou/produse-ai?f=pret" className="text-xs">Vezi dovezile</TextLink> : "totul corect"} />
         <Stat label="Produse cu date incomplete" value={pi.incompleteCount} hint="GTIN, brand, descriere, imagine" />
       </div>
