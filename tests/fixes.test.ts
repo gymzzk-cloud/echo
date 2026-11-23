@@ -20,15 +20,20 @@ describe("GTIN", () => {
     expect(isValidGtin("")).toBe(false);
   });
 
-  it("curăță spațiile dintr-un GTIN valid", () => {
-    const f = gtinFix(P({ id: "1", title: "x", gtin: "4006381 333931" }), catalogContext([]));
-    expect(f).toMatchObject({ value: "4006381333931", confidence: 95 });
+  it("curăță semnele dintr-un GTIN valid, dar nu și spațiile pe care feed-ul le scoate deja", () => {
+    expect(gtinFix(P({ id: "1", title: "x", gtin: "4006381-333931" }), catalogContext([]))).toMatchObject({ value: "4006381333931", confidence: 95 });
+    expect(gtinFix(P({ id: "1", title: "x", gtin: "4006381 333931" }), catalogContext([]))).toBeNull();
   });
 
-  it("un cod de producător în câmpul GTIN se scoate (Google l-ar respinge), dar nu se inventează altul", () => {
-    const f = gtinFix(P({ id: "1", title: "MAKITA JV001GD201", gtin: "JV001GD201", mpn: "JV001GD201" }), catalogContext([]));
-    expect(f?.value).toBe("");
+  it("un cod de producător în câmpul GTIN: feed-ul îl lasă deja gol, deci nu propunem nimic fără un EAN real", () => {
+    expect(gtinFix(P({ id: "1", title: "MAKITA JV001GD201", gtin: "JV001GD201", mpn: "JV001GD201" }), catalogContext([]))).toBeNull();
+    const f = gtinFix(P({ id: "1", title: "x", gtin: "JV001GD201", mpn: "JV001GD201", eanLabeled: "4006381333931" }), catalogContext([]));
+    expect(f).toMatchObject({ value: "4006381333931" });
     expect(f?.reason).toContain("cod de producător");
+  });
+
+  it("un GTIN cu cifra de control greșită, pe care feed-ul l-ar trimite, se scoate", () => {
+    expect(gtinFix(P({ id: "1", title: "x", gtin: "4006381333932" }), catalogContext([]))).toMatchObject({ value: "", confidence: 85 });
   });
 
   it("îl înlocuiește cu EAN-ul din descriere sau de la un produs cu același titlu", () => {
@@ -66,7 +71,9 @@ describe("titlu", () => {
   it("nu lipește categoria (la plural) în titlu, iar codurile de model rămân exact", () => {
     expect(buildTitle("BOSCH GWS 14-125 S", "BOSCH", "Scule > Polizoare unghiulare > BOSCH")).toBe("Bosch GWS 14-125 S");
     expect(titleFix(P({ id: "1", title: "BOSCH GTA 50 W" }), "BOSCH", "Scule > Ferăstraie staționare > BOSCH")).toBeNull();
-    expect(buildTitle("MAKITA DHR202Z (SOLO)", "MAKITA", "Ciocane > MAKITA")).toBe("Makita DHR202Z (Solo)");
+    expect(buildTitle("MAKITA DHR202Z (SOLO)", "MAKITA", "Ciocane > MAKITA")).toBe("Makita DHR202Z (solo)");
+    expect(buildTitle("MAKITA FILTRU HEPA DCL282F", "MAKITA", null)).toBe("Makita Filtru hepa DCL282F");
+    expect(titleFix(P({ id: "1", title: "RECORD POWER WG250/C" }), "RECORD POWER", null)).toBeNull();
   });
   it("nu adaugă tipul când titlul spune deja ce e produsul", () => {
     expect(titleFix(P({ id: "1", title: "Bosch Set perii colectoare" }), "Bosch", "Piese de schimb > BOSCH")).toBeNull();

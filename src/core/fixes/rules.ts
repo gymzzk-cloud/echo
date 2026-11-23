@@ -1,4 +1,5 @@
 import { normalizeText } from "@/lib/util";
+import { cleanGtin as channelGtin } from "../feed-channels/openai";
 
 /**
  * Reparații de produs fără AI (logică pură, testată unitar): GTIN, marcă, categorie, titlu.
@@ -77,7 +78,8 @@ export function gtinFix(p: FixProduct, ctx: CatalogContext): FixCandidate | null
   let wrong: string | null = null;
   if (raw) {
     const g = cleanGtin(raw);
-    if (isValidGtin(g)) return g === raw ? null : { ...base, value: g, confidence: 95, reason: "Codul are spații sau semne în plus. Canalele îl citesc doar ca cifre." };
+    // Comparăm cu ce primesc efectiv canalele: feed-ul Echo scoate deja spațiile și lasă gol un cod care nu are 8, 12, 13 sau 14 cifre.
+    if (isValidGtin(g)) return g === raw || channelGtin(raw) === g ? null : { ...base, value: g, confidence: 95, reason: "Codul are semne în plus (cratime, puncte). Canalele îl citesc doar ca cifre." };
     wrong = /[a-z]/i.test(g) || (p.mpn && normalizeText(g) === normalizeText(p.mpn))
       ? `În câmpul GTIN e un cod de producător (${raw}), nu un cod EAN.`
       : `GTIN-ul ${raw} nu e valid (cifra de control nu se potrivește).`;
@@ -89,7 +91,9 @@ export function gtinFix(p: FixProduct, ctx: CatalogContext): FixCandidate | null
   const byTitle = one(ctx.gtinByTitle.get(normalizeText(p.title)));
   if (byTitle) return { ...base, value: byTitle, confidence: 70, reason: `${lead}Un produs din catalogul tău cu același titlu are acest GTIN. Verifică dacă e același model.` };
   if (p.eanBare && isValidGtin(p.eanBare)) return { ...base, value: p.eanBare, confidence: 60, reason: `${lead}În descriere apare un cod de 13 cifre valid ca EAN. Verifică dacă e codul produsului.` };
-  if (wrong) return { ...base, value: "", confidence: 85, reason: `${wrong} Google și ChatGPT resping produsele cu GTIN greșit, așa că îl scoatem din feed (produsul rămâne, fără GTIN) până pui codul corect.` };
+  // Fără un cod corect de pus în loc: propunem scoaterea doar dacă feed-ul l-ar trimite (cifre, lungime bună, control greșit).
+  // Un cod de producător („B-08137”) feed-ul îl lasă deja gol, deci nu e nimic de reparat în feed.
+  if (wrong && channelGtin(raw)) return { ...base, value: "", confidence: 85, reason: `${wrong} Google și ChatGPT resping produsele cu GTIN greșit, așa că îl scoatem din feed (produsul rămâne, fără GTIN) până pui codul corect.` };
   return null;
 }
 
@@ -174,10 +178,15 @@ export function buildTitle(title: string, brand: string | null, category: string
   let t = title.replace(/\s+/g, " ").replace(/[!*]+/g, "").trim();
   const b = brand ? normalizeText(brand) : null;
   if (isCaps(t)) {
+    // Ca într-o propoziție: marca cu inițială mare, primul cuvânt după ea cu inițială mare, restul cu litere mici.
+    const brandWords = new Set(b ? b.split(" ") : []);
+    let first = true;
     t = t.split(" ").map((w) => {
-      if (b && normalizeText(w) === b) return niceBrand(w);
-      if (/\d|-|\//.test(w) || w.replace(/[^A-Za-zĂÂÎȘȚăâîșț]/g, "").length <= 3) return w;
-      return w.toLowerCase().replace(/\p{L}/u, (c) => c.toUpperCase());
+      if (brandWords.has(normalizeText(w))) return niceBrand(w);
+      if (/\d|-|\//.test(w) || w.replace(/[^A-Za-zĂÂÎȘȚăâîșț]/g, "").length <= 3) { first = false; return w; }
+      const out = w.toLowerCase().replace(/\p{L}/u, (c) => (first ? c.toUpperCase() : c));
+      first = false;
+      return out;
     }).join(" ");
   } else if (b) {
     // Doar marca scrisă cu majuscule la început („MAKITA Pompă…”) devine „Makita Pompă…”.
@@ -201,7 +210,9 @@ export function titleFix(p: FixProduct, brand: string | null, category: string |
   if (i.noBrand) reasons.push("adaugă marca");
   if (i.caps) { reasons.push("scrie fără majuscule peste tot"); confidence = Math.min(confidence, 75); }
   // Doar majusculele mărcii schimbate (ex. „MAKITA HR3001CJ” → „Makita HR3001CJ”): prea puțin ca să merite.
-  if (!i.noBrand && normalizeText(value) === normalizeText(p.title) && value.split(" ").filter((w, k) => w !== p.title.split(" ")[k]).length < 2) return null;
+  const brandWords = new Set(brand ? normalizeText(brand).split(" ") : []);
+  const changed = value.split(" ").filter((w, k) => w !== p.title.split(" ")[k] && !brandWords.has(normalizeText(w)));
+  if (!i.noBrand && normalizeText(value) === normalizeText(p.title) && changed.length < 1) return null;
   const why = reasons.join(", ");
   return { productId: p.id, field: "title", value, previous: p.title, source: "regula", confidence: clamp(confidence),
     reason: `${why.charAt(0).toUpperCase()}${why.slice(1)}. AI-urile recomandă mai des produsele cu titluri „Marcă + model + tip”.` };
