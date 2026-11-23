@@ -1,4 +1,4 @@
-import { and, desc, asc, eq, ilike, sql as dsql, type SQL } from "drizzle-orm";
+import { and, desc, asc, eq, ilike, inArray, sql as dsql, type SQL } from "drizzle-orm";
 import { db, schema } from "@/db";
 
 /**
@@ -36,7 +36,7 @@ export async function productAiList(projectId: string, opts: { filter?: ProductA
   if (opts.q) where.push(ilike(P.title, `%${opts.q.replace(/[%_\\]/g, "\\$&")}%`));
   const page = Math.max(1, opts.page ?? 1);
   const rows = await db.select({
-    productId: S.productId, title: P.title, url: P.url, brand: P.brand, price: P.price, currency: P.currency, inStock: P.inStock,
+    productId: S.productId, title: P.title, url: P.url, brand: P.brand, externalId: P.externalId, mpn: P.mpn, gtin: P.gtin, price: P.price, currency: P.currency, inStock: P.inStock,
     appearances: S.appearances, prompts: S.prompts, providers: S.providers, avgPosition: S.avgPosition, bestPosition: S.bestPosition,
     withStore: S.withStore, statedPrice: S.statedPrice, statedProvider: S.statedProvider, priceWrong: S.priceWrong, wrongPrices: S.wrongPrices, lastSeen: S.lastSeen,
     total: dsql<number>`count(*) over ()::int`,
@@ -47,10 +47,24 @@ export async function productAiList(projectId: string, opts: { filter?: ProductA
 }
 
 export async function productAiDetail(projectId: string, productId: string) {
-  const [row] = await db.select({ stat: S, title: P.title, url: P.url, brand: P.brand, price: P.price, currency: P.currency, inStock: P.inStock })
+  const [row] = await db.select({ stat: S, title: P.title, url: P.url, brand: P.brand, externalId: P.externalId, mpn: P.mpn, gtin: P.gtin, price: P.price, currency: P.currency, inStock: P.inStock })
     .from(P).leftJoin(S, and(eq(S.productId, P.id), eq(S.projectId, projectId)))
     .where(and(eq(P.id, productId), eq(P.projectId, projectId))).limit(1);
   return row ?? null;
+}
+
+/**
+ * Răspunsurile complete pentru dovezi (cel mult 30), doar dacă sunt legate de întrebările acestui magazin:
+ * rulările sunt comune între magazine, deci nu arătăm un răspuns doar după id.
+ */
+export async function proofAnswers(projectId: string, runIds: string[]) {
+  const ids = [...new Set(runIds)].filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 30);
+  if (!ids.length) return new Map<string, string>();
+  const rows = await db.selectDistinct({ id: schema.runs.id, answer: schema.runs.answer }).from(schema.runs)
+    .innerJoin(schema.promptRuns, eq(schema.promptRuns.runId, schema.runs.id))
+    .innerJoin(schema.prompts, eq(schema.prompts.id, schema.promptRuns.promptId))
+    .where(and(eq(schema.prompts.projectId, projectId), inArray(schema.runs.id, ids)));
+  return new Map(rows.map((r) => [r.id, r.answer]));
 }
 
 /** Cifrele salvate pentru câteva produse (pagina Produse le arată pe aceleași, ca numerele să se potrivească). */

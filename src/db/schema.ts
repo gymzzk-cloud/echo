@@ -164,7 +164,7 @@ export const productAiStats = pgTable("product_ai_stats", {
   statedPrice: numeric("stated_price", { precision: 12, scale: 2 }), // ultimul preț spus de un AI
   statedProvider: text("stated_provider"),
   priceWrong: boolean("price_wrong").notNull().default(false),
-  wrongPrices: jsonb("wrong_prices").$type<{ provider: string; price: number }[]>().notNull(),
+  wrongPrices: jsonb("wrong_prices").$type<{ provider: string; price: number; runId?: string }[]>().notNull(),
   examples: jsonb("examples").$type<ProductExample[]>().notNull(),
   lastSeen: date("last_seen").notNull(),
 }, (t) => [

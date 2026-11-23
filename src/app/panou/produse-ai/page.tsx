@@ -81,12 +81,14 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
                 <TextLink href={`/panou/produse-ai/${r.productId}`} className="min-w-0 font-medium">{r.title}</TextLink>
                 <span className="num shrink-0 text-sm">{money(r.price, r.currency)}</span>
               </div>
+              <ProductIds r={r} />
               <p className="num text-xs text-muted">{r.appearances}× ({share(r.appearances)} din răspunsuri) · loc mediu {num(parseFloat(r.avgPosition))} · {Object.keys(r.providers).map(providerLabel).join(", ")}</p>
               <div className="flex flex-wrap gap-1">
                 {r.wrongPrices.map((w) => <Badge key={w.provider} tone="bad">{providerLabel(w.provider)}: {money(w.price, r.currency)}</Badge>)}
                 {!r.priceWrong && r.statedPrice && <Badge tone="good">Preț corect</Badge>}
                 {r.withStore === 0 ? <Badge tone="warn">Fără magazinul tău</Badge> : <Badge>Cu tine: {r.withStore} din {r.appearances}</Badge>}
               </div>
+              <TextLink href={`/panou/produse-ai/${r.productId}#dovezi`} className="block text-xs">Vezi răspunsurile și dovezile</TextLink>
             </li>
           ))}
         </ul>
@@ -95,7 +97,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
             <tr key={r.productId}>
               <Td className="min-w-56">
                 <TextLink href={`/panou/produse-ai/${r.productId}`} className="font-medium">{r.title}</TextLink>
-                <span className="block text-xs text-muted">{[r.brand, !r.inStock && "fără stoc"].filter(Boolean).join(" · ")}</span>
+                <ProductIds r={r} />
               </Td>
               <Td className="num whitespace-nowrap text-right">{money(r.price, r.currency)}</Td>
               <Td className="num whitespace-nowrap text-right">{r.appearances}× <span className="block text-xs text-muted">{share(r.appearances)} din răspunsuri</span></Td>
@@ -106,6 +108,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
                   {r.wrongPrices.map((w) => <Badge key={w.provider} tone="bad">{providerLabel(w.provider)}: {money(w.price, r.currency)}</Badge>)}
                   {!r.priceWrong && (r.statedPrice ? <Badge tone="good">Corect: {money(r.statedPrice, r.currency)}</Badge> : <span className="text-xs text-muted">Nu spune prețul</span>)}
                 </div>
+                {r.statedPrice && <TextLink href={`/panou/produse-ai/${r.productId}#dovezi`} className="mt-1 block text-xs">Vezi unde a spus-o</TextLink>}
               </Td>
               <Td className="num whitespace-nowrap text-right">{r.withStore === 0 ? <Badge tone="warn">Niciodată</Badge> : `${r.withStore} din ${r.appearances}`}</Td>
             </tr>
@@ -121,8 +124,18 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
             </div>
           </div>
         )}
-        <p className="mt-4 text-xs text-muted">Căutăm produsele tale în răspunsurile AI deja primite la întrebările urmărite, după nume (marca și modelul) sau cod (EAN, cod producător), fără întrebări în plus. „Cu magazinul tău” înseamnă că răspunsul numește și magazinul sau dă linkul produsului. Locul e al câtelea produs recomandat în răspuns.</p>
+        <p className="mt-4 text-xs text-muted">Căutăm produsele tale în răspunsurile AI deja primite la întrebările urmărite, doar după dovezi sigure: codul (EAN, cod producător), linkul spre pagina produsului sau numele complet din catalog, fără întrebări în plus. Pe pagina fiecărui produs vezi răspunsul AI-ului, data și ora, rândul exact cu prețul și criteriul după care l-am recunoscut. „Cu magazinul tău” înseamnă că răspunsul numește și magazinul sau dă linkul produsului. Locul e al câtelea produs recomandat în răspuns.</p>
       </Card>}
     </div>
+  );
+}
+
+/** Cum găsești produsul sigur: codul din catalog, EAN-ul și pagina lui de pe magazin. */
+function ProductIds({ r }: { r: { externalId: string; mpn: string | null; gtin: string | null; brand: string | null; inStock: boolean; url: string } }) {
+  const ids = [`Cod ${r.externalId}`, r.mpn && r.mpn !== r.externalId && `Cod producător ${r.mpn}`, r.gtin && `EAN ${r.gtin}`, r.brand, !r.inStock && "fără stoc"].filter(Boolean).join(" · ");
+  return (
+    <span className="block text-xs text-muted">
+      <span className="num break-all">{ids}</span> · <TextLink href={r.url} external className="text-xs">Pe site</TextLink>
+    </span>
   );
 }
