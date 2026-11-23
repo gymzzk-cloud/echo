@@ -1,31 +1,42 @@
 import type { Rows } from "./insights";
 import type { StoreFacts } from "./audit";
 import { PROVIDERS } from "./ai/types";
+import { clauseOpinions, fold } from "./ai/sentiment";
 
 /**
  * „Ce spune AI-ul despre tine”: răspunsurile la întrebările despre magazin (intent „brand”),
  * tonul fiecărui AI, ce afirmă despre tine și ce afirmații contrazic faptele verificate pe site.
  */
 
-const POS = ["încredere", "recomand", "bune", "bun ", "rapid", "competitiv", "clar", "gamă bună", "răspunde repede", "megbízható", "ajánl", "gyors", "jó"];
-const NEG = ["plâng", "întârzier", "greu de găsit", "nu am găsit", "puține", "lipsă", "probleme", "nu recomand", "țeapă", "panasz", "késés", "nem találtam", "kevés"];
-
-export type Claim = { text: string; tone: "pozitiv" | "negativ" | "neutru"; provider: string; contradicts?: string };
+export type Claim = { text: string; tone: "pozitiv" | "negativ" | "mixt" | "neutru"; provider: string; contradicts?: string; prompt?: string; runDate?: string };
 
 const sentences = (t: string) => t.replace(/\*\*/g, "").split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 15);
-const toneOf = (s: string): Claim["tone"] => {
-  const l = s.toLowerCase();
-  const n = NEG.filter((w) => l.includes(w)).length, p = POS.filter((w) => l.includes(w)).length;
-  return n > p ? "negativ" : p > n ? "pozitiv" : "neutru";
-};
+
+/** Fraze care nu spun nimic despre magazin: titluri, introduceri („Iată un rezumat…”), sfaturi generale. */
+const META = /^(iata|iată|recomandari|recomandări|concluzie\s*:?$|daca vrei|dacă vrei|sfat\s*:?$|pe scurt|rezumat)|:\s*$/i;
+/** Expresii care pomenesc o problemă fără să fie o critică („în cazul problemelor”, „dacă apar probleme”). */
+const CONTEXT_ONLY = /(in cazul|în cazul|daca apar|dacă apar|pentru)\s+(unor\s+|eventualelor\s+)?problem\w*/gi;
+
+/**
+ * Tonul unei fraze, cu aceleași reguli ca fila „Ton” (negație, aspecte, părți de frază): o frază cu laudă și critică
+ * e „mixt”, una fără nimic e „neutru”. Corectează B20: „clienții apreciază…” nu mai iese „Negativ”, iar „să se evite” nu iese „Pozitiv”.
+ */
+export function toneOf(s: string): Claim["tone"] {
+  if (META.test(s.trim())) return "neutru";
+  const parts = fold(s.replace(CONTEXT_ONLY, " ")).split(/[;,]|\s(?:dar|insa|iar|but|viszont|azonban)\s/).map((x) => x.trim()).filter(Boolean);
+  let pos = 0, neg = 0;
+  for (const c of parts) for (const o of clauseOpinions(c)) { if (o.tone > 0) pos++; else neg++; }
+  return pos && neg ? "mixt" : pos ? "pozitiv" : neg ? "negativ" : "neutru";
+}
 
 /** Afirmații pe care le putem verifica cu datele din audit. */
 function contradiction(s: string, facts: StoreFacts | null): string | undefined {
   if (!facts) return;
   const l = s.toLowerCase();
-  if (/(date|informații).{0,30}firm.{0,30}(greu|nu|lips)|cui/.test(l) && facts.cui) return `Site-ul afișează CUI ${facts.cui}. Pune-l în subsol și în datele structurate Organization ca AI-urile să-l găsească.`;
-  if (/retur.{0,40}(nu|lips|neclar)/.test(l) && facts.hasReturnPolicy) return "Ai politică de retur publicată. Leag-o din subsol și adaug-o în datele structurate (MerchantReturnPolicy).";
-  if (/garanți.{0,30}(nu|lips)/.test(l)) return "Adaugă garanția pe pagina de produs și în datele structurate.";
+  // Cuvinte întregi: „termenul” nu conține „nu”, „circuit” nu conține „CUI” (fals pozitiv văzut pe 23.11.2026).
+  if (/(date|informații)\s.{0,30}firm\w*.{0,30}(greu|\bnu\b|lips\w*)|\bcui\b.{0,30}(\bnu\b|lips\w*|greu)/.test(l) && facts.cui) return `Site-ul afișează CUI ${facts.cui}. Pune-l în subsol și în datele structurate Organization ca AI-urile să-l găsească.`;
+  if (/retur\w*.{0,40}(\bnu (are|există|exista|e|este)\b|lips\w*|neclar\w*)/.test(l) && facts.hasReturnPolicy) return "Ai politică de retur publicată. Leag-o din subsol și adaug-o în datele structurate (MerchantReturnPolicy).";
+  if (/garanți\w*.{0,30}(\bnu (are|există|exista|e|este|oferă|ofera)\b|lips\w*)/.test(l)) return "Adaugă garanția pe pagina de produs și în datele structurate.";
 }
 
 export function reputation(rows: Rows, domain: string, storeName: string, facts: StoreFacts | null) {
@@ -42,7 +53,7 @@ export function reputation(rows: Rows, domain: string, storeName: string, facts:
       for (const s of ss) {
         const t = toneOf(s);
         if (t === "pozitiv") pos++; if (t === "negativ") neg++;
-        if (t !== "neutru" || s.toLowerCase().includes(storeName.toLowerCase())) claims.push({ text: s, tone: t, provider: p.id, contradicts: contradiction(s, facts) });
+        if (t !== "neutru" || s.toLowerCase().includes(storeName.toLowerCase())) claims.push({ text: s, tone: t, provider: p.id, contradicts: contradiction(s, facts), prompt: r.prompt ?? undefined, runDate: r.run.runDate });
       }
     }
     const score = pos + neg ? Math.round((pos / (pos + neg)) * 100) : null;

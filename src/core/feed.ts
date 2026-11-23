@@ -2,8 +2,7 @@ import { and, desc, eq, gte, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { FeedAction, FeedCondition, FeedFileStats, FeedOutputSettings } from "@/db/schema";
 import { cleanGtin, openAiWriter } from "./feed-channels/openai";
-import { daysAgo, normalizeText } from "@/lib/util";
-import { projectRuns } from "./projects";
+import { normalizeText } from "@/lib/util";
 
 /**
  * Optimizarea feed-ului (în stilul Channable): etichete automate, reguli „dacă… atunci…”,
@@ -36,10 +35,12 @@ export type LabelContext = { mentioned: Set<string>; clickN: Map<string, number>
 
 /** Datele din care se calculează etichetele automate (AI, clicuri, prețuri în alte magazine). Se citesc o dată pe magazin. */
 export async function labelContext(projectId: string, domain: string): Promise<LabelContext> {
-  // 1. Recomandat de AI în ultimele 30 de zile
-  const runs = await projectRuns(projectId, daysAgo(30));
-  const mentioned = new Set<string>();
-  for (const { run: r } of runs) for (const m of r.mentions as { domain: string; productTitle?: string }[]) if (m.domain === domain && m.productTitle) mentioned.add(normalizeText(m.productTitle));
+  // 1. Recomandat de AI: produsele numite în calculul salvat pe produs (cod, link sau numele complet, KNOWLEDGE B26),
+  // aceeași sursă ca paginile Produse și „Produse în AI”, nu potrivirea veche după titlul din mențiuni.
+  void domain;
+  const named = await db.select({ id: schema.productAiStats.productId }).from(schema.productAiStats)
+    .where(and(eq(schema.productAiStats.projectId, projectId), dsql`${schema.productAiStats.appearances} > 0`));
+  const mentioned = new Set<string>(named.map((x) => x.id));
   // 2. Clicuri din căutarea Echo (popularitate). Filtrăm după magazin, nu după o listă de mii de id-uri.
   const clicks = await db.select({ productId: schema.clicks.productId, n: dsql<number>`count(*)::int` }).from(schema.clicks)
     .where(and(eq(schema.clicks.projectId, projectId), gte(schema.clicks.createdAt, new Date(Date.now() - 30 * 864e5)))).groupBy(schema.clicks.productId);
@@ -56,7 +57,7 @@ export async function labelContext(projectId: string, domain: string): Promise<L
 /** Etichetele unui produs. Funcție pură. */
 export function labelsFor(p: LabelInput, ctx: LabelContext) {
   const l: string[] = [];
-  const isMentioned = ctx.mentioned.size > 0 && ctx.mentioned.has(normalizeText(p.title));
+  const isMentioned = ctx.mentioned.has(p.id);
   if (isMentioned) l.push("recomandat_ai");
   const n = ctx.clickN.get(p.id) ?? 0;
   if (n >= 5) l.push("popular");
@@ -163,7 +164,8 @@ async function cachedFeed(projectId: string, channel: string) {
   return value;
 }
 
-async function computeFeed(projectId: string, channel: string, limit = 20000) {
+// Tot catalogul (nu primele 20.000): etichetele și previzualizarea numără toate produsele magazinului.
+async function computeFeed(projectId: string, channel: string, limit = 200_000) {
   const base = await loadFeedBase(projectId, limit);
   return { ...base, items: channelItems(base, channel) };
 }
@@ -172,7 +174,7 @@ async function computeFeed(projectId: string, channel: string, limit = 20000) {
  * Datele comune tuturor canalelor: produsele cu titlurile aprobate și etichetele automate, plus regulile.
  * Workerul le citește o singură dată și generează din ele fișierul fiecărui canal pornit.
  */
-export async function loadFeedBase(projectId: string, limit = 20000) {
+export async function loadFeedBase(projectId: string, limit = 200_000) {
   const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
   const products = await db.select().from(schema.products).where(eq(schema.products.projectId, projectId)).limit(limit);
   const edits = await db.select().from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))

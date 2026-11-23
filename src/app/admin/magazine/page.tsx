@@ -23,6 +23,8 @@ export default async function StoreRegistry({ searchParams }: { searchParams: Pr
   // Emailuri lăsate la audit, pe domeniu (cu acord de marketing separat)
   const leads = (await db.execute(dsql`select domain, count(distinct email)::int as emails, count(distinct email) filter (where marketing_consent)::int as consent from audits where email is not null group by domain`)) as unknown as { domain: string; emails: number; consent: number }[];
   const leadBy = new Map(leads.map((l) => [l.domain, l]));
+  // Ultima verificare pe magazinul etalon (ShopExpert RO), făcută automat după fiecare publicare.
+  const [golden] = await db.select().from(schema.jobs).where(eq(schema.jobs.kind, "golden_check")).orderBy(desc(schema.jobs.createdAt)).limit(1);
   const [tot] = (await db.execute(dsql`select count(*)::int as n, count(*) filter (where claimed_project_id is null)::int as unclaimed, count(*) filter (where source = 'audit')::int as audited, count(*) filter (where source = 'ai')::int as ai from stores`)) as unknown as { n: number; unclaimed: number; audited: number; ai: number }[];
   return (
     <>
@@ -30,6 +32,15 @@ export default async function StoreRegistry({ searchParams }: { searchParams: Pr
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <div><div className="label">Intern</div><h1 className="mt-1 text-3xl font-semibold">Registrul de magazine</h1>
           <p className="mt-1 text-sm text-muted">Fiecare magazin pentru care s-a cerut audit, pe care l-a menționat un AI sau care e client. Datele firmei se refolosesc 90 de zile; auditul gratuit se refolosește 24 de ore.</p></div>
+        <Card title="Verificarea pe magazinul etalon (ShopExpert RO)" description="Rulează singură după fiecare publicare: auditul, clasificarea surselor și recomandările deschise, comparate cu ce știm sigur despre ShopExpert RO.">
+          {!golden ? <p className="text-sm text-muted">Încă nu a rulat.</p> : (
+            <div className="space-y-2 text-sm">
+              <Badge tone={golden.status === "done" ? "good" : golden.status === "failed" || golden.lastError ? "bad" : "warn"}>{golden.status === "done" ? "Totul corect" : golden.status === "failed" ? "Afirmații greșite" : golden.lastError ? "Afirmații greșite (reîncerc)" : "În lucru"}</Badge>
+              <p className="text-muted">Publicarea {String((golden.payload as { commit?: string }).commit ?? "").slice(0, 7)} · {dateShort(golden.createdAt)}</p>
+              {golden.lastError && <p className="break-words">{golden.lastError}</p>}
+            </div>
+          )}
+        </Card>
         <div className="grid gap-4 sm:grid-cols-4">
           <Stat label="Magazine în registru" value={tot.n} /><Stat label="Nerevendicate" value={tot.unclaimed} /><Stat label="Din audit gratuit" value={tot.audited} /><Stat label="Doar menționate de AI" value={tot.ai} />
         </div>

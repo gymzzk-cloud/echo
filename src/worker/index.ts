@@ -15,6 +15,7 @@ import { pruneMcpCalls } from "@/core/mcp";
 import { generateFixes, projectsDueForFixes } from "@/core/fixes";
 import { computeProductVisibility, projectsDueForProductAi } from "@/core/product-visibility-job";
 import { checkProductPage } from "@/core/product-sheet/page-check";
+import { runGoldenCheck } from "@/core/golden";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -60,6 +61,7 @@ async function handle(kind: string, payload: Record<string, string>) {
     case "policies": return refreshPolicies(payload.projectId);
     case "watches": return checkWatches();
     case "webhook": return deliverWebhook(payload.webhookId, payload.payload);
+    case "golden_check": return runGoldenCheck();
     default: throw new Error(`Job necunoscut: ${kind}`);
   }
 }
@@ -134,6 +136,15 @@ try {
   const n = await requeueInterrupted();
   if (n) console.log(`Joburi întrerupte puse înapoi la coadă: ${n}`);
 } catch (e) { console.error("Nu am putut relua joburile întrerupte:", e); }
+// După fiecare publicare (un commit nou), o singură verificare pe magazinul etalon, la 3 minute după pornire.
+// Nu la fiecare trezire a serverului: o dată pe commit (KNOWLEDGE A0: nimic „gata” fără verificare pe producție).
+try {
+  const commit = process.env.RENDER_GIT_COMMIT;
+  if (commit) {
+    const seen = await db.execute(sql`select 1 from jobs where kind = 'golden_check' and payload->>'commit' = ${commit} limit 1`);
+    if (!(seen as unknown as unknown[]).length) await enqueue("golden_check", { commit }, new Date(Date.now() + 3 * 60e3));
+  }
+} catch (e) { console.error("Nu am putut programa verificarea pe magazinul etalon:", e); }
 let lastSchedule = 0;
 while (!stopping) {
   if (Date.now() - lastSchedule > 10 * 60e3) {
