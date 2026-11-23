@@ -70,6 +70,10 @@
 
 13. **Produse cu același titlu la prețuri diferite nu sunt o eroare la ShopExpert.** *(ZoZo, 20.11.2026)* Sunt coduri diferite, cu termene de livrare diferite. Nu le raportăm ca problemă.
 
+13b. **Orice cifră despre un produs vine cu identificarea lui și cu dovada.** *(ZoZo, 23.11.2026: „nu apare și cod de produs… după ce criteriu zice că ChatGPT zice 385 lei sau Claude 326… trebuie să îmi arăți ceva să găsesc mai întâi dacă chiar așa apare, apoi să rezolv problemele”)*
+    De ce: clientul verifică întâi că problema e reală, abia apoi o repară.
+    Cum: pe fiecare produs arătăm codul din catalog, EAN-ul și linkul spre pagina lui. Pentru fiecare apariție în AI păstrăm și arătăm AI-ul, data și ora, întrebarea, rândul exact cu prețul și criteriul după care am recunoscut produsul (cod, link sau numele complet), plus tot răspunsul. Un produs se recunoaște doar după aceste criterii sigure, niciodată după câteva cuvinte comune (PR #43).
+
 ### A3. Întrebările urmărite (ce întrebăm AI-urile)
 
 14. **Întrebările vin din catalogul real și seamănă cu ce caută un om.** *(ZoZo, 20.11.2026)*
@@ -302,6 +306,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - Nu: o listă lungă de lucruri noi de încercat când ZoZo vrea să verifice ce avem.
 - În schimb: corectăm și legăm ce există, apoi testăm rezultatele în panou.
 - De ce: „sunt prea multe de fapt… să corectăm, corelăm ce avem și să testăm”.
+
+**B26. Produs recunoscut după câteva cuvinte comune, fără dovadă** *(23.11.2026, 11:41)*
+- Nu: să legăm „BOSCH Kit de accesorii” de orice rând cu „Bosch” și „accesorii”, apoi să arătăm „Claude: 326,39 lei” fără să spunem de unde.
+- În schimb: recunoaștere doar după cod, link sau numele complet, iar lângă fiecare preț spus de AI, dovada (AI, dată și oră, întrebare, rândul exact, criteriul).
+- De ce: ZoZo nu putea verifica dacă prețul chiar apare așa.
 
 ---
 
