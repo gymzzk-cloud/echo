@@ -1,4 +1,4 @@
-import type { FeedFileStats, FeedOutputSettings } from "@/db/schema";
+import type { FeedFileStats, FeedIssueSample, FeedOutputSettings } from "@/db/schema";
 import type { FeedProduct } from "../feed";
 
 /**
@@ -15,6 +15,8 @@ export const OPENAI_COLUMNS = [
 export type OpenAiRow = Record<(typeof OPENAI_COLUMNS)[number], string>;
 
 export const OPENAI_DEFAULT_RETURN_DAYS = 14; // dreptul legal de retragere în UE, dacă magazinul nu spune altceva
+/** Câte produse cu problemă păstrăm ca exemplu, ca magazinul să le poată corecta. */
+const SAMPLE_MAX = 50;
 
 type Store = { name: string; domain: string; pathPrefix: string; country: string };
 
@@ -29,6 +31,25 @@ export function plainText(s: string | null | undefined, max: number) {
   const cut = t.slice(0, max - 1);
   const sp = cut.lastIndexOf(" ");
   return `${(sp > max * 0.6 ? cut.slice(0, sp) : cut).trimEnd()}…`;
+}
+
+const NO_BRAND = /^(n\/?a|none|null|undefined|nil|generic|generico|unbranded|no ?brand|other|others|altele|diverse|div|nespecificat|fara( brand)?|fără( brand)?|nincs|egyéb|egyeb|márka nélkül|marka nelkul|-+|\.+|0+)$/i;
+
+/**
+ * Brandul pentru OpenAI: text simplu, fără caractere de control, maxim 70 de caractere tăiate curat (fără „…”).
+ * Gol dacă nu e un nume real (doar semne, doar cifre, „N/A”, „Generic”, „Fără brand”…): un brand gol e acceptat,
+ * unul invalid face OpenAI să respingă rândul.
+ */
+export function cleanBrand(s: string | null | undefined) {
+  let t = plainText(s, 10_000).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\ufeff]/g, "").replace(/\s+/g, " ").trim();
+  t = t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.)!+&]+$/gu, "");
+  if (t.length > 70) {
+    const cut = t.slice(0, 70);
+    const sp = cut.lastIndexOf(" ");
+    t = (sp > 40 ? cut.slice(0, sp) : cut).replace(/[^\p{L}\p{N}.)!+&]+$/u, "");
+  }
+  if (!/\p{L}/u.test(t) || NO_BRAND.test(t) || /^https?:|www\./i.test(t)) return "";
+  return t;
 }
 
 /** Categoria cu separatorul cerut de OpenAI („Electrocasnice > Bucătărie > Cuptoare”). */
@@ -61,7 +82,7 @@ export function openAiRow(p: FeedProduct, store: Store, s: FeedOutputSettings | 
       image_link: p.imageUrl!,
       price: `${p.price.toFixed(2)} ${p.currency}`,
       availability: p.inStock ? "in_stock" : "out_of_stock",
-      brand: plainText(p.brand, 70),
+      brand: cleanBrand(p.brand),
       gtin: cleanGtin(p.gtin),
       mpn: plainText(p.mpn, 70),
       condition: "new",
@@ -85,6 +106,7 @@ const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"
 /** Scrie feed-ul OpenAI ca CSV, rând cu rând, și ține statistica pentru panou (excluse pe motive, câmpuri recomandate lipsă). */
 export function openAiWriter(store: Store, s: FeedOutputSettings | null) {
   const excluded: Record<string, number> = {};
+  const samples: Record<string, FeedIssueSample[]> = {};
   const missing: Record<string, number> = {};
   let total = 0, included = 0;
   return {
@@ -94,12 +116,17 @@ export function openAiWriter(store: Store, s: FeedOutputSettings | null) {
       const r = openAiRow(p, store, s);
       if ("skip" in r) { excluded[r.skip] = (excluded[r.skip] ?? 0) + 1; return null; }
       if (!r.row.brand) missing.brand = (missing.brand ?? 0) + 1;
+      if (!r.row.brand && (p.brand ?? "").trim()) {
+        missing.brand_invalid = (missing.brand_invalid ?? 0) + 1;
+        const list = (samples.brand_invalid ??= []);
+        if (list.length < SAMPLE_MAX) list.push({ code: p.externalId, title: r.row.title, value: (p.brand ?? "").slice(0, 120) });
+      }
       if (!r.row.gtin && !r.row.mpn) missing.gtin_mpn = (missing.gtin_mpn ?? 0) + 1;
       if (!r.row.product_category) missing.product_category = (missing.product_category ?? 0) + 1;
       included++;
       return `${OPENAI_COLUMNS.map((c) => csvCell(r.row[c])).join(",")}\n`;
     },
-    stats: (): FeedFileStats => ({ total, included, excluded, missing }),
+    stats: (): FeedFileStats => ({ total, included, excluded, missing, ...(Object.keys(samples).length ? { samples } : {}) }),
   };
 }
 

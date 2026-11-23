@@ -406,7 +406,8 @@ export type FeedOutputSettings = {
   detected?: { returnPolicyUrl?: string; privacyPolicyUrl?: string; termsUrl?: string }; detectedAt?: string;
 };
 /** Ce a ieșit la ultima generare: produse incluse, excluse și câmpurile lipsă (pentru avertismentele din panou). */
-export type FeedFileStats = { total: number; included: number; excluded: Record<string, number>; missing: Record<string, number> };
+export type FeedIssueSample = { code: string; title: string; value: string };
+export type FeedFileStats = { total: number; included: number; excluded: Record<string, number>; missing: Record<string, number>; samples?: Record<string, FeedIssueSample[]> };
 
 export const feedOutputs = pgTable("feed_outputs", {
   id: id(),
