@@ -1,92 +1,144 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { currentProject } from "@/lib/project";
-import { productAiDetail, proofAnswers } from "@/core/product-ai-read";
-import type { ProductExample } from "@/core/product-visibility";
+import { proofAnswers } from "@/core/product-ai-read";
+import { productSheet } from "@/core/product-sheet/read";
+import { enqueue, pendingJobs } from "@/core/jobs";
 import { PRODUCT_AI_WINDOW_DAYS } from "@/core/product-visibility-job";
 import { providerLabel } from "@/core/ai/types";
-import { Badge, Card, Empty, PageHeader, Stat, SubCard, TextLink } from "@/components/ui";
-import { dateShort, dateTime, money, num, pct } from "@/lib/format";
-import { PRICE_TOLERANCE } from "@/core/product-visibility";
-import { CardHelp } from "@/components/card-help";
+import { SubmitButton } from "@/components/client";
+import { Badge, ButtonLink, Card, Notice, PageHeader, Stat, TextLink, Working } from "@/components/ui";
+import { ChannelCard, scoreTone } from "@/components/product-sheet/channel-card";
+import { AnswersCard } from "@/components/product-sheet/answers-card";
+import { HonestCard } from "@/components/product-sheet/honest-card";
+import { Proof } from "@/components/product-sheet/proof";
+import { dateTime, money, num } from "@/lib/format";
+import { checkProductPageNow } from "@/app/actions-product-ai";
+import { trackProduct } from "@/app/actions";
+import type { ChannelReport } from "@/core/product-sheet/channels";
 
-/** Un produs în AI: cifrele salvate și răspunsurile în care a apărut (cel mult 20, cele mai noi primele). */
-export default async function ProductInAi({ params }: { params: Promise<{ id: string }> }) {
+const PAGE_RECHECK_DAYS = 7;
+
+/**
+ * Fișa unui produs: ce primește ChatGPT (feed OpenAI), ce primește Google (feed + pagina citită de Google și Gemini),
+ * cu scor și reparații pe fiecare canal, apoi răspunsurile AI în care apar alții în locul magazinului și de ce.
+ * Citește un singur produs; răspunsurile AI (partea grea) vin în <Suspense>.
+ */
+export default async function ProductSheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
-  const { project } = await currentProject();
-  const row = await productAiDetail(project.id, id);
-  if (!row) notFound();
-  const s = row.stat;
+  const { project, role } = await currentProject();
+  const [sheet, pageBusy] = await Promise.all([productSheet(project.id, id), pendingJobs(["product_page"], "productId", id)]);
+  if (!sheet) notFound();
+  const { product: p, stat: s, openai, google, page } = sheet;
+  const canWrite = role !== "viewer" && role !== "client";
+
+  // Pagina produsului se citește în worker (o cerere la magazin): automat prima dată și după 7 zile.
+  const stale = !page || Date.now() - page.checkedAt.getTime() > PAGE_RECHECK_DAYS * 864e5;
+  const checking = pageBusy > 0 || (stale && canWrite && !!(await enqueue("product_page", { projectId: project.id, productId: id })));
   const answers = s ? await proofAnswers(project.id, s.examples.map((e) => e.runId)) : new Map<string, string>();
-  const back = <TextLink href="/panou/produse-ai">Toate produsele</TextLink>;
-  const header = <PageHeader eyebrow="Produse în AI" title={row.title} subtitle={<><span className="num break-all">{[`Cod ${row.externalId}`, row.mpn && row.mpn !== row.externalId && `Cod producător ${row.mpn}`, row.gtin && `EAN ${row.gtin}`, row.brand, money(row.price, row.currency), !row.inStock && "fără stoc"].filter(Boolean).join(" · ")}</span> · <TextLink href={row.url} external>Pagina produsului</TextLink></>} action={back} />;
-  if (!s) return <>{header}<Empty title="AI-urile nu au numit acest produs">În ultimele {PRODUCT_AI_WINDOW_DAYS} de zile, produsul nu apare în niciun răspuns la întrebările urmărite. Îl poți urmări din pagina Produse, ca să întrebăm AI-urile direct despre el.</Empty></>;
+  const tracked = sheet.prompts.some((x) => x.active && x.intent === "produs");
+  const fixes = topFixes([openai.report, google.report, page?.report ?? null]);
+
+  const ids = [`Cod ${p.externalId}`, p.mpn && p.mpn !== p.externalId && `Cod producător ${p.mpn}`, p.gtin && `EAN ${p.gtin}`, p.brand, money(p.price, p.currency), !p.inStock && "fără stoc"].filter(Boolean).join(" · ");
+  const trackForm = canWrite && p.inStock && !tracked && (
+    <form action={trackProduct}>
+      <input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="productId" value={p.id} /><input type="hidden" name="on" value="1" />
+      <SubmitButton variant="secondary" pendingText="Adaug…">Urmărește în AI</SubmitButton>
+    </form>
+  );
 
   return (
     <div className="space-y-6">
-      {header}
+      <PageHeader eyebrow={<TextLink href="/panou/produse-ai" className="label">Produse în AI</TextLink>} title={p.title}
+        subtitle={<><span className="num break-all">{ids}</span> · <TextLink href={p.url} external>Pagina produsului</TextLink></>}
+        action={trackForm || (tracked && <Badge tone="good">Urmărit în AI</Badge>)} />
+
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Apare în" value={`${s.appearances}×`} hint={`la ${s.prompts} ${s.prompts === 1 ? "întrebare" : "întrebări"}`} />
-        <Stat label="Loc mediu" value={num(parseFloat(s.avgPosition))} hint={`cel mai bun: ${s.bestPosition}`} />
-        <Stat label="Cu magazinul tău" value={`${s.withStore} / ${s.appearances}`} hint={s.withStore ? "răspunsuri care te numesc" : "AI-ul trimite în alt magazin"} />
-        <Stat label="Preț spus de AI" value={s.statedPrice ? money(s.statedPrice, row.currency) : "–"} hint={s.priceWrong ? `în catalog ${money(row.price, row.currency)}; greșit la ${s.wrongPrices.map((w) => providerLabel(w.provider)).join(", ")}` : s.statedPrice ? "corect" : "niciun AI nu spune prețul"} />
+        <Stat label="ChatGPT (feed)" value={scoreValue(openai.report)} hint={openai.active ? "ce trimitem în feed-ul OpenAI" : "feed-ul ChatGPT nu e pornit"} />
+        <Stat label="Google (feed)" value={scoreValue(google.report)} hint={google.active ? "ce trimitem în feed-ul Google" : "ce am trimite (feed-ul Google Echo e oprit)"} />
+        <Stat label="Pagina (Google, Gemini)" value={page?.report ? scoreValue(page.report, "Necitită") : "–"} hint={page ? `citită la ${dateTime(page.checkedAt)}` : "o citim acum"} />
+        <Stat label={`În AI, ${PRODUCT_AI_WINDOW_DAYS} de zile`} value={s ? `${s.withStore} / ${s.appearances}` : "0"} hint={s ? `răspunsuri care te numesc, din cele care numesc produsul · loc mediu ${num(parseFloat(s.avgPosition))}` : "niciun răspuns nu numește produsul"} />
       </div>
 
-      <Card title="Pe fiecare AI" description={<CardHelp id="productAi.perEngine" />}>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(s.providers).sort((a, b) => b[1] - a[1]).map(([p, n]) => <Badge key={p}>{providerLabel(p)}: {n}×</Badge>)}
-          {s.wrongPrices.map((w) => <Badge key={`w${w.provider}`} tone="bad">{providerLabel(w.provider)} spune {money(w.price, row.currency)}</Badge>)}
-        </div>
-      </Card>
+      {(fixes.length > 0 || sheet.pendingEdits.length > 0) && (
+        <Card title={`${fixes.length + sheet.pendingEdits.length} ${fixes.length + sheet.pendingEdits.length === 1 ? "lucru" : "lucruri"} de reparat la acest produs`} description="Cele mai importante primele. Corectezi în catalog (sau aprobi propunerea Echo), iar feed-urile se refac singure la următoarea sincronizare.">
+          <ol className="space-y-3 text-sm">
+            {sheet.pendingEdits.map((e, i) => <li key={`e${i}`}><span className="font-medium">Echo propune {FIELD_LABEL[e.field] ?? e.field}: „{e.value.slice(0, 120)}”.</span> <span className="text-muted">{e.reason}</span> <TextLink href="/panou/reparatii">Aprobă în Reparații</TextLink></li>)}
+            {fixes.map((f, i) => <li key={i}><span className="font-medium">{f.label ? `${f.where}, ${f.label.toLowerCase()}` : f.where}:</span> <span className="text-muted">{f.fix}</span></li>)}
+          </ol>
+        </Card>
+      )}
 
-      <Card title="Dovezi: unde și cum apare" description="Fiecare apariție, cele mai noi primele: AI-ul, data și ora, întrebarea, rândul exact din răspuns și după ce am recunoscut produsul. Deschide tot răspunsul ca să verifici.">
-        <div id="dovezi" className="scroll-mt-6 space-y-4">
-          {s.examples.map((e) => <Proof key={`${e.runId}-${e.provider}`} e={e} real={row.price ? parseFloat(row.price) : null} currency={row.currency} answer={answers.get(e.runId)} />)}
-        </div>
-      </Card>
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <ChannelCard title="Ce primește ChatGPT" report={openai.report}
+          description="Rândul exact din feed-ul ChatGPT (OpenAI), calculat acum din catalog, cu titlurile aprobate și regulile tale."
+          status={!openai.active
+            ? <Notice tone="warn">Feed-ul ChatGPT nu e pornit. Pornește-l din <TextLink href="/panou/feed">Feed și canale</TextLink>, apoi pune adresa lui în ChatGPT Merchants. Mai jos vezi ce am trimite.</Notice>
+            : openai.generatedAt && <p className="text-xs text-muted">Fișierul feed-ului e generat la {dateTime(openai.generatedAt)}. Ce ai schimbat după, intră automat la următoarea generare.</p>}
+          footer="OpenAI nu ne spune cum folosește fiecare câmp în clasament; scorul arată cât de complete sunt datele pe care le cere specificația lor (EAN, marcă, descriere, stoc, retur)." />
+        <ChannelCard title="Ce primește Google din feed" report={google.report}
+          description="Produsul în feed-ul Google generat de Echo (Merchant Center). Gemini și AI Overviews folosesc datele Google despre produse."
+          status={!google.active && <Notice tone="primary">Feed-ul Google din Echo nu e pornit. Dacă trimiți deja produsele la Google din alt loc, Merchant Center vede acel feed; aici vezi ce ar primi din Echo.</Notice>}
+          footer={google.generatedAt ? `Fișierul feed-ului e generat la ${dateTime(google.generatedAt)}.` : undefined} />
+      </div>
+
+      <ChannelCard title="Ce citesc Google și Gemini din pagina produsului" report={page?.report ?? null} notIncluded="Necitită"
+        description="Datele de produs (schema.org) din pagina ta, cum le citesc Google, Gemini și roboții AI, comparate cu feed-ul. Un preț, un stoc sau un EAN diferit e motivul cel mai des de respingere în Google."
+        status={checking
+          ? <Working hint="Pagina se actualizează singură.">Citim pagina produsului…</Working>
+          : page && <p className="break-all text-xs text-muted">Citită la {dateTime(page.checkedAt)}: {page.url}</p>}
+        action={!checking && canWrite && page && (
+          <form action={checkProductPageNow}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="productId" value={p.id} />
+            <SubmitButton variant="secondary" pendingText="Pornesc…">Verifică pagina din nou</SubmitButton></form>
+        )} />
+
+      <Suspense fallback={<Card title="Când AI-urile aleg pe altcineva" description="Răspunsurile AI despre acest produs în care apar alte magazine în locul tău și de ce."><p className="text-sm text-muted">Calculăm…</p></Card>}>
+        <AnswersCard projectId={project.id} productId={p.id} productUrl={p.url} ownDomain={project.domain} orgId={sheet.project.orgId} inStock={p.inStock} tracked={tracked}
+          namedRunIds={s?.examples.map((e) => e.runId) ?? []} wrongPrices={s?.wrongPrices ?? []}
+          openai={openai.report} openaiActive={openai.active} google={google.report} page={page?.report ?? null} />
+      </Suspense>
+
+      {s && (
+        <Card title="Unde numesc AI-urile produsul" description="Fiecare apariție a produsului, cele mai noi primele: AI-ul, data și ora, întrebarea, rândul exact și după ce l-am recunoscut.">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {Object.entries(s.providers).sort((a, b) => b[1] - a[1]).map(([x, n]) => <Badge key={x}>{providerLabel(x)}: {n}×</Badge>)}
+            {s.wrongPrices.map((w) => <Badge key={`w${w.provider}`} tone="bad">{providerLabel(w.provider)} spune {money(w.price, p.currency)}</Badge>)}
+          </div>
+          <div id="dovezi" className="scroll-mt-6 space-y-4">
+            {s.examples.map((e) => <Proof key={`${e.runId}-${e.provider}`} e={e} real={p.price ? parseFloat(p.price) : null} currency={p.currency} answer={answers.get(e.runId)} />)}
+          </div>
+        </Card>
+      )}
+
+      <HonestCard title={p.title} url={p.url} />
+      <ButtonLink href="/panou/produse-ai" variant="secondary">Caută alt produs</ButtonLink>
     </div>
   );
 }
 
-const MATCH_LABEL = { cod: "după cod", link: "după linkul produsului", nume: "după numele complet" } as const;
+const FIELD_LABEL: Record<string, string> = { title: "titlul", description: "descrierea", brand: "marca", gtin: "EAN-ul", category: "categoria" };
 
-/** O apariție, cu tot ce trebuie ca să o verifici: unde, când, ce a scris AI-ul și de ce e acest produs. */
-function Proof({ e, real, currency, answer }: { e: ProductExample; real: number | null; currency: string; answer?: string }) {
-  const diff = real && e.statedPrice ? (e.statedPrice - real) / real : null;
-  const wrong = diff !== null && Math.abs(diff) > PRICE_TOLERANCE;
-  // Prețul evidențiat în rândul citat, exact cum l-a scris AI-ul.
-  const quote = (text: string) => {
-    const i = e.priceText ? text.indexOf(e.priceText) : -1;
-    if (i < 0) return <>„{text}”</>;
-    return <>„{text.slice(0, i)}<strong className={wrong ? "text-bad" : "text-fg"}>{e.priceText}</strong>{text.slice(i + e.priceText!.length)}”</>;
-  };
-  return (
-    <SubCard className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-semibold">{providerLabel(e.provider)}</span>
-        <span className="num text-muted">{e.at ? dateTime(e.at) : dateShort(e.runDate)}</span>
-        <Badge>Locul {e.position}</Badge>
-        {!e.withStore && <Badge tone="warn">Fără magazinul tău</Badge>}
-      </div>
-      <p className="text-sm"><span className="text-muted">Întrebarea: </span>{e.query}</p>
-      <p className="text-sm text-muted">{e.priceLine ? <>„{e.snippet}”</> : quote(e.snippet)}</p>
-      {e.priceLine && <p className="text-sm text-muted"><span>Prețul, pe rândul de sub produs: </span>{quote(e.priceLine)}</p>}
-      <p className="text-sm"><span className="text-muted">Recunoscut </span>{e.match
-        ? <>{MATCH_LABEL[e.match.kind]}: <span className="break-all font-medium">{e.match.value}</span></>
-        : "după nume (calcul vechi, se reface automat în câteva minute)"}</p>
-      <div className="flex flex-wrap gap-2">
-        {e.statedPrice !== null && (wrong
-          ? <Badge tone="bad">Spune {money(e.statedPrice, currency)}, în catalog {money(real, currency)} ({diff! > 0 ? "+" : ""}{pct(diff! * 100)})</Badge>
-          : <Badge tone="good">Preț corect: {money(e.statedPrice, currency)}</Badge>)}
-        {e.statedPrice === null && <Badge>Nu spune prețul</Badge>}
-      </div>
-      {answer && (
-        <details className="text-sm">
-          <summary className="cursor-pointer font-medium text-primary">Tot răspunsul AI-ului</summary>
-          <p className="mt-2 whitespace-pre-wrap break-words text-muted">{answer}</p>
-        </details>
-      )}
-    </SubCard>
-  );
+function scoreValue(r: ChannelReport | null, notIncluded = "Nu intră") {
+  if (!r) return "–";
+  if (!r.included) return <span className="text-bad">{notIncluded}</span>;
+  const tone = scoreTone(r.score);
+  return <span className={tone === "good" ? "text-good" : tone === "warn" ? "text-warn" : "text-bad"}>{r.score}</span>;
+}
+
+/** Reparațiile din toate canalele, fără dubluri (același text apare la ChatGPT și Google), cele grave primele. Cel mult 6. */
+function topFixes(reports: (ChannelReport | null)[]) {
+  const where = ["ChatGPT", "Google", "Pagina"];
+  const seen = new Set<string>();
+  const out: { where: string; label: string; fix: string; bad: boolean }[] = [];
+  reports.forEach((r, i) => {
+    for (const c of r?.checks ?? []) {
+      if (!c.fix || seen.has(c.fix)) continue;
+      seen.add(c.fix);
+      out.push({ where: where[i], label: c.label, fix: c.fix, bad: c.status === "bad" });
+    }
+    if (r && !r.included && r.reason && !seen.has(r.reason)) { seen.add(r.reason); out.push({ where: i === 2 ? "Pagina produsului" : where[i], label: "", fix: r.reason, bad: true }); }
+  });
+  return out.sort((a, b) => Number(b.bad) - Number(a.bad)).slice(0, 6);
 }

@@ -18,8 +18,6 @@ export const CARD_HELP = {
   "vis.trend": { ro: "Procentul de răspunsuri în care apari, zi de zi, lângă cei mai vizibili concurenți.", hu: "A válaszok aránya, amelyekben megjelensz, napról napra, a leglátottabb versenytársak mellett." },
   "vis.rivals": { ro: "Magazinele pe care AI-urile le numesc înaintea ta la aceleași produse. Așa afli de la cine pierzi clienți.", hu: "Webshopok, amelyeket az AI-k előtted említenek ugyanazoknál a termékeknél. Így látod, kinek veszítesz vevőket." },
   "vis.sentiment": { ro: "Ce laudă și ce critică AI-urile la tine (preț, livrare, ofertă, încredere), cu sursa fiecărei fraze.", hu: "Mit dicsérnek és mit kritizálnak nálad az AI-k (ár, szállítás, kínálat, bizalom), minden mondat forrásával." },
-  // Produse în AI
-  "productAi.perEngine": { ro: "De câte ori a numit fiecare AI acest produs în răspunsurile la întrebările urmărite.", hu: "Hányszor említette az egyes AI-k ezt a terméket a követett kérdésekre adott válaszokban." },
   // Surse
   "sources.gaps": { ro: "Site-uri citate de AI-uri (comparatoare, bloguri, forumuri) unde apar concurenții, dar tu nu. Dacă ajungi acolo, AI-urile te văd mai des.", hu: "Az AI-k által idézett oldalak (árösszehasonlítók, blogok, fórumok), ahol a versenytársak megjelennek, te nem. Ha ott leszel, az AI-k gyakrabban látnak." },
   "sources.all": { ro: "Toate site-urile din care și-au luat AI-urile informațiile când au răspuns la întrebările tale.", hu: "Minden oldal, ahonnan az AI-k az információt vették, amikor a kérdéseidre válaszoltak." },
