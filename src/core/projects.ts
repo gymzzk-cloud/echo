@@ -18,7 +18,7 @@ import { ERROR_MODEL, invalidateWorld, isDemo, loadWorld, projectUsageThisMonth,
 import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { isStoreLike } from "./ai/domains";
-import { canAct, SOURCE_ADVICE, sourceKind, type SourceCtx } from "./source-kind";
+import { canAct, notRivals, SOURCE_ADVICE, sourceKind, type SourceCtx } from "./source-kind";
 import { catalogBrands, orgDomains } from "./store-context";
 import { refreshPrompts } from "./tracked-prompts";
 import { TRIAL_PROVIDERS } from "./onboarding/types";
@@ -214,7 +214,7 @@ export async function runProject(projectId: string) {
 }
 
 // ── Statistici zilnice ─────────────────────────────────────────────────────
-export function summarize(rows: Awaited<ReturnType<typeof projectRuns>>, domain: string, competitorDomains: string[], auditScore: number | null) {
+export function summarize(rows: Awaited<ReturnType<typeof projectRuns>>, domain: string, competitorDomains: string[], auditScore: number | null, exclude: ReadonlySet<string> = new Set()) {
   const by = (prov?: string) => rows.filter((r) => !prov || r.run.provider === prov);
   const calc = (rs: typeof rows) => {
     if (!rs.length) return { visibility: 0, avgPosition: null as number | null, sov: 0, n: 0 };
@@ -224,7 +224,8 @@ export function summarize(rows: Awaited<ReturnType<typeof projectRuns>>, domain:
       const me = ms.find((m) => m.domain === domain);
       if (me) { hit++; posSum += me.position; }
       // Cota: din toate recomandările de magazine (nu doar concurenții din listă), la fel ca pe cardul „Cota din recomandări”.
-      for (const m of ms) if (m.domain === domain || competitorDomains.includes(m.domain) || isStoreLike(m.domain)) { all++; if (m.domain === domain) mine++; }
+      // Producătorii și propriile magazine (exclude) nu intră în cotă, ca pe cardul de pe prima pagină.
+      for (const m of ms) if (m.domain === domain || ((competitorDomains.includes(m.domain) || isStoreLike(m.domain)) && !exclude.has(m.domain))) { all++; if (m.domain === domain) mine++; }
     }
     return { visibility: Math.round((hit / rs.length) * 100), avgPosition: hit ? +(posSum / hit).toFixed(2) : null, sov: all ? Math.round((mine / all) * 100) : 0, n: rs.length };
   };
@@ -245,7 +246,10 @@ export async function computeStats(projectId: string) {
   const day = today();
   const rows = (await projectRuns(projectId, day)).filter((r) => r.run.runDate === day);
   if (!rows.length) return;
-  const s = summarize(rows, p.domain, comps, audit?.score ?? null);
+  const [own, brands] = await Promise.all([orgDomains(p.orgId), catalogBrands(projectId)]);
+  const exclude = new Set(notRivals(rows.flatMap((r) => (r.run.mentions as Mention[]).map((m) => m.domain)), { ownDomains: [p.domain, ...own], brands }));
+  exclude.delete(p.domain);
+  const s = summarize(rows, p.domain, comps, audit?.score ?? null, exclude);
   const prev = await db.select().from(schema.dailyStats)
     .where(and(eq(schema.dailyStats.projectId, projectId), eq(schema.dailyStats.provider, "all"))).orderBy(desc(schema.dailyStats.day)).limit(2);
   const values = [
@@ -328,7 +332,7 @@ export function staleAuditKeys(checks: { id: string; status: string }[]): string
 async function upsertAction(projectId: string, a: { key: string; title: string; why: string; howTo?: string; fixKind?: string; impact: string; effort: string }, baseline: number | null) {
   // Idempotent: rulat de două ori dă același rând; titlul și detaliul se actualizează (ex. timpul de răspuns măsurat acum).
   await db.insert(schema.actions).values({ projectId, ...a, baselineVisibility: baseline })
-    .onConflictDoUpdate({ target: [schema.actions.projectId, schema.actions.key], set: { title: a.title, why: a.why } });
+    .onConflictDoUpdate({ target: [schema.actions.projectId, schema.actions.key], set: { title: a.title, why: a.why, howTo: a.howTo } });
 }
 
 export async function generateActions(projectId: string) {

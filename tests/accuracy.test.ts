@@ -128,3 +128,21 @@ describe("magazinul etalon (ShopExpert RO)", () => {
     expect(goldenClassifierIssues()).toEqual([]);
   });
 });
+
+describe("tonul: sfaturile nu sunt critici", () => {
+  it("„pentru a evita” nu e negativ, „să se evite magazinul” este", () => {
+    expect(toneOf("Protejează coletul pentru a evita deteriorarea la transport.")).not.toBe("negativ");
+    expect(toneOf("Un client spune să se evite magazinul din cauza livrărilor.")).toBe("negativ");
+  });
+});
+
+describe("prima pagină: producătorii și propriile magazine nu sunt „în locul tău”", () => {
+  it("whoRecommends și cota ignoră domeniile excluse", async () => {
+    const { whoRecommends, shareOfRecommendations } = await import("@/core/insights");
+    const m = (domain: string, position: number) => ({ domain, name: domain, position });
+    const rows = [{ run: { runDate: "2026-11-23", provider: "claude", model: "x", answer: "", mentions: [m("bosch-professional.com", 1), m("hardlineconstruct.ro", 2), m("evostore.ro", 3)] } }] as unknown as Parameters<typeof whoRecommends>[0];
+    const ex = new Set(["bosch-professional.com", "hardlineconstruct.ro"]);
+    expect(whoRecommends(rows, "shopexpert.com", null, [], ex).find((w) => w.provider === "claude")?.instead).toBe("evostore.ro");
+    expect(shareOfRecommendations(rows, "shopexpert.com", 3, ex).map((s) => s.domain)).not.toContain("bosch-professional.com");
+  });
+});
