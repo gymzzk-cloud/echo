@@ -4,6 +4,7 @@ import type { progressData } from "@/core/engine-view-read";
 import { progressSince } from "@/core/engine-view";
 import { dateShort } from "@/lib/format";
 import { Badge, ButtonLink, Card, Delta, ListRow, SubCard, TextLink, impactTone } from "../ui";
+import { CardHelp } from "@/components/card-help";
 
 type Data = Awaited<ReturnType<typeof progressData>>;
 
@@ -55,7 +56,7 @@ export function ProgressCards({ data, links }: { data: Data; links: { wrongPrice
         )}
       </Card>
 
-      <Card title="Ce repari acum" action={<TextLink href="/panou/actiuni">Toate ({data.counts.open})</TextLink>}>
+      <Card title="Ce repari acum" description={<CardHelp id="vis.fixNow" />} action={<TextLink href="/panou/actiuni">Toate ({data.counts.open})</TextLink>}>
         <ul className="space-y-3">
           {data.prods.wrongPrice > 0 && (
             <li><SubCard>

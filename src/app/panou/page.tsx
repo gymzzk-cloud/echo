@@ -11,6 +11,7 @@ import { markAlertsRead, runNow, setActionStatus } from "@/app/actions";
 import { dateShort } from "@/lib/format";
 import { busyKinds } from "@/core/jobs";
 import { activeProviders, isDemo } from "@/core/ai/engine";
+import { CardHelp } from "@/components/card-help";
 
 // Tu: culoarea de marcă; concurenții: nuanțe de gri (DESIGN §9).
 const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"];
@@ -50,7 +51,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
     return (
       <div className="space-y-6">
         {sp["bun-venit"] && <Notice tone="good">Contul e gata. Analizăm magazinul {project.domain}: audit tehnic, catalog și primele întrebări către AI-uri.</Notice>}
-        <Card title="Pregătim primul raport">
+        <Card title="Pregătim primul raport" description={<CardHelp id="home.firstReport" />}>
           <ul className="text-sm">
             <ListRow end={o.audit ? <Badge tone="good">Gata ({o.audit.score}/100)</Badge> : <Badge tone="warn">În lucru</Badge>}>Audit tehnic</ListRow>
             <ListRow end={conns.some((c) => c.status === "ok") ? <Badge tone="good">{conns.reduce((s, c) => s + c.productCount, 0)} produse</Badge> : conns.length ? <Badge tone={conns.some((c) => c.status === "error") ? "bad" : "warn"}>{conns.some((c) => c.status === "error") ? "Eroare" : "În lucru"}</Badge> : <Badge tone="warn">Neconectat</Badge>}>Catalog de produse</ListRow>
@@ -105,14 +106,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
 
       <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
         {/* 2. Evoluția */}
-        <Card title="Evoluție pe 30 de zile" action={<TextLink href="/panou/vizibilitate">Detalii</TextLink>}>
+        <Card title="Evoluție pe 30 de zile" description={<CardHelp id="home.trend" />} action={<TextLink href="/panou/vizibilitate">Detalii</TextLink>}>
           {chart.length > 1
             ? <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...comps.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} />
             : <p className="text-sm text-muted">Graficul apare după a doua zi de măsurători.</p>}
         </Card>
 
         {/* 3. Cele 3 lucruri de făcut: insigna deasupra titlului, ca titlurile să înceapă toate la aceeași linie */}
-        <Card title="3 lucruri de făcut săptămâna asta" action={<TextLink href="/panou/actiuni">Toate</TextLink>}>
+        <Card title="3 lucruri de făcut săptămâna asta" description={<CardHelp id="home.todo" />} action={<TextLink href="/panou/actiuni">Toate</TextLink>}>
           {top3.length === 0 ? <p className="text-sm text-muted">Nimic urgent. Bravo!</p> : (
             <ul className="space-y-3">
               {top3.map((a) => (
@@ -156,7 +157,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
               })}
             </Table>
           </Card>
-          <Card title="Cota din recomandări">
+          <Card title="Cota din recomandări" description={<CardHelp id="home.share" />}>
             <ul className="space-y-4">
               {share.map((x) => (
                 <li key={x.domain} className="flex items-center gap-3 text-sm">
@@ -171,7 +172,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
       </div>
 
       {alerts.length > 0 && (
-        <Card title="Alerte noi" action={<form action={markAlertsRead}><input type="hidden" name="projectId" value={project.id} /><SubmitButton variant="ghost" size="sm" pendingText="Marchez…">Marchează citite</SubmitButton></form>}>
+        <Card title="Alerte noi" description={<CardHelp id="home.alerts" />} action={<form action={markAlertsRead}><input type="hidden" name="projectId" value={project.id} /><SubmitButton variant="ghost" size="sm" pendingText="Marchez…">Marchează citite</SubmitButton></form>}>
           <ul className="text-sm">
             {alerts.map((a) => <ListRow key={a.id} end={<span className="text-xs text-muted">{dateShort(a.createdAt)}</span>}>{a.message}</ListRow>)}
           </ul>

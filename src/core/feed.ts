@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { FeedAction, FeedCondition, FeedFileStats, FeedOutputSettings } from "@/db/schema";
-import { openAiWriter } from "./feed-channels/openai";
+import { cleanGtin, openAiWriter } from "./feed-channels/openai";
 import { daysAgo, normalizeText } from "@/lib/util";
 import { projectRuns } from "./projects";
 
@@ -91,6 +91,12 @@ export function matches(p: FeedProduct, c: FeedCondition) {
   }
 }
 
+/** Câmpurile pe care le poate folosi textul unei reguli: „{brand} ” pune marca fiecărui produs. */
+export const PLACEHOLDERS = ["title", "brand", "category", "gtin", "mpn"] as const;
+export function fillPlaceholders(value: string, p: FeedProduct) {
+  return value.replace(/\{(title|brand|category|gtin|mpn)\}/g, (_, k: string) => String((p as unknown as Record<string, unknown>)[k] ?? "").trim());
+}
+
 /** Aplică regulile în ordinea priorității. Întoarce produsul modificat sau null dacă e exclus. Funcție pură. */
 export function applyRules(p: FeedProduct, rules: { conditions: FeedCondition[]; actions: FeedAction[]; channels: string[]; active: boolean }[], channel: string): FeedProduct | null {
   let out = { ...p, labels: [...p.labels] };
@@ -102,7 +108,11 @@ export function applyRules(p: FeedProduct, rules: { conditions: FeedCondition[];
       if (a.type === "label" && a.value) { out.labels.push(a.value); continue; }
       if (!a.field || a.field === "label") continue;
       const cur = get(out, a.field);
-      const val = a.type === "set" ? a.value ?? "" : a.type === "prefix" ? `${a.value ?? ""}${cur}` : `${cur}${a.value ?? ""}`;
+      const add = fillPlaceholders(a.value ?? "", out);
+      if (!add.trim() && /\{\w+\}/.test(a.value ?? "")) continue; // ex. „{brand} ” la un produs fără marcă
+      // Prefix/sufix: nu dublăm ce există deja („Bosch Bosch GSR…”), deci regula se poate aplica de oricâte ori.
+      if (a.type !== "set" && add.trim() && normalizeText(cur).includes(normalizeText(add.trim()))) continue;
+      const val = a.type === "set" ? add : a.type === "prefix" ? `${add}${cur}` : `${cur}${add}`;
       out = { ...out, [a.field]: a.field === "price" ? parseFloat(val) || out.price : val };
     }
   }
@@ -224,7 +234,28 @@ export function feedWriter(channel: string, project: StoreRef, settings?: FeedOu
   return { type: "application/xml", stats: simpleStats,
     head: `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel><title>${x(project.name)}</title><link>https://${x(project.domain)}</link>\n`,
     foot: "</channel></rss>",
-    row: counted((p) => `<item><g:id>${x(p.externalId)}</g:id><title>${x(p.title)}</title><description>${x(p.description ?? p.title)}</description><link>${x(p.url)}</link>${p.imageUrl ? `<g:image_link>${x(p.imageUrl)}</g:image_link>` : ""}<g:price>${x(priceStr(p))}</g:price><g:availability>${p.inStock ? "in_stock" : "out_of_stock"}</g:availability>${p.brand ? `<g:brand>${x(p.brand)}</g:brand>` : ""}${p.gtin ? `<g:gtin>${x(p.gtin)}</g:gtin>` : "<g:identifier_exists>no</g:identifier_exists>"}${p.category ? `<g:product_type>${x(p.category)}</g:product_type>` : ""}<g:condition>new</g:condition>${p.labels.slice(0, 5).map((l, i) => `<g:custom_label_${i}>${x(l)}</g:custom_label_${i}>`).join("")}</item>\n`) };
+    row: counted((p) => `<item>${googleItem(p).map(([k, v]) => `<${k}>${x(v)}</${k}>`).join("")}</item>\n`) };
+}
+
+/**
+ * Câmpurile unui produs în feed-ul Google (și Meta, TikTok, Glami), în ordinea din fișier. Funcție pură: aceeași listă
+ * se scrie în feed și se arată în fișa produsului, ca magazinul să vadă exact ce trimitem.
+ * GTIN-ul invalid nu se trimite (Google respinge produsul); fără GTIN și fără cod producător: identifier_exists = no.
+ */
+export function googleItem(p: FeedProduct): [string, string][] {
+  const gtin = cleanGtin(p.gtin);
+  const mpn = (p.mpn ?? "").trim().slice(0, 70);
+  const out: [string, string][] = [["g:id", p.externalId], ["title", p.title], ["description", p.description ?? p.title], ["link", p.url]];
+  if (p.imageUrl) out.push(["g:image_link", p.imageUrl]);
+  out.push(["g:price", priceStr(p)], ["g:availability", p.inStock ? "in_stock" : "out_of_stock"]);
+  if (p.brand) out.push(["g:brand", p.brand]);
+  if (gtin) out.push(["g:gtin", gtin]);
+  if (mpn) out.push(["g:mpn", mpn]);
+  if (!gtin && !(mpn && p.brand)) out.push(["g:identifier_exists", "no"]);
+  if (p.category) out.push(["g:product_type", p.category]);
+  out.push(["g:condition", "new"]);
+  p.labels.slice(0, 5).forEach((l, i) => out.push([`g:custom_label_${i}`, l]));
+  return out;
 }
 
 /** Tot feed-ul ca text (pentru cataloage mici și teste). Workerul folosește feedWriter, pe bucăți. */

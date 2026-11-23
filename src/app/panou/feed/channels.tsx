@@ -6,6 +6,7 @@ import { CHANNELS } from "@/core/feed";
 import { busyKinds } from "@/core/jobs";
 import { missingOpenAiSettings } from "@/core/feed-channels/openai";
 import { effectivePolicy } from "@/core/feed-channels/policy-links";
+import { CardHelp } from "@/components/card-help";
 import { regenerateFeeds, toggleChannel } from "@/app/actions-feed";
 import { dateTime, num } from "@/lib/format";
 
@@ -43,8 +44,7 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
   const gaps = s ? Object.entries(s.missing).filter(([, n]) => n > 0) : [];
 
   return (
-    <Card title="ChatGPT (OpenAI)" action={<Status o={o} busy={working} />}>
-      <p className="mb-4 text-sm text-muted">Feed-ul de produse pentru ChatGPT, în formatul cerut de OpenAI (CSV). Echo îl generează singur din catalogul deja sincronizat, îl reface după fiecare sincronizare și cel puțin o dată pe zi. Magazinul nu e întrebat nimic în plus.</p>
+    <Card title="ChatGPT (OpenAI)" action={<Status o={o} busy={working} />} description={<CardHelp id="feed.chatgpt" />}>
       {!o?.active ? (
         <form action={toggleChannel}>{pid}<input type="hidden" name="channel" value="openai" /><SubmitButton pendingText="Pornim…">Pornește feed-ul ChatGPT</SubmitButton></form>
       ) : (
@@ -115,7 +115,7 @@ export async function ChannelsCard({ projectId }: { projectId: string }) {
     db.select({ storeInfo: schema.projects.storeInfo }).from(schema.projects).where(eq(schema.projects.id, projectId)).limit(1)]);
   const pid = <input type="hidden" name="projectId" value={projectId} />;
   return (
-    <Card title="Alte canale">
+    <Card title="Alte canale" description={<CardHelp id="feed.channels" />}>
       <Table head={["Canal", "Stare", "Adresa feed-ului", ""]}>
         {CHANNELS.filter((c) => c.id !== "openai").map((c) => {
           const o = outputs.find((x) => x.channel === c.id);

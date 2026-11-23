@@ -44,3 +44,42 @@ describe("DESIGN.md: reguli verificabile în cod", () => {
     });
   }
 });
+
+/** Deschiderea unui tag JSX: de la „<Card” până la „>”-ul care îl închide, sărind peste {…} și ghilimele. */
+function openingTags(src: string, tag: string) {
+  const out: string[] = [];
+  const re = new RegExp(`<${tag}[\\s>]`, "g");
+  for (let m = re.exec(src); m; m = re.exec(src)) {
+    let depth = 0, quote = "";
+    let i = m.index + 1;
+    for (; i < src.length; i++) {
+      const c = src[i];
+      if (quote) { if (c === quote && src[i - 1] !== "\\") quote = ""; continue; }
+      if (c === '"' || c === "`" || (c === "'" && depth > 0)) { quote = c; continue; }
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ">" && depth === 0) break;
+    }
+    out.push(src.slice(m.index, i + 1));
+  }
+  return out;
+}
+
+describe("DESIGN.md §6.3: fiecare card cu titlu din panou are explicația de sub titlu", () => {
+  const panel = ["src/app/panou", "src/components"].flatMap(files);
+  it("<Card title=…> are și description=… (ce face cardul, la ce te ajută)", () => {
+    const missing: string[] = [];
+    for (const f of panel) {
+      for (const t of openingTags(readFileSync(f, "utf8"), "Card")) {
+        if (/\stitle=/.test(t) && !/\sdescription=/.test(t)) missing.push(`${f}: ${t.slice(0, 80)}`);
+      }
+    }
+    expect(missing, missing.join("\n")).toEqual([]);
+  });
+
+  it("fiecare explicație are text în română și în maghiară", async () => {
+    const { CARD_HELP } = await import("@/lib/card-help");
+    const empty = Object.entries(CARD_HELP).filter(([, h]) => !h.ro.trim() || !h.hu.trim()).map(([k]) => k);
+    expect(empty).toEqual([]);
+  });
+});

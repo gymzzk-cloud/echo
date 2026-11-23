@@ -5,6 +5,7 @@ import type { StorePolicies } from "../core/policies/extract";
 import type { Onboarding } from "../core/onboarding/types";
 import type { Opinion } from "../core/ai/sentiment";
 import type { ProductExample } from "../core/product-visibility";
+import type { ProductFields } from "../core/audit/structured";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -146,6 +147,8 @@ export const products = pgTable("products", {
   uniqueIndex("products_project_ext_idx").on(t.projectId, t.externalId),
   index("products_project_idx").on(t.projectId),
   index("products_project_popularity_idx").on(t.projectId, t.popularityRank),
+  index("products_gtin_idx").on(t.gtin), // fișa produsului: căutare după EAN și prețul aceluiași EAN în alte magazine
+  index("products_project_mpn_idx").on(t.projectId, t.mpn), // fișa produsului: căutare după codul producătorului
 ]);
 
 /**
@@ -172,6 +175,27 @@ export const productAiStats = pgTable("product_ai_stats", {
   primaryKey({ columns: [t.projectId, t.productId] }),
   index("product_ai_stats_rank_idx").on(t.projectId, t.appearances),
   index("product_ai_stats_product_idx").on(t.productId), // ștergerea unui produs la sincronizare
+]);
+
+/**
+ * Pagina unui produs, citită la cerere de worker (o singură cerere, prin politeFetch): ce date structurate
+ * (schema.org Product) văd Google, Gemini și celelalte AI-uri. Un rând pe produs, rescris la fiecare verificare.
+ */
+export const productPageChecks = pgTable("product_page_checks", {
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  url: text("url").notNull(), // adresa finală, după redirecționări
+  httpStatus: integer("http_status").notNull(), // 0 = nu am putut deschide pagina
+  botBlocked: boolean("bot_blocked").notNull().default(false), // firewall-ul ne-a refuzat ca robot (am reușit doar ca browser)
+  found: text("found").notNull().default(""), // rezumat: „JSON-LD: Product, BreadcrumbList · Microdata: Offer”
+  source: text("source"), // forma în care e marcat produsul: JSON-LD | Microdata | RDFa
+  fields: jsonb("fields").$type<ProductFields>(), // null = pagina nu are Product
+  descriptionWords: integer("description_words"),
+  error: text("error"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.projectId, t.productId] }),
+  index("product_page_checks_product_idx").on(t.productId),
 ]);
 
 export const competitors = pgTable("competitors", {

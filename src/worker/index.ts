@@ -14,6 +14,7 @@ import { projectsDueForPolicies, refreshPolicies } from "@/core/policies";
 import { pruneMcpCalls } from "@/core/mcp";
 import { generateFixes, projectsDueForFixes } from "@/core/fixes";
 import { computeProductVisibility, projectsDueForProductAi } from "@/core/product-visibility-job";
+import { checkProductPage } from "@/core/product-sheet/page-check";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -49,6 +50,7 @@ async function handle(kind: string, payload: Record<string, string>) {
       return r;
     }
     case "product_ai": return computeProductVisibility(payload.projectId);
+    case "product_page": return checkProductPage(payload.projectId, payload.productId);
     case "report": {
       const r = await buildWeeklyReport(payload.projectId);
       if (payload.email) await sendReport(r.id, payload.email);

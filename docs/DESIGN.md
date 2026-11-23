@@ -1,7 +1,7 @@
 # Echo: reguli de design
 
 > Fișierul pe care îl respectă **fiecare ecran, componentă și email**. Dacă o regulă trebuie încălcată, o schimbăm întâi aici, cu motiv, și abia apoi în cod.
-> Versiunea 0.2, 20.11.2026. Tokenurile sunt în `src/app/globals.css`, componentele în `src/components/ui.tsx`.
+> Versiunea 0.3, 23.11.2026. Tokenurile sunt în `src/app/globals.css`, componentele în `src/components/ui.tsx`.
 > **Ghidul vizual** (fiecare regulă desenată, cu exemple Corect și Greșit): `docs/design/ghid-vizual.html`. Se deschide în browser.
 
 ## 0. Regula de aur
@@ -127,7 +127,9 @@ Așezări permise pentru un formular (`FormGrid`): o coloană; 2, 3 sau 4 coloan
 ### 6.3 Carduri
 
 - `Card` cu titlu: titlul e text normal, 16 px, greutate 600 (nu majuscule). În dreapta titlului poate sta un `TextLink` („Detalii”) sau un buton `sm`, aliniat pe mijlocul titlului.
-- Descrierea de sub titlu: `text-sm text-muted`, cel mult 2 rânduri.
+- **Fiecare card cu titlu din panou are o explicație sub titlu** (prop-ul `description`, cu `<CardHelp id="…" />`): ce face cardul și la ce te ajută, pentru cineva care vede panoul prima oară. Fără jargon: nu „Reguli”, ci „Schimbări automate „dacă… atunci…” aplicate produselor înainte să plece în feed… Te ajută să…”. Textele stau în `src/lib/card-help.ts`, în română și maghiară. `tests/design-rules.test.ts` pică dacă un `<Card title=…>` din panou nu are `description`. *(ZoZo, 23.11.2026: „ar trebui să aibă sub titlu o descriere pentru a înțelege la ce se folosește… că așa nimeni n-o să știe”)*
+- Descrierea de sub titlu: `text-sm text-muted`, cel mult 2 rânduri (3 la cardurile-unealtă, ca „Reguli”). Nu o repetăm ca paragraf în corpul cardului.
+- Un card-unealtă (formular de reguli, setări avansate) arată întâi dacă ai nevoie de el: ce ar schimba pe datele tale reale, cu exemple „înainte → după”, și exemple gata făcute care completează formularul. Dacă nu ai nevoie, o spune („Nu trebuie să adaugi nicio regulă”).
 - Nota de la final (surse, explicații): `text-xs text-muted`, la 16 px după conținut.
 - Carduri alăturate într-un rând au aceeași înălțime (grila le întinde) și același padding.
 - Carduri cifră (`Stat`): eticheta (`.label`), cifra mare (Sora, 30 px), variația (▲/▼ colorat) și, opțional, o explicație scurtă.
@@ -204,7 +206,7 @@ Reguli:
 ## 12. Lista de verificare pentru orice ecran
 
 Două verificări automate prind o parte din listă:
-- `pnpm test` rulează `tests/design-rules.test.ts`: fără elemente native scrise de mână, culori directe, mărimi de text sau spații în afara scării, colțuri greșite și umbre, în `src/app/panou` și `src/components`.
+- `pnpm test` rulează `tests/design-rules.test.ts`: fiecare card cu titlu are explicație, fără elemente native scrise de mână, culori directe, mărimi de text sau spații în afara scării, colțuri greșite și umbre, în `src/app/panou` și `src/components`.
 - `pnpm ui:check` (cu aplicația pornită) deschide fiecare pagină din panou la 360, 768 și 1366 px, luminos și întunecat, verifică să nu existe scroll orizontal, insigne sau butoane rupte pe două rânduri și salvează capturile în `ui-shots/` pentru PR.
 
 - [ ] Folosește doar componentele din `ui.tsx` și culorile din tokenuri (nimic scris de mână)
@@ -215,6 +217,7 @@ Două verificări automate prind o parte din listă:
 - [ ] Funcționează la 360, 768 și 1366 px, fără scroll orizontal
 - [ ] Funcționează în modul luminos și în cel întunecat
 - [ ] Răspunsul principal se vede sus, fără scroll; fiecare problemă are acțiune
+- [ ] Fiecare card cu titlu are explicația de sub titlu (ce face, la ce te ajută), în RO și HU
 - [ ] Există stare goală, de încărcare și de eroare
 - [ ] Contrast AA, focus vizibil, zone de atingere de 44 px pe telefon
 - [ ] Texte cu diacritice corecte, cifre cu format local și `num`

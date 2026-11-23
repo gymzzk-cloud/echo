@@ -10,6 +10,7 @@ import { dateShort } from "@/lib/format";
 import { addWebhook, createApiKey, deleteWebhook, revokeApiKey, saveMcpEnabled, testWebhook } from "@/app/actions-dev";
 import { StorePoliciesView } from "@/components/store-policies";
 import { busyKinds } from "@/core/jobs";
+import { CardHelp } from "@/components/card-help";
 
 export default async function Developers() {
   const { org, project, role } = await currentProject();
@@ -23,7 +24,7 @@ export default async function Developers() {
     <>
       <PageHeader eyebrow="Cont" title="API și MCP" subtitle="Agenții AI pot citi direct catalogul tău verificat prin MCP. Sistemele tale pot citi datele Echo prin API și pot primi evenimente prin webhook." />
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Serverul MCP al magazinului" className="lg:col-span-2">
+        <Card title="Serverul MCP al magazinului" description={<CardHelp id="dev.mcp" />} className="lg:col-span-2">
           <p className="mb-2 flex flex-wrap items-center gap-2 text-sm">Adresa: <code className="break-all">{app}/mcp/magazin/{project.domain}{project.pathPrefix}</code> {project.mcpEnabled ? <Badge tone="good">Pornit</Badge> : <Badge>Oprit</Badge>}</p>
           <p className="mb-4 text-xs text-muted">Unelte: cauta_in_catalog, pret_si_stoc, livrare_si_retur, intrebari_frecvente, link_cumparare. Se adaugă în ChatGPT (Developer mode → Connectors), Claude (Settings → Connectors) sau orice client MCP. Serverul pentru cumpărători, peste toate magazinele verificate: <code>{app}/mcp</code>.</p>
           <ActionForm action={saveMcpEnabled} className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
@@ -34,13 +35,13 @@ export default async function Developers() {
           <StorePoliciesView projectId={project.id} policies={project.storeInfo?.policies} busy={busy.has("policies")} />
         </Card>
 
-        <Card title="Ce întreabă agenții (MCP)">
+        <Card title="Ce întreabă agenții (MCP)" description={<CardHelp id="dev.mcpCalls" />}>
           {calls.length === 0 ? <p className="text-sm text-muted">Niciun apel încă.</p> : (
             <ul className="text-sm">{calls.map((c) => <ListRow key={c.id}><span className="font-semibold">{c.tool}</span> <span className="break-words text-muted">{c.query}</span><div className="text-xs text-muted">{dateShort(c.createdAt)} · {c.client ?? "client necunoscut"}</div></ListRow>)}</ul>
           )}
         </Card>
 
-        <Card title="Chei API">
+        <Card title="Chei API" description={<CardHelp id="dev.apiKeys" />}>
           {keys.length > 0 && (
             <Table head={["Nume", "Început", "Folosită", ""]}>
               {keys.map((k) => <tr key={k.id}><Td>{k.name}</Td><Td><code>{k.prefix}…</code></Td><Td className="text-xs">{k.lastUsedAt ? dateShort(k.lastUsedAt) : "niciodată"}</Td><Td className="text-right">{admin && <form action={revokeApiKey}><input type="hidden" name="id" value={k.id} /><SubmitButton variant="danger" size="sm" pendingText="Revoc…">Revocă</SubmitButton></form>}</Td></tr>)}
@@ -52,7 +53,7 @@ export default async function Developers() {
           <p className="mt-2 text-xs text-muted">Rute: /projects, /projects/{"{id}"}/visibility, /actions, /sales, /search?q=, POST /agent-gate, POST /reviews.</p>
         </Card>
 
-        <Card title="Webhook-uri" className="lg:col-span-2">
+        <Card title="Webhook-uri" description={<CardHelp id="dev.webhooks" />} className="lg:col-span-2">
           {hooks.length > 0 && (
             <Table head={["Adresă", "Evenimente", "Ultimul răspuns", ""]}>
               {hooks.map((h) => (

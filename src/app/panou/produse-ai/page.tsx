@@ -7,8 +7,11 @@ import { SubmitButton } from "@/components/client";
 import { Badge, ButtonLink, Card, Chips, Empty, Input, Notice, PageHeader, Stat, Table, Td, TextLink, Working } from "@/components/ui";
 import { dateTime, money, num, pct } from "@/lib/format";
 import { recomputeProductAi } from "@/app/actions-product-ai";
+import { redirect } from "next/navigation";
+import { findCatalogProducts } from "@/core/product-sheet/read";
+import { ProductSearchCard } from "@/components/product-sheet/search";
 
-type Sp = { f?: string; ai?: string; q?: string; p?: string };
+type Sp = { f?: string; ai?: string; q?: string; p?: string; cauta?: string };
 
 /**
  * Produse în AI: pentru fiecare produs din catalog, în câte răspunsuri AI apare, pe ce loc și ce preț spune AI-ul.
@@ -21,7 +24,11 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
   const provider = PROVIDERS.some((p) => p.id === sp.ai) ? sp.ai : undefined;
   const q = (sp.q ?? "").trim().slice(0, 100);
   const page = Math.max(1, parseInt(sp.p ?? "1", 10) || 1);
-  const [sum, list, busy] = await Promise.all([productAiSummary(project.id), productAiList(project.id, { filter, provider, q, page }), busyKinds(project.id)]);
+  const cauta = (sp.cauta ?? "").trim().slice(0, 300);
+  const [sum, list, busy, hits] = await Promise.all([productAiSummary(project.id), productAiList(project.id, { filter, provider, q, page }), busyKinds(project.id), cauta ? findCatalogProducts(project.id, cauta) : null]);
+  // Un singur produs găsit (cod, EAN, link): deschidem direct fișa lui.
+  if (hits?.length === 1) redirect(`/panou/produse-ai/${hits[0].id}`);
+  const search = <ProductSearchCard q={cauta} hits={hits} />;
 
   const working = busy.has("product_ai") || busy.has("run_project");
   const canWrite = role !== "viewer" && role !== "client";
@@ -30,12 +37,12 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
     : canWrite && sum.answers !== null && (
       <form action={recomputeProductAi}><input type="hidden" name="projectId" value={project.id} /><SubmitButton variant="secondary" pendingText="Pornesc…">Recalculează</SubmitButton></form>
     );
-  const header = <PageHeader eyebrow="Vizibilitate" title="Produse în AI" subtitle="Ce produse din catalogul tău numesc AI-urile, pe ce loc și la ce preț." action={action} />;
+  const header = <PageHeader eyebrow="Vizibilitate" title="Produse în AI" subtitle="Ce produse din catalogul tău numesc AI-urile, pe ce loc și la ce preț, și fișa fiecărui produs în ChatGPT și Google." action={action} />;
 
   if (!sum.catalog) return <>{header}<Empty title="Nu avem încă produsele tale" action={<ButtonLink href="/panou/setari">Conectează catalogul</ButtonLink>}>Conectează magazinul sau feed-ul de produse, ca să căutăm produsele tale în răspunsurile AI-urilor.</Empty></>;
-  if (sum.answers === null) return <>{header}<Empty title={working ? "Calculăm vizibilitatea pe produs" : "Încă nu avem răspunsuri AI"} action={!working && <ButtonLink href="/panou/vizibilitate" variant="secondary">Vezi întrebările urmărite</ButtonLink>}>
+  if (sum.answers === null) return <div className="space-y-6">{header}{search}<Empty title={working ? "Calculăm vizibilitatea pe produs" : "Încă nu avem răspunsuri AI"} action={!working && <ButtonLink href="/panou/vizibilitate" variant="secondary">Vezi întrebările urmărite</ButtonLink>}>
     {working ? "Citim răspunsurile AI deja primite și căutăm în ele produsele tale. Durează un minut." : "După prima analiză AI, aici vezi fiecare produs pe care AI-urile îl recomandă."}
-  </Empty></>;
+  </Empty></div>;
 
   const answers = sum.answers;
   const share = (n: number) => (answers ? pct((n / answers) * 100) : "0%");
@@ -51,6 +58,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-6">
       {header}
+      {search}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Produse numite de AI" value={`${sum.named} / ${sum.catalog}`} hint={`în ${answers} răspunsuri, ultimele ${PRODUCT_AI_WINDOW_DAYS} de zile`} />
         <Stat label="Numite fără magazinul tău" value={sum.named ? sum.withoutStore : "–"} hint={!sum.named ? "niciun produs numit" : sum.withoutStore ? "AI-ul le trimite în alt magazin" : "de fiecare dată cu tine"} />
