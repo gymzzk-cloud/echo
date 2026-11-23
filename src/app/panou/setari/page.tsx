@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { activeProviders, projectUsageThisMonth } from "@/core/ai/engine";
-import { budgetLeft, costConfig } from "@/core/ai/budget";
+import { costConfig } from "@/core/ai/budget";
 import { providerLabel } from "@/core/ai/types";
 import { Badge, btn, Card, Field, FileInput, FormActions, IconButton, Input, ListRow, Notice, PageHeader, Select, SubCard } from "@/components/ui";
 import { SubmitButton } from "@/components/client";
@@ -15,7 +15,6 @@ import { promptLimit } from "@/core/prompts";
 import { CardHelp } from "@/components/card-help";
 
 // Tipurile noi (produs, cod, categorie) sunt primele; cele vechi rămân doar ca etichete pentru căutările adăugate înainte.
-const usd = (n: number) => `$${n.toFixed(2)}`;
 const INTENT_NEW: Record<string, string> = { produs: "Nume produs", cod: "Cod / EAN", categorie: "Tip de produs", brand: "Despre magazin", general: "Altă căutare" };
 const INTENT: Record<string, string> = { ...INTENT_NEW, comparatie: "Comparație", cumparare: "Cumpărare", comercial: "Recomandare", informativ: "Informare" };
 
@@ -32,7 +31,6 @@ export default async function Settings() {
   const limit = promptLimit(org[0]?.plan ?? "trial");
   const providers = activeProviders();
   const cfg = costConfig();
-  const left = budgetLeft(usage.usd, cfg.monthlyBudgetUsd);
   const fmtInt = (n: number) => n.toLocaleString("ro-RO");
   const hidden = <input type="hidden" name="projectId" value={project.id} />;
   const active = prompts.filter((p) => p.active).length;
@@ -140,17 +138,14 @@ export default async function Settings() {
         </ul>
       </Card>
 
-      <Card title="AI-uri și costuri" description={<CardHelp id="settings.aiCosts" />}>
+      <Card title="AI-uri întrebate" description={<CardHelp id="settings.aiCosts" />}>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {providers.map((p) => <li key={p.id}><SubCard className="flex items-center justify-between gap-2 p-3 text-sm">{providerLabel(p.id)}<Badge tone={p.live ? "good" : undefined}>{p.live ? "Activ" : p.off === "off" ? "Oprit" : "Fără cheie"}</Badge></SubCard></li>)}
         </ul>
-        <dl className="mt-6 grid gap-4 border-t border-border pt-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div><dt className="label">Întrebări luna asta</dt><dd className="num font-display mt-1 text-xl font-semibold">{fmtInt(usage.n)}</dd></div>
-          <div><dt className="label">Tokeni (intrare / ieșire)</dt><dd className="num font-display mt-1 text-xl font-semibold">{fmtInt(usage.inputTokens)} / {fmtInt(usage.outputTokens)}</dd></div>
-          <div><dt className="label">Cost estimat</dt><dd className="num font-display mt-1 text-xl font-semibold">{usd(usage.usd)}</dd></div>
-          <div><dt className="label">Buget lunar</dt><dd className="num font-display mt-1 text-xl font-semibold">{left === null ? "fără plafon" : <>{usd(left)} <span className="text-sm font-normal text-muted">rămași din {usd(cfg.monthlyBudgetUsd)}</span></>}</dd></div>
+        <dl className="mt-6 border-t border-border pt-6">
+          <div><dt className="label">Întrebări puse luna asta</dt><dd className="num font-display mt-1 text-xl font-semibold">{fmtInt(usage.n)}</dd></div>
         </dl>
-        <p className="mt-4 text-xs text-muted">Întrebările rulează automat o dată la {cfg.runEveryDays} {cfg.runEveryDays === 1 ? "zi" : "zile"}, pe modele ieftine, cu răspunsuri scurte. O întrebare pusă deja azi nu se mai plătește a doua oară, nici dacă o urmăresc mai multe magazine. AI-urile „fără cheie” sau „oprite” nu sunt întrebate deloc. Meta AI răspunde fără căutare pe web, din ce știe modelul. La atingerea bugetului ne oprim până luna viitoare.</p>
+        <p className="mt-4 text-xs text-muted">Întrebările rulează automat o dată la {cfg.runEveryDays} {cfg.runEveryDays === 1 ? "zi" : "zile"}. AI-urile „fără cheie” sau „oprite” nu sunt întrebate deloc. Meta AI răspunde fără căutare pe web, din ce știe modelul.</p>
       </Card>
     </div>
   );

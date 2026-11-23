@@ -405,6 +405,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: arătăm până la 50 de produse, spunem câte am găsit și, când sunt mai multe, cum să restrângi căutarea (cod producător, „solo”). O parte din codul producătorului („N3200”) găsește și codurile care o conțin.
 - De ce: ZoZo: „aici în listă nu apare varianta solo cu cod N3200”.
 
+**B40. Costurile noastre de AI arătate în panoul magazinului** *(23.11.2026, 19:38)*
+- Nu: „Cost estimat pe lună $3.31” în Produse urmărite, „Cost estimat / Buget lunar / Tokeni” în Setări, alerta „Am atins bugetul lunar pentru AI (5 USD)”. Sunt costurile noastre la furnizorii de AI, nu ale clientului.
+- În schimb: magazinul vede doar ce AI-uri întrebăm, câte întrebări pe rulare și câte luna asta; costurile, tokenii și plafonul pe fiecare magazin sunt doar în pagina internă `/admin/costuri`.
+- De ce: ZoZo: „asta este un panou al clientului, el nu trebuie să vadă aceste costuri, eventual doar noi… nu este corect să pui aici în magazin aceste date”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

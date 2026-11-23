@@ -63,7 +63,7 @@ export const CARD_HELP = {
   "bots.cloudflare": { ro: "Dacă site-ul e pe Cloudflare, un mic cod ne trimite singur vizitele roboților AI, în fiecare zi.", hu: "Ha az oldal a Cloudflare-en van, egy kis kód naponta magától elküldi nekünk az AI-robotok látogatásait." },
   // Setări
   "settings.catalog": { ro: "De unde luăm produsele (feed, API sau platforma magazinului). Cu catalogul real verificăm prețurile spuse de AI-uri și propunem întrebări pe produsele tale.", hu: "Honnan vesszük a termékeket (feed, API vagy a webshop platformja). A valós katalógussal ellenőrizzük az AI-k által mondott árakat, és a termékeidre javasolunk kérdéseket." },
-  "settings.aiCosts": { ro: "Ce AI-uri întrebăm, cât costă întrebările luna aceasta și cât a rămas din buget. Nu se cheltuie peste plafon.", hu: "Mely AI-kat kérdezzük, mennyibe kerülnek a kérdések ebben a hónapban, és mennyi maradt a keretből. A plafon felett nem költünk." },
+  "settings.aiCosts": { ro: "Ce AI-uri întrebăm despre magazinul tău și câte întrebări le-am pus luna aceasta.", hu: "Mely AI-kat kérdezzük a boltodról, és hány kérdést tettünk fel nekik ebben a hónapban." },
   // Dezvoltatori
   "dev.mcp": { ro: "O adresă prin care ChatGPT, Claude și alți asistenți îți citesc direct catalogul, prețul și stocul. Așa răspund corect despre produsele tale.", hu: "Egy cím, amelyen a ChatGPT, a Claude és más asszisztensek közvetlenül olvassák a katalógusodat, árat és készletet. Így helyesen válaszolnak a termékeidről." },
   "dev.mcpCalls": { ro: "Ultimele întrebări puse de asistenții AI prin serverul tău MCP. Vezi ce caută cumpărătorii prin AI.", hu: "Az AI-asszisztensek legutóbbi kérdései az MCP-szervereden keresztül. Látod, mit keresnek a vásárlók AI-n át." },

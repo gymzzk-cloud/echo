@@ -3,9 +3,9 @@ import { productCodes } from "@/lib/product-codes";
 import { db, schema } from "@/db";
 import { eq } from "drizzle-orm";
 import { findCatalogProducts } from "@/core/product-sheet/read";
-import { monthlyCostEstimate, trackedProductList, type TrackedStatus } from "@/core/tracked-products";
+import { trackedProductList, type TrackedStatus } from "@/core/tracked-products";
 import { promptLimit } from "@/core/prompts";
-import { activeProviders, projectUsageThisMonth } from "@/core/ai/engine";
+import { activeProviders } from "@/core/ai/engine";
 import { costConfig } from "@/core/ai/budget";
 import { SubmitButton } from "@/components/client";
 import { CardHelp } from "@/components/card-help";
@@ -32,16 +32,14 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
   const { project, role } = await currentProject();
   const canWrite = role !== "viewer" && role !== "client";
   const q = (sp.cauta ?? "").trim().slice(0, 100);
-  const [list, hits, [org], usage] = await Promise.all([
+  const [list, hits, [org]] = await Promise.all([
     trackedProductList(project.id),
     q ? findCatalogProducts(project.id, q, SEARCH_MAX + 1) : Promise.resolve(null),
     db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, project.orgId)),
-    projectUsageThisMonth(project.id),
   ]);
   const limit = promptLimit(org?.plan ?? "trial");
   const providers = activeProviders().filter((p) => !p.off).length;
   const cfg = costConfig();
-  const cost = monthlyCostEstimate(list.activePrompts, providers, cfg.runEveryDays, usage);
   const room = Math.max(0, limit - list.manualActive);
   const active = list.items.filter((i) => i.status !== "scos");
   const removed = list.items.filter((i) => i.status === "scos");
@@ -56,11 +54,10 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
 
       <Feedback sp={sp} limit={limit} />
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 sm:grid-cols-3">
         <Stat label="Alese de tine" value={`${num(list.manualActive)} / ${num(limit)}`} hint={room ? `mai poți adăuga ${num(room)} (produse și întrebări alese de tine)` : "ai atins limita planului"} />
         <Stat label="Propuse automat" value={num(active.length - chosen.size)} hint="cele mai vândute, din fiecare categorie, în locurile libere" />
         <Stat label="Întrebări pe rulare" value={num(list.activePrompts * providers)} hint={`${num(list.activePrompts)} întrebări × ${providers} AI-uri, o dată la ${cfg.runEveryDays} zile`} />
-        <Stat label="Cost estimat pe lună" value={cost ? `$${cost.usd.toFixed(2)}` : "–"} hint={cost ? `din costul mediu de luna asta; plafon ${cfg.monthlyBudgetUsd ? `$${cfg.monthlyBudgetUsd}` : "fără"}, peste el nu mai întrebăm` : "după primele întrebări de luna asta"} />
       </div>
 
       {canWrite && (
@@ -124,7 +121,7 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
             )}
           </form>
         ) : <p className="text-sm text-muted">Încă nu urmărim niciun produs direct. Caută mai sus produsele importante pentru tine.</p>}
-        <p className="mt-4 text-xs text-muted">Pentru fiecare produs întrebăm AI-urile numele lui, cum l-ar căuta un client. Rezultatele apar în <TextLink href="/panou/produse-ai" className="text-xs">Produse în AI</TextLink> după următoarea rulare programată. O întrebare pusă azi pentru alt magazin nu se plătește din nou.</p>
+        <p className="mt-4 text-xs text-muted">Pentru fiecare produs întrebăm AI-urile numele lui, cum l-ar căuta un client. Rezultatele apar în <TextLink href="/panou/produse-ai" className="text-xs">Produse în AI</TextLink> după următoarea rulare programată.</p>
       </Card>
 
       {removed.length > 0 && (

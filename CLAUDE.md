@@ -115,7 +115,7 @@ O sarcină e gata doar când:
 - **La termen, nu la fiecare clic**: rularea automată se face o dată la `AI_RUN_EVERY_DAYS` zile (implicit 7). „Rulează acum” nu plătește din nou întrebările deja puse azi.
 - **Buget lunar per magazin**: `AI_MONTHLY_BUDGET_USD` (implicit 5, 0 = fără plafon). La atingerea lui rularea se oprește și magazinul primește o alertă.
 - **AI-urile fără cheie nu sunt întrebate** și nu primesc răspunsuri simulate (decât cu `ALLOW_DEMO_AI=1`, doar pentru demo).
-- Consumul (întrebări, tokeni, cost, buget rămas) se vede în Setări → „AI-uri și costuri”.
+- Consumul (întrebări, tokeni, cost, buget rămas) se vede doar intern, în `/admin/costuri`. **Magazinul nu vede niciodată costuri, tokeni sau bugetul nostru** în panou (ZoZo, 23.11.2026); în Setări vede doar ce AI-uri întrebăm și câte întrebări.
 - Următorul pas: rulările programate prin Batch API (OpenAI și Anthropic, ~50% mai ieftin), cu ADR, pentru că schimbă fluxul worker-ului (rezultatele vin în câteva ore).
 
 ## Testare
