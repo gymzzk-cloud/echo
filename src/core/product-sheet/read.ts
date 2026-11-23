@@ -19,21 +19,32 @@ const P = schema.products;
 export const SHEET_WINDOW_DAYS = 30;
 export const SHEET_MAX_RUNS = 15;
 
-/** Căutarea unui produs în tot catalogul: cod din catalog, cod producător, EAN, link sau cuvintele din nume. Cel mult 10. */
-export async function findCatalogProducts(projectId: string, raw: string) {
+/** Un text care arată ca o bucată de cod (fără spații, cel puțin 4 caractere, cu o cifră), ex. „N3200”. */
+export function isPartialCode(code: string) {
+  return /^[\w.\-/]{4,}$/.test(code) && /\d/.test(code);
+}
+
+/**
+ * Căutarea unui produs în tot catalogul: cod din catalog, cod producător, EAN, link sau cuvintele din nume.
+ * Un cod scris pe jumătate („N3200”) găsește și codurile care îl conțin. Cel mult `limit` rânduri (implicit 10).
+ */
+export async function findCatalogProducts(projectId: string, raw: string, limit = 10) {
   const q = raw.trim().slice(0, 300);
   if (!q) return [];
   const cols = { id: P.id, title: P.title, externalId: P.externalId, mpn: P.mpn, gtin: P.gtin, brand: P.brand, price: P.price, currency: P.currency, inStock: P.inStock, url: P.url };
   if (/^https?:\/\/|^www\.|\.[a-z]{2,}\//i.test(q)) {
     const u = normUrl(q);
-    return db.select(cols).from(P).where(and(eq(P.projectId, projectId), dsql`regexp_replace(lower(${P.url}), '^https?://(www\\.)?|[?#].*$|/+$', '', 'g') = ${u}`)).limit(10);
+    return db.select(cols).from(P).where(and(eq(P.projectId, projectId), dsql`regexp_replace(lower(${P.url}), '^https?://(www\\.)?|[?#].*$|/+$', '', 'g') = ${u}`)).limit(limit);
   }
   const code = q.replace(/\s+/g, "");
   const exact: SQL = or(eq(P.externalId, q), eq(P.gtin, code), eq(P.mpn, q), dsql`lower(${P.mpn}) = lower(${q})`, dsql`lower(${P.externalId}) = lower(${q})`)!;
   const terms = normalizeText(q).split(" ").filter((w) => w.length > 1).slice(0, 8);
+  const partCode = isPartialCode(code)
+    ? dsql`(lower(${P.mpn}) like ${`%${code.toLowerCase().replace(/[%_\\]/g, "\\$&")}%`} or lower(${P.externalId}) like ${`%${code.toLowerCase().replace(/[%_\\]/g, "\\$&")}%`})`
+    : dsql`false`;
   const named = terms.length ? dsql`(${dsql.join(terms.map((w) => dsql`unaccent_lower(${P.title}) like ${`%${w.replace(/[%_\\]/g, "\\$&")}%`}`), dsql` and `)})` : dsql`false`;
-  return db.select(cols).from(P).where(and(eq(P.projectId, projectId), or(exact, named)))
-    .orderBy(dsql`(${exact}) desc`, asc(P.popularityRank), desc(P.inStock), asc(P.title)).limit(10);
+  return db.select(cols).from(P).where(and(eq(P.projectId, projectId), or(exact, partCode, named)))
+    .orderBy(dsql`(${exact}) desc`, dsql`(${partCode}) desc`, asc(P.popularityRank), desc(P.inStock), asc(P.title)).limit(limit);
 }
 
 /** Etichetele automate ale unui singur produs, cu aceleași reguli ca feed-ul (labelsFor), din câteva interogări mici. */

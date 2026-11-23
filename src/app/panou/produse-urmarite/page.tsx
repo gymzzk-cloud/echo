@@ -13,6 +13,9 @@ import { Badge, Button, Card, Checkbox, Input, Notice, PageHeader, Stat, Table, 
 import { money, num } from "@/lib/format";
 import { addTracked, addTrackedCodes, removeTracked } from "@/app/actions-tracked";
 
+/** Câte rezultate arătăm la o căutare: destule ca să apară toate variantele unui model (kit, solo, cu acumulatori). */
+const SEARCH_MAX = 50;
+
 type Sp = { cauta?: string; adaugate?: string; peste?: string; deja?: string; negasite?: string; negasiteN?: string; scoase?: string };
 
 const STATUS: Record<TrackedStatus, { label: string; tone: "good" | "muted" | "warn" }> = {
@@ -31,7 +34,7 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
   const q = (sp.cauta ?? "").trim().slice(0, 100);
   const [list, hits, [org], usage] = await Promise.all([
     trackedProductList(project.id),
-    q ? findCatalogProducts(project.id, q) : Promise.resolve(null),
+    q ? findCatalogProducts(project.id, q, SEARCH_MAX + 1) : Promise.resolve(null),
     db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, project.orgId)),
     projectUsageThisMonth(project.id),
   ]);
@@ -43,6 +46,8 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
   const active = list.items.filter((i) => i.status !== "scos");
   const removed = list.items.filter((i) => i.status === "scos");
   const chosen = new Set(active.filter((i) => i.status === "ales").map((i) => i.productId));
+  const more = !!hits && hits.length > SEARCH_MAX;
+  const shown = hits?.slice(0, SEARCH_MAX) ?? null;
   const hidden = <input type="hidden" name="projectId" value={project.id} />;
 
   return (
@@ -65,19 +70,22 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
             <Input id="cauta" name="cauta" defaultValue={q} placeholder="ex. 24924, un EAN sau „GBH 4-32”" />
             <Button type="submit" variant="secondary">Caută</Button>
           </form>
-          {hits && (hits.length ? (
+          {shown && (shown.length ? (
             <form action={addTracked} className="mt-4 space-y-3">
               {hidden}<input type="hidden" name="cauta" value={q} />
               <ul className="divide-y divide-border">
-                {hits.map((h) => (
+                {shown.map((h) => (
                   <li key={h.id} className="flex items-start justify-between gap-3 py-1">
-                    <Checkbox name="productId" value={h.id} disabled={chosen.has(h.id)} defaultChecked={hits.length === 1 && !chosen.has(h.id)} className="min-w-0 flex-1"
+                    <Checkbox name="productId" value={h.id} disabled={chosen.has(h.id)} defaultChecked={shown.length === 1 && !chosen.has(h.id)} className="min-w-0 flex-1"
                       label={<span className="font-medium">{h.title}</span>}
                       hint={<span className="num break-all">{[...productCodes(h), h.brand, money(h.price, h.currency)].filter(Boolean).join(" · ")}</span>} />
                     <span className="pt-2">{chosen.has(h.id) ? <Badge tone="good">Urmărit</Badge> : !h.inStock && <Badge tone="warn">Fără stoc</Badge>}</span>
                   </li>
                 ))}
               </ul>
+              <p className="text-xs text-muted">{more
+                ? `Arătăm primele ${SEARCH_MAX} produse găsite. Dacă nu vezi varianta căutată, scrie și codul producătorului (ex. N3200) sau un cuvânt în plus din nume (ex. „solo”).`
+                : `${num(shown.length)} ${shown.length === 1 ? "produs găsit" : "produse găsite"}. Codul producătorului găsește și o parte din cod (ex. N3200).`}</p>
               <SubmitButton pendingText="Adaug…" disabled={!room}>Adaugă produsele bifate</SubmitButton>
             </form>
           ) : <p className="mt-4 text-sm text-muted">Niciun produs din catalog pentru „{q}”. Verifică codul sau încearcă o parte din nume.</p>)}

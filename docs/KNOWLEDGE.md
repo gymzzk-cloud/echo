@@ -393,6 +393,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: când lista nu dă descrierea, o citim din pagina de detaliu a API-ului, încet (500 pe tranșă, o cerere odată, cu pauză), o păstrăm (tabelul `product_details`) și o reverificăm după 30 de zile; feed-ul și reparațiile se refac după. Decodăm entitățile HTML. Înainte să spunem că un produs „nu are descriere” sau „nu are imagine”, verificăm pagina de detaliu și pagina de pe site (imaginea lipsește chiar la 228 de produse din 28.129).
 - De ce: ZoZo: „la descriere pare că feed e greșit, arată din nou titlul… deci feed către ChatGPT și AI-uri sunt greșite”.
 
+**B39. Căutarea din „Produse urmărite” tăia variantele unui model** *(23.11.2026, 19:31)*
+- Nu: să arătăm doar primele 10 produse găsite. La „gsr 18v-65” sunt peste 10 variante (kit, cu acumulatori, solo), iar „BOSCH GSR 18V-65 (SOLO)” (06019N3200) nu apărea deloc, fără să spunem că lista e tăiată.
+- În schimb: arătăm până la 50 de produse, spunem câte am găsit și, când sunt mai multe, cum să restrângi căutarea (cod producător, „solo”). O parte din codul producătorului („N3200”) găsește și codurile care o conțin.
+- De ce: ZoZo: „aici în listă nu apare varianta solo cu cod N3200”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)
