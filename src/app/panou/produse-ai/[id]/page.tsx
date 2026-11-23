@@ -29,7 +29,7 @@ export default async function ProductInAi({ params }: { params: Promise<{ id: st
         <Stat label="Apare în" value={`${s.appearances}×`} hint={`la ${s.prompts} ${s.prompts === 1 ? "întrebare" : "întrebări"}`} />
         <Stat label="Loc mediu" value={num(parseFloat(s.avgPosition))} hint={`cel mai bun: ${s.bestPosition}`} />
         <Stat label="Cu magazinul tău" value={`${s.withStore} / ${s.appearances}`} hint={s.withStore ? "răspunsuri care te numesc" : "AI-ul trimite în alt magazin"} />
-        <Stat label="Preț spus de AI" value={s.statedPrice ? money(s.statedPrice, row.currency) : "–"} hint={s.priceWrong ? `în catalog ${money(row.price, row.currency)}; greșit la ${s.wrongPrices.map((w) => providerLabel(w.provider)).join(", ")}` : s.statedPrice ? "corect" : "niciun AI nu spune prețul"} />
+        <Stat label="Prețul tău, spus de AI" value={s.statedPrice ? money(s.statedPrice, row.currency) : "–"} hint={s.priceWrong ? `în catalog ${money(row.price, row.currency)}; greșit la ${s.wrongPrices.map((w) => providerLabel(w.provider)).join(", ")}` : s.statedPrice ? "corect" : "niciun AI nu spune prețul la tine"} />
       </div>
 
       <Card title="Pe fiecare AI">
@@ -39,7 +39,7 @@ export default async function ProductInAi({ params }: { params: Promise<{ id: st
         </div>
       </Card>
 
-      <Card title="Dovezi: unde și cum apare" description="Fiecare apariție, cele mai noi primele: AI-ul, data și ora, întrebarea, rândul exact din răspuns și după ce am recunoscut produsul. Deschide tot răspunsul ca să verifici.">
+      <Card title="Dovezi: unde și cum apare" description="Fiecare apariție, cele mai noi primele: AI-ul, data și ora, întrebarea, rândul exact din răspuns și după ce am recunoscut produsul. Prețul e doar cel scris pe rândul cu magazinul tău. Deschide tot răspunsul ca să verifici.">
         <div id="dovezi" className="scroll-mt-6 space-y-4">
           {s.examples.map((e) => <Proof key={`${e.runId}-${e.provider}`} e={e} real={row.price ? parseFloat(row.price) : null} currency={row.currency} answer={answers.get(e.runId)} />)}
         </div>
@@ -61,7 +61,7 @@ function Proof({ e, real, currency, answer }: { e: ProductExample; real: number 
     return <>„{text.slice(0, i)}<strong className={wrong ? "text-bad" : "text-fg"}>{e.priceText}</strong>{text.slice(i + e.priceText!.length)}”</>;
   };
   return (
-    <SubCard className="space-y-3">
+    <SubCard id={`dovada-${e.runId}`} className="scroll-mt-6 space-y-3 target:ring-2 target:ring-primary">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-semibold">{providerLabel(e.provider)}</span>
         <span className="num text-muted">{e.at ? dateTime(e.at) : dateShort(e.runDate)}</span>
@@ -70,7 +70,7 @@ function Proof({ e, real, currency, answer }: { e: ProductExample; real: number 
       </div>
       <p className="text-sm"><span className="text-muted">Întrebarea: </span>{e.query}</p>
       <p className="text-sm text-muted">{e.priceLine ? <>„{e.snippet}”</> : quote(e.snippet)}</p>
-      {e.priceLine && <p className="text-sm text-muted"><span>Prețul, pe rândul de sub produs: </span>{quote(e.priceLine)}</p>}
+      {e.priceLine && <p className="text-sm text-muted"><span>Prețul la magazinul tău, pe rândul: </span>{quote(e.priceLine)}</p>}
       <p className="text-sm"><span className="text-muted">Recunoscut </span>{e.match
         ? <>{MATCH_LABEL[e.match.kind]}: <span className="break-all font-medium">{e.match.value}</span></>
         : "după nume (calcul vechi, se reface automat în câteva minute)"}</p>
@@ -78,7 +78,7 @@ function Proof({ e, real, currency, answer }: { e: ProductExample; real: number 
         {e.statedPrice !== null && (wrong
           ? <Badge tone="bad">Spune {money(e.statedPrice, currency)}, în catalog {money(real, currency)} ({diff! > 0 ? "+" : ""}{pct(diff! * 100)})</Badge>
           : <Badge tone="good">Preț corect: {money(e.statedPrice, currency)}</Badge>)}
-        {e.statedPrice === null && <Badge>Nu spune prețul</Badge>}
+        {e.statedPrice === null && <Badge>Nu spune prețul la magazinul tău</Badge>}
       </div>
       {answer && (
         <details className="text-sm">

@@ -161,8 +161,9 @@ export const productAiStats = pgTable("product_ai_stats", {
   avgPosition: numeric("avg_position", { precision: 5, scale: 1 }).notNull(),
   bestPosition: integer("best_position").notNull(),
   withStore: integer("with_store").notNull(), // răspunsuri care numesc și magazinul sau citează pagina produsului
-  statedPrice: numeric("stated_price", { precision: 12, scale: 2 }), // ultimul preț spus de un AI
+  statedPrice: numeric("stated_price", { precision: 12, scale: 2 }), // ultimul preț spus de un AI pentru acest magazin
   statedProvider: text("stated_provider"),
+  statedRunId: text("stated_run_id"), // rularea în care AI-ul a spus acel preț: linkul „Vezi unde a spus-o” duce exact la ea
   priceWrong: boolean("price_wrong").notNull().default(false),
   wrongPrices: jsonb("wrong_prices").$type<{ provider: string; price: number; runId?: string }[]>().notNull(),
   examples: jsonb("examples").$type<ProductExample[]>().notNull(),

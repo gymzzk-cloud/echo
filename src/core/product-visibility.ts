@@ -9,6 +9,9 @@ import { normalizeText } from "@/lib/util";
  * - „link”: linkul spre pagina produsului de pe magazin, pe rândul respectiv;
  * - „nume”: numele complet al produsului, exact cum e în catalog (cuvintele întregi, în ordine).
  * Nu ghicim după câteva cuvinte comune: „BOSCH Kit de accesorii” nu se potrivește pe orice rând cu „Bosch” și „accesorii”.
+ *
+ * Prețul spus de AI e doar prețul pentru magazinul tău: un rând din răspuns care numește magazinul (sau are un link spre el)
+ * și are un preț, în partea de răspuns despre acel produs. Prețurile altor magazine din aceeași listă nu contează.
  */
 
 export type CatalogProduct = { id: string; title: string; brand: string | null; gtin: string | null; mpn: string | null; price: number | null; currency: string; url: string; inStock: boolean };
@@ -73,6 +76,55 @@ export function parsePrice(text: string): { price: number; currency: string; tex
   return Number.isFinite(price) && price > 0 ? { price, currency: CURRENCY[m[2].toLowerCase()] ?? "RON", text: m[0].trim() } : null;
 }
 
+/** Magazinul pentru care citim prețul, după domeniu („shopexpert.com” → „ShopExpert”, „shopexpert.com”, linkuri spre el). */
+export type StoreRef = { domain: string };
+type StoreMatcher = { tokens: string[]; host: string };
+export function storeMatcher(store: StoreRef): StoreMatcher {
+  const host = store.domain.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+  const label = host.split(".")[0];
+  const tokens = new Set([host]);
+  if (label.length >= 4) tokens.add(label);
+  return { tokens: [...tokens], host };
+}
+/** Unde e numit magazinul pe rând (numele lipit, fără spații: „Shop Expert” = „shopexpert”), sau -1. */
+function storeAt(line: string, sm: StoreMatcher): number {
+  for (const u of line.matchAll(URL_RE)) {
+    const h = u[0].toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[/:?#].*$/, "");
+    if (h === sm.host || h.endsWith(`.${sm.host}`)) return Math.max(0, line.lastIndexOf("[", u.index!));
+  }
+  // Fără linkuri (altfel „bosch-shop.ro/…shopexpert…” ar putea număra) și cu pozițiile rândului original.
+  const low = fold(line.replace(URL_RE, (x) => " ".repeat(x.length)));
+  const map: number[] = [];
+  let flat = "";
+  for (let i = 0; i < low.length; i++) if (/[a-z0-9.]/.test(low[i])) { flat += low[i]; map.push(i); }
+  for (const t of sm.tokens) {
+    const re = new RegExp(`(^|[^a-z0-9])${t.replace(/\./g, "\\.")}`, "g");
+    // Cuvântul întreg pe rândul cu spații, apoi lipit („shop expert”).
+    const m = re.exec(low);
+    if (m) return m.index + m[1].length;
+    const k = flat.indexOf(t);
+    if (k >= 0 && t.length >= 6) return map[k];
+  }
+  return -1;
+}
+/** Toate prețurile de pe un rând, cu poziția lor. */
+function pricesIn(line: string) {
+  const out: { at: number; p: NonNullable<ReturnType<typeof parsePrice>> }[] = [];
+  for (const m of line.matchAll(new RegExp(PRICE_RE.source, "gi"))) {
+    const p = parsePrice(m[0]);
+    if (p) out.push({ at: m.index!, p });
+  }
+  return out;
+}
+/** Prețul cel mai apropiat de numele magazinului, pe un rând care numește magazinul. */
+function storePrice(line: string, sm: StoreMatcher) {
+  const at = storeAt(line, sm);
+  if (at < 0) return null;
+  const ps = pricesIn(line);
+  if (!ps.length) return null;
+  return ps.sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0].p;
+}
+
 /** Un rând de listă („1.”, „-”, „•”), un titlu („##”) sau un rând care începe îngroșat: o recomandare din răspuns. */
 const ITEM_RE = /^(\s*)(?:\d+[.)]\s|[-*•]\s|#{1,4}\s|\*\*)/;
 const URL_RE = /https?:\/\/[^\s)\]>"']+/g;
@@ -118,9 +170,10 @@ const RANK: Record<MatchKind, number> = { cod: 3, link: 2, nume: 1 };
  * prețul spus lângă el, rândul din răspuns și criteriul după care l-am recunoscut. Un produs apare o singură dată (prima mențiune).
  * Titluri identice (același model la prețuri diferite): alegem varianta cu prețul cel mai apropiat de cel spus.
  */
-export function findProducts(answer: string, idx: ProductIndex): ProductHit[] {
+export function findProducts(answer: string, idx: ProductIndex, store?: StoreRef): ProductHit[] {
   const lines = answer.split("\n");
-  const hits: ProductHit[] = [];
+  const hits: (ProductHit & { line: number; shared: boolean })[] = [];
+  const sm = store ? storeMatcher(store) : null;
   const seen = new Set<string>(); // numele normalizate deja numărate (toate variantele lor)
   let item = 0; // al câtelea rând de listă de pe primul nivel
   let hasItems = false;
@@ -166,10 +219,23 @@ export function findProducts(answer: string, idx: ProductIndex): ProductHit[] {
       hits.push({
         productId: k.p.id, position: hasItems ? Math.max(1, item) : hits.length + 1, statedPrice: own?.price ?? null, statedCurrency: own?.currency ?? null,
         priceText: own?.text ?? null, priceLine: own && picks.length === 1 ? priceLine : null, snippet: cleanLine(line).slice(0, 300), match: k.match,
+        line: li, shared: picks.length > 1,
       });
     });
   }
-  return hits;
+  if (!sm) return hits.map(({ line: _l, shared: _s, ...h }) => h);
+  // Cu magazinul dat: prețul e doar cel de pe un rând care numește magazinul, în partea de răspuns despre produs
+  // (de la rândul produsului până la următorul produs găsit). Două produse pe același rând: doar dacă rândul numește magazinul.
+  return hits.map(({ line: li, shared, ...h }) => {
+    const next = hits.find((o) => o.line > li)?.line ?? lines.length;
+    let price: ReturnType<typeof parsePrice> = null;
+    let priceLine: string | null = null;
+    for (let k = li; !price && k < (shared ? li + 1 : next); k++) {
+      price = storePrice(lines[k], sm);
+      if (price && k !== li) priceLine = cleanLine(lines[k]).slice(0, 300);
+    }
+    return { ...h, statedPrice: price?.price ?? null, statedCurrency: price?.currency ?? null, priceText: price?.text ?? null, priceLine };
+  });
 }
 
 export type AnswerRun = { id: string; provider: string; runDate: string; at: string; query: string; answer: string; promptIds: string[]; storeNamed: boolean; sourceUrls: string[] };
@@ -180,21 +246,21 @@ export type ProductExample = {
 };
 export type ProductStat = {
   productId: string; appearances: number; prompts: number; providers: Record<string, number>; avgPosition: number; bestPosition: number;
-  withStore: number; lastSeen: string; statedPrice: number | null; statedProvider: string | null; wrongPrices: { provider: string; price: number; runId: string }[]; examples: ProductExample[];
+  withStore: number; lastSeen: string; statedPrice: number | null; statedProvider: string | null; statedRunId: string | null; wrongPrices: { provider: string; price: number; runId: string }[]; examples: ProductExample[];
 };
 
 /**
  * Cifrele pe produs din toate răspunsurile unui magazin. Rulările vin în ordine cronologică.
  * „Cu magazinul tău” = răspunsul numește și magazinul sau citează pagina produsului.
  */
-export function aggregateProducts(runs: AnswerRun[], products: CatalogProduct[]): Map<string, ProductStat> {
+export function aggregateProducts(runs: AnswerRun[], products: CatalogProduct[], store?: StoreRef): Map<string, ProductStat> {
   const idx = buildProductIndex(products);
   const byId = new Map(products.map((p) => [p.id, p]));
   type Acc = { positions: number[]; prompts: Set<string>; providers: Record<string, number>; withStore: number; lastSeen: string; lastPrice: Map<string, ProductExample>; latest: ProductExample | null; examples: ProductExample[] };
   const acc = new Map<string, Acc>();
   for (const r of runs) {
     const sources = new Set(r.sourceUrls.map(normUrl));
-    for (const h of findProducts(r.answer, idx)) {
+    for (const h of findProducts(r.answer, idx, store)) {
       const p = byId.get(h.productId)!;
       const a: Acc = acc.get(h.productId) ?? { positions: [], prompts: new Set(), providers: {}, withStore: 0, lastSeen: r.runDate, lastPrice: new Map(), latest: null, examples: [] };
       const withStore = r.storeNamed || sources.has(normUrl(p.url));
@@ -223,7 +289,7 @@ export function aggregateProducts(runs: AnswerRun[], products: CatalogProduct[])
     out.set(id, {
       productId: id, appearances: a.positions.length, prompts: a.prompts.size, providers: a.providers,
       avgPosition: +(a.positions.reduce((s, x) => s + x, 0) / a.positions.length).toFixed(1), bestPosition: Math.min(...a.positions),
-      withStore: a.withStore, lastSeen: a.lastSeen, statedPrice: a.latest?.statedPrice ?? null, statedProvider: a.latest?.provider ?? null, wrongPrices: wrong,
+      withStore: a.withStore, lastSeen: a.lastSeen, statedPrice: a.latest?.statedPrice ?? null, statedProvider: a.latest?.provider ?? null, statedRunId: a.latest?.runId ?? null, wrongPrices: wrong,
       examples: kept.sort((x, y) => (y.at ?? y.runDate).localeCompare(x.at ?? x.runDate)),
     });
   }
