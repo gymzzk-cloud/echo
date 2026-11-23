@@ -433,6 +433,21 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: workerul pornește cu `nice -n 19` (procesorul merge întâi la panou); feed-ul și reparațiile se refac la a opta tranșă de descrieri, nu la a patra; pagina Feed citește un rezumat calculat în worker (`feed_summaries`); căutările folosesc indexuri trigram; orice clic care schimbă pagina arată imediat „Se încarcă…” (`NavProgress`), căutările merg fără reîncărcarea paginii (`Form` din next/form), iar un test (`tests/button-feedback.test.ts`) pică dacă un buton sau formular nu arată starea.
 - De ce: ZoZo: „merge extrem de încet panoul iar… de 2 ori am dat adaugă, așa încet merge încât nici nu le-a adăugat”, „merge f f greu interfața peste tot”, „nici măcar nu am feedback că rulează ceva în fundal sau ce se întâmplă, nu merge butonul”.
 
+**B44. Răspunsuri AI care dispar din panou când se schimbă lista de întrebări** *(23.11.2026, prinsă de noi la GA5030R)*
+- Nu: lista automată de întrebări ștergea întrebările propuse care nu mai erau în listă, iar odată cu ele (prin `prompt_runs`, cascade) și legăturile spre răspunsurile deja primite și plătite. Fișa MAKITA GA5030R a trecut în aceeași seară de la 4 apariții la „Încă nu avem răspunsuri”.
+- În schimb: o întrebare propusă care iese din listă și are răspunsuri se **retrage** (`prompts.retired_at`, nu mai e întrebată, nu se vede în Setări), iar răspunsurile ei rămân în toate cifrele din ultimele 30 de zile. Se șterg doar întrebările fără niciun răspuns. Dacă revine în listă, se repornește aceeași (fără dublură).
+- De ce: regula A0, doar date reale: un răspuns primit nu dispare din dovezi doar pentru că am schimbat ce întrebăm de acum încolo.
+
+**B45. Testul „în ChatGPT apar” făcut cu conectorul Echo pornit** *(23.11.2026, 18:13)*
+- Nu: să comparăm panoul cu ChatGPT-ul din contul nostru, unde conectorul Echo (MCP) și memoria știu de ShopExpert: acolo ShopExpert apare mereu, cu stocul exact („peste 10 bucăți”), care nu e nici pe site, nici în feed.
+- În schimb: testul de cumpărător se face în fereastră privată, fără cont sau cu alt cont, fără conectori și fără memorie. Panoul măsoară ce vede un cumpărător obișnuit (API cu căutare pe web, din România).
+- De ce: ZoZo: „însă dacă eu întreb în ChatGPT îmi dă shopexpert direct”; răspunsul venea din conectorul nostru, nu din ce vede publicul.
+
+**B46. Lipsa de pe un comparator prezentată ca motivul sau soluția** *(23.11.2026, 18:14)*
+- Nu: „ShopExpert nu e pe compari.ro” spus ca explicația pentru care AI-urile nu-l recomandă, sau listarea acolo ca soluția.
+- În schimb: arătăm sursele pe care le-au citit efectiv AI-urile pentru produs (site-ul magazinului, comparatoare, articole, marketplace-uri, recenzii) și unde apare sau nu magazinul în ele. Fiecare sursă e una dintre cele citite, nu singura; ce faci e o opțiune a magazinului, cu costul și limita ei, nu o garanție.
+- De ce: ZoZo: „shopexpert nu e pe compari, asta nu înseamnă că nu este prezent pe piață”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

@@ -17,7 +17,7 @@ import type { SheetRun } from "./answers";
 
 const P = schema.products;
 export const SHEET_WINDOW_DAYS = 30;
-export const SHEET_MAX_RUNS = 15;
+export const SHEET_MAX_RUNS = 20;
 
 /** Un text care arată ca o bucată de cod (fără spații, cel puțin 4 caractere, cu o cifră), ex. „N3200”. */
 export function isPartialCode(code: string) {
@@ -98,22 +98,27 @@ export async function productSheet(projectId: string, productId: string) {
     pendingEdits: edits.filter((e) => e.status === "propus"),
     openai: { active: !!openaiOut?.active, generatedAt: openaiOut?.generatedAt ?? null, report: openAiReport(fp, forOpenAi ? openAiRow(forOpenAi, store, effectivePolicy(openaiOut?.settings ?? null, project.storeInfo?.policies)) : null) },
     google: { active: !!googleOut?.active, generatedAt: googleOut?.generatedAt ?? null, report: googleFeedReport(fp, forGoogle ? googleItem(forGoogle) : null) },
-    page: page ? { checkedAt: page.checkedAt, url: page.url, report: pageReport(fp, page) } : null,
+    page: page ? { checkedAt: page.checkedAt, url: page.url, report: pageReport(fp, page), rating: page.fields?.rating ?? null } : null,
   };
 }
 
 export { orgDomains } from "../store-context";
 
 /**
- * Răspunsurile AI din ultimele 30 de zile despre acest produs: la întrebările urmărite pe el sau în care l-am găsit.
- * Cel mult 15, cele mai noi primele, doar cele legate de întrebările acestui magazin.
+ * Răspunsurile AI din ultimele 30 de zile despre acest produs: la întrebările urmărite pe el, cele în care l-am găsit
+ * și răspunsurile celorlalte AI-uri la aceleași întrebări (ca să vedem și cine nu-l numește deloc).
+ * Cel mult 20, cele mai noi primele, doar cele legate de întrebările acestui magazin.
  */
 export async function productAnswerRuns(projectId: string, productId: string, namedRunIds: string[]): Promise<SheetRun[]> {
-  const R = schema.runs, Q = schema.prompts;
+  const R = schema.runs, Q = schema.prompts, PR = schema.promptRuns;
   const ids = [...new Set(namedRunIds)].filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 30);
+  const promptIds = ids.length
+    ? (await db.selectDistinct({ id: PR.promptId }).from(PR).innerJoin(Q, eq(Q.id, PR.promptId))
+      .where(and(eq(Q.projectId, projectId), inArray(PR.runId, ids))).limit(50)).map((r) => r.id)
+    : [];
   const rows = await db.selectDistinct({ id: R.id, provider: R.provider, runDate: R.runDate, createdAt: R.createdAt, query: R.query, answer: R.answer, mentions: R.mentions, sources: R.sources })
-    .from(schema.promptRuns).innerJoin(R, eq(R.id, schema.promptRuns.runId)).innerJoin(Q, eq(Q.id, schema.promptRuns.promptId))
-    .where(and(eq(Q.projectId, projectId), ne(R.model, ERROR_MODEL), gte(R.runDate, daysAgo(SHEET_WINDOW_DAYS)), ids.length ? or(eq(Q.productId, productId), inArray(R.id, ids)) : eq(Q.productId, productId)))
+    .from(PR).innerJoin(R, eq(R.id, PR.runId)).innerJoin(Q, eq(Q.id, PR.promptId))
+    .where(and(eq(Q.projectId, projectId), ne(R.model, ERROR_MODEL), gte(R.runDate, daysAgo(SHEET_WINDOW_DAYS)), promptIds.length ? or(eq(Q.productId, productId), inArray(Q.id, promptIds)) : eq(Q.productId, productId)))
     .orderBy(desc(R.createdAt)).limit(SHEET_MAX_RUNS);
   return rows.map((r) => ({ id: r.id, provider: r.provider, runDate: r.runDate, at: r.createdAt.toISOString(), query: r.query, answer: r.answer, mentions: r.mentions as Mention[], sources: r.sources }));
 }

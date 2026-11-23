@@ -86,7 +86,17 @@ describe("căutări urmărite din catalog", () => {
     const r = planPromptChanges(existing, desired, 3);
     expect(r.remove).toEqual(["a"]);
     expect(r.add.map((x) => x.text)).toEqual(["06019L5300"]);
-    expect(planPromptChanges([...existing.slice(1)], desired, 3)).toEqual(r.remove.length ? { remove: [], add: r.add } : r);
+    expect(planPromptChanges([...existing.slice(1)], desired, 3)).toEqual(r.remove.length ? { remove: [], add: r.add, revive: [] } : r);
+  });
+  it("o propunere retrasă (cu răspunsuri păstrate) nu se scoate din nou și se repornește când revine în listă, fără dublură", () => {
+    const retired = new Date("2026-11-20T10:00:00Z");
+    const existing = [
+      { id: "r", text: "Polizoare unghiulare mici Makita cel mai bun preț", active: false, suggested: true, retiredAt: retired },
+      { id: "o", text: "veche", active: false, suggested: true, retiredAt: retired },
+    ];
+    const back = [{ text: "polizoare unghiulare mici makita cel mai bun preț", category: "x", intent: "categorie" as const }];
+    expect(planPromptChanges(existing, back, 5)).toEqual({ remove: [], add: [], revive: ["r"] });
+    expect(planPromptChanges(existing, [], 5)).toEqual({ remove: [], add: [], revive: [] });
   });
 });
 

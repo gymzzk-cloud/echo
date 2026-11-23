@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { activeProviders, projectUsageThisMonth } from "@/core/ai/engine";
@@ -24,7 +24,8 @@ export default async function Settings() {
   const [conns, comps, prompts, usage, org] = await Promise.all([
     db.select().from(schema.connections).where(eq(schema.connections.projectId, project.id)).orderBy(desc(schema.connections.createdAt)),
     db.select().from(schema.competitors).where(eq(schema.competitors.projectId, project.id)),
-    db.select().from(schema.prompts).where(eq(schema.prompts.projectId, project.id)).orderBy(desc(schema.prompts.createdAt)),
+    // Căutările retrase din lista automată nu se mai arată (rămân doar pentru istoricul răspunsurilor).
+    db.select().from(schema.prompts).where(and(eq(schema.prompts.projectId, project.id), isNull(schema.prompts.retiredAt))).orderBy(desc(schema.prompts.createdAt)),
     projectUsageThisMonth(project.id),
     db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, project.orgId)),
   ]);

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, or, sql as dsql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { humanName, promptLimit } from "./prompts";
 import { enqueue } from "./jobs";
@@ -48,7 +48,7 @@ export async function trackedProductList(projectId: string) {
   const [rows, [counts]] = await Promise.all([
     db.select({ productId: Q.productId, active: Q.active, suggested: Q.suggested, title: P.title, externalId: P.externalId, mpn: P.mpn, gtin: P.gtin, brand: P.brand, price: P.price, currency: P.currency, inStock: P.inStock, rank: P.popularityRank, added: Q.createdAt })
       .from(Q).innerJoin(P, eq(P.id, Q.productId))
-      .where(and(eq(Q.projectId, projectId), eq(Q.intent, "produs"), isNotNull(Q.productId)))
+      .where(and(eq(Q.projectId, projectId), eq(Q.intent, "produs"), isNotNull(Q.productId), isNull(Q.retiredAt)))
       .orderBy(asc(P.popularityRank), asc(P.title)).limit(1000),
     db.select({
       manualActive: dsql<number>`count(*) filter (where not ${Q.suggested} and ${Q.active})::int`,
@@ -107,7 +107,7 @@ export async function addTrackedProducts(projectId: string, productIds: string[]
     const have = new Map(existing.map((e) => [e.productId!, e.id]));
     const reuse = prods.filter((p) => have.has(p.id)).map((p) => have.get(p.id)!);
     // createdAt = când l-a ales clientul, ca lista să-l arate primul.
-    if (reuse.length) await db.update(Q).set({ suggested: false, active: true, createdAt: new Date() }).where(inArray(Q.id, reuse));
+    if (reuse.length) await db.update(Q).set({ suggested: false, active: true, retiredAt: null, createdAt: new Date() }).where(inArray(Q.id, reuse));
     const fresh = prods.filter((p) => !have.has(p.id));
     if (fresh.length) await db.insert(Q).values(fresh.map((p) => ({ projectId, text: humanName(p), category: null, intent: "produs", productId: p.id, language, suggested: false })));
   }
@@ -119,6 +119,6 @@ export async function addTrackedProducts(projectId: string, productIds: string[]
 /** Scoate produse din listă: nu mai sunt întrebate, iar lista automată nu le mai pune la loc. Istoricul rămâne. */
 export async function removeTrackedProducts(projectId: string, productIds: string[]) {
   if (!productIds.length) return;
-  await db.update(Q).set({ active: false, suggested: false }).where(and(eq(Q.projectId, projectId), inArray(Q.productId, productIds)));
+  await db.update(Q).set({ active: false, suggested: false, retiredAt: null }).where(and(eq(Q.projectId, projectId), inArray(Q.productId, productIds)));
   await enqueue("prompts", { projectId });
 }

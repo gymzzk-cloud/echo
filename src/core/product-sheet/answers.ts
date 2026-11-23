@@ -58,12 +58,12 @@ export function competitorView(runs: SheetRun[], opts: { ownDomain: string; ownD
 export type Reason = { title: string; detail: string };
 
 /**
- * Motivele probabile pentru care AI-urile arată alte magazine sau comparatoare în locul tău, din ce vedem în date.
- * Sunt motive probabile, nu certitudini: AI-urile nu spun de ce aleg o sursă.
+ * Problemele din datele produsului (feed, pagină, stoc, preț spus greșit) care pot face AI-urile să aleagă pe altcineva.
+ * Ce se vede în răspunsuri (comparatoare, pagini citite, prețuri) e în why.ts. Motive probabile, nu certitudini.
  */
 export function likelyReasons(input: {
   inStock: boolean; openai: ChannelReport | null; openaiActive: boolean; google: ChannelReport | null; page: ChannelReport | null;
-  view: CompetitorView | null; wrongPrices: { provider: string; price: number }[];
+  wrongPrices: { provider: string; price: number }[];
 }): Reason[] {
   const out: Reason[] = [];
   const bad = (r: ChannelReport | null, field: string) => r?.checks.find((c) => c.field === field && c.status !== "ok" && c.status !== "info");
@@ -86,8 +86,5 @@ export function likelyReasons(input: {
   const blocked = input.page?.checks.find((c) => c.field === "robots");
   if (blocked) out.push({ title: "Pagina refuză roboții", detail: blocked.fix ?? "" });
   if (input.wrongPrices.length) out.push({ title: "AI-ul are un preț greșit pentru tine", detail: "Cel puțin un AI spune alt preț decât cel din catalog. Un preț mai mare spus greșit te scoate din comparație." });
-  const v = input.view;
-  if (v?.comparators.length) out.push({ title: `AI-ul citează comparatoare (${v.comparators.slice(0, 3).map((c) => c.domain).join(", ")})`, detail: "Când AI-ul se bazează pe un comparator de prețuri, apar magazinele listate acolo. Verifică dacă produsul tău e listat pe comparator, cu același EAN și același preț ca pe site." });
-  if (v && v.runs.length && v.withoutStore > 0 && !out.length) out.push({ title: "Datele produsului sunt complete", detail: "Nu vedem o problemă la feed sau la pagină. Diferența vine probabil din autoritate: recenzii, prezența pe comparatoare și în articole. Vezi pagina Surse." });
   return out;
 }
