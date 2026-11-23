@@ -60,6 +60,16 @@ async function candidateModels(): Promise<string[]> {
  * ca să nu pierdem cereri pe modele fără cotă gratuită.
  */
 let working: { model: string; grounded: boolean } | null = null;
+/**
+ * Toate modelele fără cotă pe azi: nu mai încercăm până la resetarea Google (miezul nopții, ora Pacificului ≈ 08:00 UTC),
+ * ca o analiză să nu piardă câte 16 apeluri și zeci de secunde pe fiecare întrebare. Rularea apare „nu am putut întreba”.
+ */
+let exhaustedUntil = 0;
+export const nextQuotaReset = (now = new Date()) => {
+  const r = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 0, 0));
+  if (r.getTime() <= now.getTime()) r.setUTCDate(r.getUTCDate() + 1);
+  return r.getTime();
+};
 const skipped = new Set<string>();
 
 /**
@@ -126,7 +136,9 @@ export const gemini: Runner = {
         generationConfig: { maxOutputTokens: costConfig().maxOutputTokens, ...(thinking ? { thinkingConfig: thinkingFor(model) } : {}) },
       }, { "x-goog-api-key": key() }, Number(envValue("GEMINI_TIMEOUT_MS", "30000")) || 30000) as Promise<GeminiResponse>;
 
+    if (Date.now() < exhaustedUntil) throw new Error("Gemini: cota zilnică gratuită e terminată pe azi (HTTP 429), reîncercăm după resetarea Google");
     let lastError: unknown = null;
+    let onlyQuota = true;
     // Fără căutare întrebăm doar dacă cheia nu are voie sau cotă la căutare; un model supraîncărcat nu e un motiv.
     let groundingBlocked = working?.grounded === false;
     for (const a of attemptOrder(await candidateModels(), working)) {
@@ -145,6 +157,7 @@ export const gemini: Runner = {
         // Model supraîncărcat (503 după reîncercări) sau care nu răspunde la timp: tot următorul model.
         const unavailable = /HTTP 5\d\d|TimeoutError|timed out|aborted due to timeout/i.test(msg);
         if (a.grounded && (isQuotaExhausted(msg) || isGroundingRefused(msg))) groundingBlocked = true;
+        if (!isQuotaExhausted(msg) && !/HTTP 404/.test(msg)) onlyQuota = false;
         if (isQuotaExhausted(msg) || (a.grounded && isGroundingRefused(msg)) || /HTTP 404/.test(msg) || unavailable) {
           // O dată pe variantă și proces: de ce am sărit-o (mesajul API-ului, fără chei), ca să se vadă în loguri.
           const tag = `${a.model}${a.grounded ? "+search" : ""}`;
@@ -161,6 +174,8 @@ export const gemini: Runner = {
         : (out.inputTokens * envPrice("GEMINI_IN_PER_M", 0.3) + out.outputTokens * envPrice("GEMINI_OUT_PER_M", 2.5)) / 1e6 + (a.grounded ? envPrice("GEMINI_SEARCH_PER_CALL", 0.035) : 0);
       return { ...out, model: a.grounded ? a.model : `${a.model} (fără căutare)`, mode: "live", costUsd: cost, latencyMs: Date.now() - t0 };
     }
+    // Toate variantele au răspuns „fără cotă pe zi” (sau model retras): nu mai întrebăm până la resetare.
+    if (lastError && onlyQuota) { exhaustedUntil = nextQuotaReset(); console.log(`AI gemini: cota zilnică terminată, nu mai întrebăm până la ${new Date(exhaustedUntil).toISOString()}`); }
     throw lastError ?? new Error("Gemini: niciun model disponibil");
   },
 };

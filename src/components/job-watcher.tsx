@@ -6,6 +6,22 @@ import type { JobState } from "@/core/jobs";
 type Note = { id: string; tone: "good" | "bad"; text: string };
 const POLL_MS = 4000;
 const time = () => new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+const UNIT: Partial<Record<JobState["kind"], string>> = { run_project: "întrebarea" };
+
+/**
+ * Ce se vede pentru o lucrare: progresul real și o estimare („întrebarea 12 din 30, ~3 min”), sau locul la coadă.
+ * Estimarea vine din ritmul de până acum (secunde pe pas); fără pași terminați nu estimăm.
+ */
+export function jobDetail(j: Pick<JobState, "kind" | "status" | "progress" | "elapsedSec" | "ahead">) {
+  if (j.status === "queued") return j.ahead ? `la coadă, după ${j.ahead} ${j.ahead === 1 ? "lucrare" : "lucrări"}` : "pornește acum";
+  const p = j.progress;
+  if (!p || !p.total) return null;
+  const unit = UNIT[j.kind];
+  const step = unit ? `${unit} ${Math.min(p.done + 1, p.total)} din ${p.total}` : `${p.done} din ${p.total}`;
+  if (!p.done || !j.elapsedSec || p.done >= p.total) return step;
+  const left = Math.round(((j.elapsedSec / p.done) * (p.total - p.done)) / 60);
+  return `${step}, ${left < 1 ? "sub un minut" : `~${left} min`} rămase`;
+}
 
 /**
  * Urmărește lucrările din fundal ale magazinului (analiză, audit, sincronizare, raport, feed…) fără reîncărcarea paginii.
@@ -63,13 +79,14 @@ export function JobWatcher() {
   }, [check]);
 
   if (!active.length && !notes.length) return null;
-  const labels = [...new Set(active.map((j) => j.label))];
+  // O linie pe lucrare, cu progresul ei; lucrările de același fel fără detalii apar o singură dată.
+  const lines = [...new Map(active.map((j) => { const d = jobDetail(j); return [d ? j.id : j.kind, d ? `${j.label}: ${d}` : j.label] as const; })).values()];
   return (
     <div aria-live="polite" className="fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-2 text-sm">
-      {labels.length > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-bg px-4 py-3 shadow-lg">
-          <span aria-hidden className="size-3 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <span>În lucru: {labels.join(", ")}…</span>
+      {lines.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-border bg-bg px-4 py-3 shadow-lg">
+          <span aria-hidden className="mt-1 size-3 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span>În lucru: {lines.length === 1 ? lines[0] : <ul className="space-y-1">{lines.map((l) => <li key={l}>{l}</li>)}</ul>}</span>
         </div>
       )}
       {notes.map((n) => (

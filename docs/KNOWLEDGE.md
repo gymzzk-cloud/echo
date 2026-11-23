@@ -486,6 +486,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: regulă de sistem, pentru toate magazinele: orice căutare generată pentru un produs urmărit sau focus are intenție de cumpărare, ca un cumpărător real („<produs> preț”, „<cod> preț”, „vreau să cumpăr…”, „de unde cumpăr…”, „…cel mai ieftin”). Căutările vechi alese de magazin, scrise doar cu numele, primesc singure „preț” (cele cu răspunsuri se retrag, istoricul rămâne). Un răspuns care nu numește niciun magazin și doar întreabă ceva înapoi e „A cerut clarificare”, separat de „nu te numește”, și nu intră la „nu numește produsul”.
 - De ce: ZoZo a arătat că în aplicația ChatGPT, după „GA5030R” urmat de „cumpărare”, apare ShopExpert. Numele singur nu măsoară dacă ești recomandat, iar o întrebare înapoi nu e o recomandare a altui magazin (A0).
 
+**B54. „Rulează acum” fără progres, luată de la capăt la fiecare publicare** *(23.11.2026, 21:13)*
+- Nu: între 20:53 și 21:13 am publicat de 5 ori. Fiecare publicare a repornit workerul, iar analiza pornită de ZoZo a fost pusă la coadă după citirile programate (`run_at` = acum). Bara de stare arăta doar „În lucru: Analiza AI”, fără să spună cât s-a făcut sau cât mai durează. Gemini, fără cotă pe zi, era încercat cu 16 variante de model la fiecare întrebare.
+- În schimb: workerul scrie progresul real (`jobs.progress`, de exemplu întrebarea 12 din 30), iar JobWatcher arată „Analiza AI: întrebarea 12 din 30, ~3 min rămase” sau „la coadă, după N lucrări”. O lucrare întreruptă se reia prima și trece repede peste întrebările deja puse azi (nu se plătesc din nou). Gemini fără cotă e sărit până la resetarea Google (08:00 UTC). Nu publicăm cât rulează o analiză cerută de magazin: întâi verificăm în panou că nu apare „Analiza AI”.
+- De ce: ZoZo: „am dat analizează din nou, rulează încă și acum…”.
+
 ## C. Regula de întreținere (permanentă)
 
 1. **De fiecare dată când ZoZo spune că ceva e greșit**, punctul se adaugă imediat, în aceeași tură, în **partea B**, în forma „Nu / În schimb / De ce”, cu data.
