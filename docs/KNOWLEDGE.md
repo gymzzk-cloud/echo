@@ -36,6 +36,13 @@
    - **Nimic nu e raportat „gata” până nu e verificat pe producție pe ShopExpert RO**, magazinul etalon: deschidem paginile panoului pe https://echo-ai-9fnz.onrender.com și comparăm cu shopexpert.com/ro. După fiecare publicare, workerul rulează singur verificarea pe etalon (`src/core/golden.ts`, rezultatul în /admin/magazine); dacă găsește o afirmație falsă, nu raportăm gata.
    - Adevărul despre etalon (verificat de mână, 23.11.2026): JSON-LD Product complet pe produse; sitemap la `/ro/sitemap.xml` (≈9.700 adrese, răspunde în ~11 s); CUI RO16766463 în Termeni; produsele au „Detalii tehnice / Avantaje / Conținut pachet”; fără bloc Organization; fără `lang` pe `<html>`; fără ANPC/SOL; shopexpert.ro și hardlineconstruct.ro sunt ale aceluiași client.
 
+0b. **Orice listă e ordonată după importanță și spune câte arată din câte sunt.** *(ZoZo, 23.11.2026: „mereu să ții cont de ordinea de importanță, sau să întrebi înainte cum vrei să fie sortarea sau câte produse afișăm”)*
+   De ce: dacă lista e tăiată fără să spunem, clientul crede că produsul lipsește (B39: „GSR 18V-65 (SOLO)” nu apărea la căutare).
+   Cum:
+   - Înainte de orice listă nouă (căutare, tabel, top, propuneri), hotărâm ordinea după ce contează pentru magazin: potrivirea exactă (cod producător, EAN) întâi, apoi ce e mai relevant (vânzări, apariții în AI, gravitatea problemei), apoi restul.
+   - Spunem mereu câte arătăm și câte am găsit („Arătăm 50 din 63”), cu paginare sau cu un sfat de restrângere. Nicio listă nu se taie în tăcere.
+   - Când nu e clar ce ordine sau câte rânduri vrea ZoZo, **întrebăm înainte** de a construi, cu o propunere recomandată.
+
 ### A1. Mod de lucru și publicare
 
 1. **Nimic nu rămâne nepublicat.** *(ZoZo, 20.11.2026)*
