@@ -20,6 +20,7 @@ import { runCatalogDetails } from "@/core/catalog-details";
 import { computeProductVisibility, projectsDueForProductAi } from "@/core/product-visibility-job";
 import { checkProductPage } from "@/core/product-sheet/page-check";
 import { runGoldenCheck } from "@/core/golden";
+import { computePanelSnapshots } from "@/core/panel-snapshot";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -41,6 +42,8 @@ async function handle(kind: string, payload: Record<string, string>) {
       if (c) await enqueue("product_ai", { projectId: c.projectId });
       // Descrierile pe care lista API-ului nu le dă se citesc separat, încet (nu face nimic dacă nu lipsește nimic).
       if (c) await enqueue("catalog_details", { connectionId: payload.connectionId, projectId: c.projectId });
+      // Prețuri și mărci noi → cifrele din panou (Acasă, Produse) se refac din răspunsurile salvate.
+      if (c) await enqueue("panel", { projectId: c.projectId });
       return n;
     }
     case "catalog_details": {
@@ -108,6 +111,7 @@ async function handle(kind: string, payload: Record<string, string>) {
     case "watches": return checkWatches();
     case "webhook": return deliverWebhook(payload.webhookId, payload.payload);
     case "golden_check": return runGoldenCheck();
+    case "panel": return computePanelSnapshots(payload.projectId);
     default: throw new Error(`Job necunoscut: ${kind}`);
   }
 }
@@ -156,6 +160,12 @@ async function schedule() {
   for (const projectId of await projectsWithStaleFeeds()) {
     if (!(await pendingJobs(["feed"], "projectId", projectId))) await enqueue("feed", { projectId });
   }
+  // Cifrele din panou: refăcute o dată pe zi și fără vizită (prețuri, ferestrele de 7 și 30 de zile care se mută),
+  // doar pentru magazinele cu un calcul mai vechi de 23 de ore; altfel le refac rulările noi sau deschiderea paginii.
+  const oldPanels = await db.execute(sql`select distinct project_id::text as id from panel_snapshots where computed_at < now() - interval '23 hours'`) as unknown as { id: string }[];
+  for (const { id: projectId } of oldPanels) {
+    if (!(await pendingJobs(["panel", "run_project"], "projectId", projectId))) await enqueue("panel", { projectId });
+  }
   // Alerte de preț și stoc pentru cumpărători: la fiecare programare (10 min), după sincronizările de catalog
   if (!(await pendingJobs(["watches"], "all", "1"))) await enqueue("watches", { all: "1" });
   // Istoricul joburilor: păstrăm 14 zile (coada rămâne mică, iar starea lucrărilor se citește repede).
@@ -174,6 +184,8 @@ async function schedule() {
     }
   }
 }
+
+const PANEL_AFTER = new Set(["run_project", "rivals", "audit", "focus", "product_ai", "feed"]);
 
 let stopping = false;
 process.on("SIGINT", () => { stopping = true; });
@@ -205,6 +217,9 @@ while (!stopping) {
   try {
     await handle(job.kind, job.payload);
     await finishJob(job.id);
+    // Răspunsuri, concurenți sau audit noi → cifrele paginilor (Acasă, Surse, Reputație, Produse) se refac în fundal,
+    // ca pagina să le citească gata calculate (KNOWLEDGE B48). Jobul nu face nimic dacă sunt deja la zi.
+    if (PANEL_AFTER.has(job.kind) && job.payload.projectId) await enqueue("panel", { projectId: job.payload.projectId }).catch((e) => console.error("panel enqueue", (e as Error).message));
     console.log(`✓ ${job.kind} (${Date.now() - t0} ms)`);
   } catch (e) {
     console.error(`✗ ${job.kind}:`, e);

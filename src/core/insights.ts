@@ -1,6 +1,5 @@
 import { and, asc, desc, eq, gte, ilike, inArray, sql as dsql, type SQL } from "drizzle-orm";
-import { canAct, isBrandSite, sourceKind, type SourceCtx } from "./source-kind";
-import { catalogBrands as catalogBrandsFn } from "./store-context";
+import { canAct, sourceKind, type SourceCtx } from "./source-kind";
 import { db, schema } from "@/db";
 import type { Mention } from "@/db/schema";
 import { daysAgo, domainOf } from "@/lib/util";
@@ -13,9 +12,10 @@ import { cleanAnswer } from "./ai/extract";
 type Project = typeof schema.projects.$inferSelect;
 export type Rows = Awaited<ReturnType<typeof projectRuns>>;
 
-export async function loadBase(project: Project, days = 30) {
+export async function loadBase(project: Project, days = 30, opts: { answers?: boolean } = {}) {
   const [all, competitors, audit] = await Promise.all([
-    projectRuns(project.id, daysAgo(days), { withErrors: true }),
+    // Fără textul răspunsurilor, în afară de cine îl cere (răspunsurile întregi, tonul): pagina citește mult mai puțin.
+    projectRuns(project.id, daysAgo(days), { withErrors: true, answers: opts.answers ?? false }),
     db.select().from(schema.competitors).where(eq(schema.competitors.projectId, project.id)),
     latestAudit(project.id),
   ]);
@@ -74,48 +74,63 @@ export type ProductFilter = "" | "recomandate" | "pret" | "stoc" | "urmarite" | 
  * Totul în SQL, pe tot catalogul (nu doar pe primele 20.000 de rânduri): numărătorile cu count, lista cu filtru și limită 100.
  * „Preț greșit” = aceeași definiție ca în Vizibilitate (price_wrong din calculul salvat), ca cifrele să se lege între pagini.
  */
-export async function productInsights(project: Project, rows: Rows, opts: { f?: string; q?: string; tracked?: string[]; focus?: boolean } = {}) {
+const incompleteSql = () => { const P = schema.products; return dsql`(coalesce(${P.gtin}, '') = '' or coalesce(${P.brand}, '') = '' or coalesce(octet_length(${P.description}), 0) = 0 or coalesce(${P.imageUrl}, '') = '')`; };
+
+/** Numărătorile din pagina Produse, pe tot catalogul: calculate în worker (`panel_snapshots`), nu la fiecare deschidere. */
+export async function productCounts(projectId: string) {
   const P = schema.products, S = schema.productAiStats;
-  const incomplete = dsql`(coalesce(${P.gtin}, '') = '' or coalesce(${P.brand}, '') = '' or coalesce(octet_length(${P.description}), 0) = 0 or coalesce(${P.imageUrl}, '') = '')`;
   const [counts] = await db.select({
     total: dsql<number>`count(*)::int`,
     recommended: dsql<number>`count(*) filter (where ${S.appearances} > 0)::int`,
     wrongPrice: dsql<number>`count(*) filter (where ${S.priceWrong})::int`,
-    incomplete: dsql<number>`count(*) filter (where ${incomplete})::int`,
+    incomplete: dsql<number>`count(*) filter (where ${incompleteSql()})::int`,
     // Aceleași cifre doar pe „Produse focus”, arătate primele (ZoZo, 23.11.2026).
     focusTotal: dsql<number>`count(*) filter (where ${P.focus})::int`,
     focusRecommended: dsql<number>`count(*) filter (where ${P.focus} and ${S.appearances} > 0)::int`,
     focusWrongPrice: dsql<number>`count(*) filter (where ${P.focus} and ${S.priceWrong})::int`,
-    focusIncomplete: dsql<number>`count(*) filter (where ${P.focus} and ${incomplete})::int`,
-  }).from(P).leftJoin(S, eq(S.productId, P.id)).where(eq(P.projectId, project.id));
+    focusIncomplete: dsql<number>`count(*) filter (where ${P.focus} and ${incompleteSql()})::int`,
+  }).from(P).leftJoin(S, eq(S.productId, P.id)).where(eq(P.projectId, projectId));
+  return {
+    total: counts?.total ?? 0, recommended: counts?.recommended ?? 0, wrongPriceCount: counts?.wrongPrice ?? 0, incompleteCount: counts?.incomplete ?? 0,
+    focus: { total: counts?.focusTotal ?? 0, recommended: counts?.focusRecommended ?? 0, wrongPrice: counts?.focusWrongPrice ?? 0, incomplete: counts?.focusIncomplete ?? 0 },
+  };
+}
+
+/**
+ * Lista din pagina Produse: cel mult 100 de rânduri. Întâi produsele numite de AI (puține, din index), apoi restul
+ * în ordinea indexului (în stoc, cele mai vândute): fără sortare pe tot catalogul la fiecare deschidere.
+ */
+export async function productInsights(project: Project, opts: { f?: string; q?: string; tracked?: string[]; focus?: boolean } = {}) {
+  const P = schema.products, S = schema.productAiStats;
   const f = opts.f as ProductFilter | undefined;
   const conds: SQL[] = [eq(P.projectId, project.id)];
   if (opts.focus) conds.push(eq(P.focus, true));
   if (f === "recomandate") conds.push(dsql`${S.appearances} > 0`);
   if (f === "pret") conds.push(dsql`${S.priceWrong}`);
-  if (f === "stoc") conds.push(dsql`not ${P.inStock}`);
+  if (f === "stoc") conds.push(eq(P.inStock, false));
   if (f === "urmarite") conds.push(opts.tracked?.length ? inArray(P.id, opts.tracked) : dsql`false`);
   if (f === "populare") conds.push(dsql`${P.popularityRank} is not null`);
-  if (f === "incomplete") conds.push(incomplete);
+  if (f === "incomplete") conds.push(incompleteSql());
   if (opts.q) conds.push(ilike(P.title, `%${opts.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`));
-  const list = await db.select({
+  const select = (extra: SQL[]) => db.select({
     id: P.id, title: P.title, url: P.url, popularityRank: P.popularityRank, brand: P.brand, category: P.category, price: P.price, currency: P.currency, inStock: P.inStock, gtin: P.gtin,
     hasDescription: dsql<boolean>`coalesce(octet_length(${P.description}), 0) > 0`, hasImage: dsql<boolean>`coalesce(${P.imageUrl}, '') <> ''`,
     mentions: dsql<number>`coalesce(${S.appearances}, 0)::int`, providersMap: S.providers, avgPositionRaw: S.avgPosition, wrongPricesRaw: S.wrongPrices,
-  }).from(P).leftJoin(S, eq(S.productId, P.id)).where(and(...conds))
-    .orderBy(f === "populare" ? asc(P.popularityRank) : dsql`coalesce(${S.appearances}, 0) desc, ${P.inStock} desc, ${P.popularityRank} asc nulls last`).limit(100);
-  // „Unde trimit AI-urile cumpărătorii” = magazine: fără site-uri de producător (bosch-professional.com) sau care nu vând.
-  const brands = await catalogBrandsFn(project.id);
-  const where = new Map<string, number>();
-  for (const { run } of rows) for (const m of run.mentions as Mention[]) {
-    if (!isStoreLike(m.domain) || (m.domain !== project.domain && isBrandSite(m.domain, brands))) continue;
-    where.set(m.domain, (where.get(m.domain) ?? 0) + 1);
+  }).from(P).leftJoin(S, eq(S.productId, P.id)).where(and(...conds, ...extra));
+  // Forma condiției și „desc nulls last” contează: așa Postgres citește direct primele rânduri din products_project_stock_rank_idx
+  // (3 ms în loc de 200 ms pe 28.000 de produse cu procesorul limitat ca pe Render).
+  const LIMIT = 100;
+  let list;
+  if (f === "populare") list = await select([]).orderBy(asc(P.popularityRank)).limit(LIMIT);
+  else {
+    const named = await select([dsql`${S.appearances} > 0`]).orderBy(desc(S.appearances), desc(P.inStock), dsql`${P.popularityRank} asc nulls last`).limit(LIMIT);
+    const rest = named.length < LIMIT && f !== "recomandate"
+      ? await select([dsql`(${S.productId} is null or ${S.appearances} = 0)`]).orderBy(dsql`${P.inStock} desc nulls last`, dsql`${P.popularityRank} asc nulls last`).limit(LIMIT - named.length)
+      : [];
+    list = [...named, ...rest];
   }
   return {
     list: list.map(({ providersMap, avgPositionRaw, wrongPricesRaw, ...p }) => ({ ...p, providers: providersMap ? Object.keys(providersMap) : [], avgPosition: avgPositionRaw ? parseFloat(avgPositionRaw) : null, wrongPrices: wrongPricesRaw ?? [] })),
-    total: counts?.total ?? 0, recommended: counts?.recommended ?? 0, wrongPriceCount: counts?.wrongPrice ?? 0, incompleteCount: counts?.incomplete ?? 0,
-    focus: { total: counts?.focusTotal ?? 0, recommended: counts?.focusRecommended ?? 0, wrongPrice: counts?.focusWrongPrice ?? 0, incomplete: counts?.focusIncomplete ?? 0 },
-    topDestinations: [...where.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
   };
 }
 
