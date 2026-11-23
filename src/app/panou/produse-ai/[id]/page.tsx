@@ -94,7 +94,7 @@ export default async function ProductSheetPage({ params }: { params: Promise<{ i
             <SubmitButton variant="secondary" pendingText="Pornesc…">Verifică pagina din nou</SubmitButton></form>
         )} />
 
-      <Suspense fallback={<Card title="Când AI-urile aleg pe altcineva"><p className="text-sm text-muted">Calculăm…</p></Card>}>
+      <Suspense fallback={<Card title="Când AI-urile aleg pe altcineva" description="Răspunsurile AI despre acest produs în care apar alte magazine în locul tău și de ce."><p className="text-sm text-muted">Calculăm…</p></Card>}>
         <AnswersCard projectId={project.id} productId={p.id} productUrl={p.url} ownDomain={project.domain} orgId={sheet.project.orgId} inStock={p.inStock} tracked={tracked}
           namedRunIds={s?.examples.map((e) => e.runId) ?? []} wrongPrices={s?.wrongPrices ?? []}
           openai={openai.report} openaiActive={openai.active} google={google.report} page={page?.report ?? null} />

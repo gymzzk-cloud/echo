@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/client";
 import { makeReport } from "@/app/actions";
 import { dateShort } from "@/lib/format";
 import { busyKinds } from "@/core/jobs";
+import { CardHelp } from "@/components/card-help";
 
 export default async function Reports() {
   const { project, user } = await currentProject();
@@ -29,7 +30,7 @@ export default async function Reports() {
         )}
       </Card>
       {list.length === 0 ? <Empty title="Niciun raport încă" /> : (
-        <Card title="Rapoarte anterioare">
+        <Card title="Rapoarte anterioare" description={<CardHelp id="reports.history" />}>
           <ul className="divide-y divide-border">
             {list.map((r) => (
               <li key={r.id} className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">

@@ -4,6 +4,7 @@ import type { EngineView } from "@/core/engine-view";
 import { engineVerdict } from "@/core/engine-view";
 import { dateShort } from "@/lib/format";
 import { Badge, Card, Delta, TextLink, type Tone } from "../ui";
+import { CardHelp } from "@/components/card-help";
 
 /** Legăturile spre dovezi: fiecare cifră duce la răspunsurile sau produsele din care vine. */
 export type EvidenceLinks = { answers: (ai: string, only?: "lipsesti" | "apari") => string; products: (ai: string, f?: "pret") => string; tone: (ai: string) => string; rivals: (ai: string) => string };
@@ -25,7 +26,7 @@ function EngineCard({ e, links }: { e: EngineView; links: EvidenceLinks }) {
   const label = providerLabel(e.provider);
   if (!e.answers) {
     return (
-      <Card title={label} action={<Badge tone="warn">Nu am putut întreba</Badge>}>
+      <Card title={label} action={<Badge tone="warn">Nu am putut întreba</Badge>} description={<CardHelp id="vis.engine" />}>
         <p className="text-sm">Motivul: {e.failure ?? "nu a răspuns în perioada aleasă"}.</p>
         <p className="mt-2 text-xs text-muted">Nu intră în cifre și nu înseamnă că lipsești. Încercăm din nou la următoarea rulare.</p>
       </Card>
@@ -33,7 +34,7 @@ function EngineCard({ e, links }: { e: EngineView; links: EvidenceLinks }) {
   }
   const state = e.hits ? <Badge tone="good">Te recomandă</Badge> : <Badge tone="bad">Nu te recomandă</Badge>;
   return (
-    <Card title={label} action={state}>
+    <Card title={label} action={state} description={<CardHelp id="vis.engine" />}>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="num font-display text-3xl font-semibold">{e.visibility}%</span>
         <Delta value={e.delta} suffix=" pp" />

@@ -15,6 +15,7 @@ import { sampleQuotes, sentimentBoard } from "@/core/ai/sentiment";
 import { EngineCards, type EvidenceLinks } from "@/components/visibility/engine-cards";
 import { ProgressCards } from "@/components/visibility/progress-cards";
 import { AnswersList } from "@/components/visibility/answers-list";
+import { CardHelp } from "@/components/card-help";
 
 // Tu: culoarea de marcă; concurenții: nuanțe de gri (DESIGN §9).
 const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
@@ -131,7 +132,7 @@ async function DetailTab({ tab, project, days, ai, only, link }: Ctx & { tab: Ta
   return (
     <div className="space-y-6">
       {aiChips}
-      <Card title={`Evoluția vizibilității ${scope}`}>
+      <Card title={`Evoluția vizibilității ${scope}`} description={<CardHelp id="vis.trend" />}>
         {chart.length > 1 ? <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...top.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} /> : <p className="text-sm text-muted">Graficul apare după a doua zi de măsurători.</p>}
       </Card>
       <RivalsCard report={rankRivals(rows, project.domain)} projectId={project.id} projectName={project.name} competitors={base.competitors} />

@@ -91,6 +91,12 @@ export function matches(p: FeedProduct, c: FeedCondition) {
   }
 }
 
+/** Câmpurile pe care le poate folosi textul unei reguli: „{brand} ” pune marca fiecărui produs. */
+export const PLACEHOLDERS = ["title", "brand", "category", "gtin", "mpn"] as const;
+export function fillPlaceholders(value: string, p: FeedProduct) {
+  return value.replace(/\{(title|brand|category|gtin|mpn)\}/g, (_, k: string) => String((p as unknown as Record<string, unknown>)[k] ?? "").trim());
+}
+
 /** Aplică regulile în ordinea priorității. Întoarce produsul modificat sau null dacă e exclus. Funcție pură. */
 export function applyRules(p: FeedProduct, rules: { conditions: FeedCondition[]; actions: FeedAction[]; channels: string[]; active: boolean }[], channel: string): FeedProduct | null {
   let out = { ...p, labels: [...p.labels] };
@@ -102,7 +108,11 @@ export function applyRules(p: FeedProduct, rules: { conditions: FeedCondition[];
       if (a.type === "label" && a.value) { out.labels.push(a.value); continue; }
       if (!a.field || a.field === "label") continue;
       const cur = get(out, a.field);
-      const val = a.type === "set" ? a.value ?? "" : a.type === "prefix" ? `${a.value ?? ""}${cur}` : `${cur}${a.value ?? ""}`;
+      const add = fillPlaceholders(a.value ?? "", out);
+      if (!add.trim() && /\{\w+\}/.test(a.value ?? "")) continue; // ex. „{brand} ” la un produs fără marcă
+      // Prefix/sufix: nu dublăm ce există deja („Bosch Bosch GSR…”), deci regula se poate aplica de oricâte ori.
+      if (a.type !== "set" && add.trim() && normalizeText(cur).includes(normalizeText(add.trim()))) continue;
+      const val = a.type === "set" ? add : a.type === "prefix" ? `${add}${cur}` : `${cur}${add}`;
       out = { ...out, [a.field]: a.field === "price" ? parseFloat(val) || out.price : val };
     }
   }

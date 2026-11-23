@@ -2,6 +2,8 @@ import type { AuditResult } from "@/core/audit";
 import { fixFor } from "@/core/audit/fixes";
 import { Badge, Card, SubCard, statusLabel, statusTone } from "./ui";
 import { CopyButton } from "./client";
+import { CardHelp } from "@/components/card-help";
+import type { CardHelpId } from "@/lib/card-help";
 
 const GROUPS: Record<string, string> = { acces: "Acces pentru AI", date: "Date structurate", continut: "Conținut", incredere: "Încredere", viteza: "Viteză" };
 
@@ -41,7 +43,7 @@ export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fi
 
       <div className="grid gap-6 lg:grid-cols-2">
         {groups.map(({ g, checks }) => (
-          <Card key={g} title={GROUPS[g]}>
+          <Card key={g} title={GROUPS[g]} description={<CardHelp id={`audit.group.${g}` as CardHelpId} />}>
             <ul>
               {checks.map((c) => (
                 <li key={c.id} className="border-b border-border py-3 first:pt-0 last:border-0 last:pb-0">
@@ -69,7 +71,7 @@ export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fi
       </div>
 
       {audit.bots.length > 0 && (
-        <Card title="Roboții AI în robots.txt">
+        <Card title="Roboții AI în robots.txt" description={<CardHelp id="audit.bots" />}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {audit.bots.map((b) => (
               <SubCard key={b.ua} className="flex items-center justify-between gap-3 p-3 text-sm">
@@ -88,7 +90,7 @@ export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fi
             const f = fixFor(k, { ...fixCtx, checks: audit.checks, sitemapUrl: audit.sitemapUrl });
             if (!f) return null;
             return (
-              <Card key={k} title={f.title} action={f.file && <Badge className="hidden sm:inline-flex">{f.file}</Badge>}>
+              <Card key={k} title={f.title} description={<CardHelp id="audit.fix" />} action={f.file && <Badge className="hidden sm:inline-flex">{f.file}</Badge>}>
                 <ol className="list-decimal space-y-1 pl-6 text-sm">{f.steps.map((s) => <li key={s}>{s}</li>)}</ol>
                 {f.code && (
                   <div className="mt-4 rounded-lg border border-border bg-surface">

@@ -5,6 +5,7 @@ import type { AuditResult } from "@/core/audit";
 import { providerLabel } from "@/core/ai/types";
 import { Badge, Card, Empty, Notice, PageHeader, Table, Td } from "@/components/ui";
 import { TrendChart } from "@/components/client";
+import { CardHelp } from "@/components/card-help";
 
 export default async function Reputation() {
   const { project } = await currentProject();
@@ -28,11 +29,11 @@ export default async function Reputation() {
             ))}
           </Table>
         </Card>
-        <Card title="Tonul în timp (% afirmații pozitive)">
+        <Card title="Tonul în timp (% afirmații pozitive)" description={<CardHelp id="reputation.trend" />}>
           {r.trend.length > 1 ? <TrendChart data={r.trend} series={[{ key: "ton", label: "Ton pozitiv", color: "var(--primary)" }]} height={200} /> : <p className="text-sm text-muted">Apare după a doua zi.</p>}
         </Card>
       </div>
-      <Card title="Ce afirmă AI-urile despre tine">
+      <Card title="Ce afirmă AI-urile despre tine" description={<CardHelp id="reputation.claims" />}>
         <ul className="divide-y divide-border">
           {r.claims.map((c) => (
             <li key={c.text} className="py-3">

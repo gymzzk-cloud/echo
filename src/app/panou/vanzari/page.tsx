@@ -4,6 +4,7 @@ import { Card, PageHeader, Stat, Table, Td, TextLink } from "@/components/ui";
 import { CodeBlock } from "@/components/client";
 import { daysAgo } from "@/lib/util";
 import { money } from "@/lib/format";
+import { CardHelp } from "@/components/card-help";
 
 export default async function Sales() {
   const { project } = await currentProject();
@@ -24,7 +25,7 @@ export default async function Sales() {
         <Stat label="Clicuri din căutarea Echo" value={s.searchClicks} />
       </div>
 
-      <Card title="Pe fiecare AI">
+      <Card title="Pe fiecare AI" description={<CardHelp id="sales.perEngine" />}>
         {s.list.length === 0 ? <p className="text-sm text-muted">Încă nu avem date. Pune codul de mai jos pe site; primele vizite din AI apar aici în câteva minute.</p> : (
           <Table head={["Sursă", "Vizite", "Comenzi", "Conversie", "Valoare"]}>
             {s.list.map((x) => (
@@ -45,7 +46,7 @@ export default async function Sales() {
         <p className="mt-2 text-xs text-muted">Fără rețea de afiliere: comisionul se calculează din comenzile raportate de codul de mai jos și intră pe factura lunară. Comenzile anulate se scad la cerere, cu id-ul comenzii.</p>
       </Card>
 
-      <Card title="Instalare (5 minute)">
+      <Card title="Instalare (5 minute)" description={<CardHelp id="sales.install" />}>
         <ol className="space-y-6 text-sm">
           <li>
             <div className="font-medium">1. Pune acest cod în &lt;head&gt;, pe toate paginile</div>

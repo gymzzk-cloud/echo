@@ -150,6 +150,13 @@
 
 38. **Textele din câmpuri sunt generale și clare pentru orice magazin**, de exemplu „Scrie numele concurentului sau adresa site-ului lui”. *(ZoZo, 20.11.2026)*
 
+38b. **Fiecare card din panou are sub titlu o explicație pentru începători: ce face și la ce te ajută.** *(ZoZo, 23.11.2026, despre cardul „Reguli” din Feed: „la ce ajută? … ar trebui să aibă sub titlu o descriere pentru a înțelege la ce se folosește… că așa nimeni n-o să știe”)*
+    De ce: clientul e proprietar de magazin, nu specialist în feed-uri sau AI; un card pe care nu-l înțelege nu e folosit.
+    Cum: `description={<CardHelp id="…" />}` pe orice `<Card title>`, cu textul în `src/lib/card-help.ts` (RO + HU). Testul din `tests/design-rules.test.ts` pică dacă lipsește. Regula e și în `docs/DESIGN.md` §6.3.
+
+38c. **O unealtă arată întâi datele reale și spune singură dacă ai nevoie de ea.** *(ZoZo, 23.11.2026: „de ce nu arătăm acum cum arată feed-ul, clientul să vadă produsele cum apar, să știe dacă trebuie introdusă regula sau nu”)*
+    Cum: pe pagina Feed, „Cum arată feed-ul acum” arată produsele exact cum pleacă spre fiecare canal (ChatGPT, Google, Meta…) și câte n-au stoc, descriere, marcă sau EAN; „Reguli” propune doar regulile care ar schimba ceva pe produsele lui, cu exemple „înainte → după” și buton „Adaugă regula”, iar când nu e nevoie spune „Nu trebuie să adaugi nicio regulă”. Exemplele gata făcute completează formularul.
+
 ### A10. Onboarding și planuri
 
 39. **Onboarding-ul e un test gratuit în stilul Peec, interactiv și „catchy”.** *(ZoZo, 20.11.2026)* Clientul dă site-ul, vede o scanare animată (cu sigla magazinului, cerută și apreciată de ZoZo), completează categorii, mărci, produse, piețe și concurenți (precompletate din site), apoi vede o primă rulare live. Fără feed, API sau catalog în această fază.
@@ -326,6 +333,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - Nu: să citim doar JSON-LD, doar `/sitemap.xml` din rădăcină și doar paginile de produs cu „/produs/” în adresă, apoi să spunem „lipsesc datele structurate” sau „nu am găsit un sitemap” când de fapt nu am găsit noi locul. La ShopExpert RO produsele au JSON-LD Product complet (preț, monedă, stoc, brand, GTIN, MPN), iar sitemap-ul e la `/ro/sitemap.xml` (9.711 adrese); `/sitemap.xml` răspunde cu o pagină HTML și robots.txt nu are linia „Sitemap:”.
 - În schimb: citim JSON-LD, Microdata și RDFa; luăm pagina de produs din catalog, din pagina principală sau din sitemap; căutăm sitemap-ul în robots.txt, sub prefixul de limbă (`/ro/sitemap.xml`), în rădăcină și în variantele index/.gz; dacă firewall-ul ne refuză, încercăm o dată ca browser. Recomandăm doar ce lipsește cu adevărat, numind câmpurile (ex. „lipsește doar blocul Organization”, „Sitemap-ul nu e declarat în robots.txt”, „lipsesc brand, GTIN”), iar sub fiecare verificare arătăm „Ce am găsit și unde” (adresele verificate și ce era acolo). Recomandările vechi a căror verificare trece acum se închid singure.
 - De ce: ZoZo: „de ce zice să corectez să am schema.org, că avem făcut de 12 ani… la fel și sitemap scrie că nu avem deși este”. O recomandare greșită face clientul să nu mai creadă restul auditului.
+
+**B30. Unealtă fără explicație și fără datele pe care lucrează** *(23.11.2026, 12:21–12:22)*
+- Nu: un card intitulat doar „Reguli”, cu un formular „Dacă / Condiție / Atunci” și exemplul „Marcă este bosch”, fără să spunem la ce folosește și fără să arătăm feed-ul pe care îl schimbă.
+- În schimb: sub titlu, ce face și la ce te ajută; lângă el, feed-ul așa cum îl primește fiecare canal; regulile propuse doar când ajută, cu „înainte → după” pe produse reale.
+- De ce: ZoZo: „la ce ajută? optimizare sau ce? nu înțeleg… așa nimeni n-o să știe” și „clientul să vadă produsele cum apar, să știe dacă trebuie introdusă regula sau nu”.
 
 ---
 
