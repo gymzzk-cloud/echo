@@ -1,0 +1,12 @@
+{
+  "search_metadata": { "status": "Success" },
+  "search_parameters": { "engine": "google_ai_mode", "q": "bormasina cu acumulator bosch", "gl": "ro", "hl": "ro" },
+  "text_blocks": [
+    { "type": "paragraph", "snippet": "Pentru uz casnic, Bosch GSR 18V-55 e alegerea cea mai populară.", "reference_indexes": [0] },
+    { "type": "list", "list": [ { "title": "Dedeman", "snippet": "în jur de 899 lei", "reference_indexes": [0] } ] }
+  ],
+  "references": [
+    { "index": 0, "title": "Bormasina Bosch GSR 18V-55", "link": "https://www.dedeman.ro/ro/bormasina-bosch-gsr-18v-55/p/123", "source": "Dedeman" }
+  ],
+  "reconstructed_markdown": "Pentru uz casnic, Bosch GSR 18V-55 e alegerea cea mai populară."
+}

@@ -3,6 +3,8 @@ import {
 } from "drizzle-orm/pg-core";
 import type { StorePolicies } from "../core/policies/extract";
 import type { Onboarding } from "../core/onboarding/types";
+import type { Opinion } from "../core/ai/sentiment";
+import type { ProductExample } from "../core/product-visibility";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -85,7 +87,11 @@ export const projects = pgTable("projects", {
   agentPolicy: jsonb("agent_policy").$type<AgentPolicy>(),
   storeInfo: jsonb("store_info").$type<StoreInfo>(), // condițiile citite automat de pe site: răspunsurile MCP ale magazinului
   rivalsCheckedAt: timestamp("rivals_checked_at", { withTimezone: true }), // ultima căutare automată de concurenți în răspunsurile AI
+  productAiAt: timestamp("product_ai_at", { withTimezone: true }), // ultimul calcul al vizibilității pe produs (worker)
+  productAiAnswers: integer("product_ai_answers"), // câte răspunsuri AI au intrat în acel calcul (numitorul procentelor)
   onboarding: jsonb("onboarding").$type<Onboarding>(), // testul gratuit de la prima logare; gol = magazin obișnuit
+  fixAutoThreshold: integer("fix_auto_threshold"), // reparațiile de produs cu încredere de cel puțin atât se aplică singure; gol = oprit
+  fixesCheckedAt: timestamp("fixes_checked_at", { withTimezone: true }), // ultima căutare de reparații de produs
   createdAt: createdAt(),
 }, (t) => [index("projects_org_idx").on(t.orgId), index("projects_domain_idx").on(t.domain)]);
 
@@ -140,6 +146,31 @@ export const products = pgTable("products", {
   uniqueIndex("products_project_ext_idx").on(t.projectId, t.externalId),
   index("products_project_idx").on(t.projectId),
   index("products_project_popularity_idx").on(t.projectId, t.popularityRank),
+]);
+
+/**
+ * Vizibilitatea pe produs, calculată în worker din răspunsurile AI deja salvate (ultimele 30 de zile).
+ * Un rând = un produs care a apărut cel puțin o dată. Pagina doar citește, cu paginare.
+ */
+export const productAiStats = pgTable("product_ai_stats", {
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  appearances: integer("appearances").notNull(), // în câte răspunsuri apare
+  prompts: integer("prompts").notNull(), // la câte întrebări diferite
+  providers: jsonb("providers").$type<Record<string, number>>().notNull(),
+  avgPosition: numeric("avg_position", { precision: 5, scale: 1 }).notNull(),
+  bestPosition: integer("best_position").notNull(),
+  withStore: integer("with_store").notNull(), // răspunsuri care numesc și magazinul sau citează pagina produsului
+  statedPrice: numeric("stated_price", { precision: 12, scale: 2 }), // ultimul preț spus de un AI
+  statedProvider: text("stated_provider"),
+  priceWrong: boolean("price_wrong").notNull().default(false),
+  wrongPrices: jsonb("wrong_prices").$type<{ provider: string; price: number; runId?: string }[]>().notNull(),
+  examples: jsonb("examples").$type<ProductExample[]>().notNull(),
+  lastSeen: date("last_seen").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.projectId, t.productId] }),
+  index("product_ai_stats_rank_idx").on(t.projectId, t.appearances),
+  index("product_ai_stats_product_idx").on(t.productId), // ștergerea unui produs la sincronizare
 ]);
 
 export const competitors = pgTable("competitors", {
@@ -202,6 +233,8 @@ export type Mention = {
   position: number;      // 1 = primul menționat
   productTitle?: string;
   statedPrice?: number;  // prețul spus de AI, dacă există
+  /** Ce spune AI-ul despre magazin (laude, critici, pe aspecte); extras din text, fără apel AI. */
+  opinions?: Opinion[];
 };
 
 // Legătura dintre întrebările unui proiect și rulări (pentru costuri pe client)
@@ -393,17 +426,49 @@ export const feedOutputs = pgTable("feed_outputs", {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("feed_outputs_project_channel_idx").on(t.projectId, t.channel)]);
 
-/** Modificări propuse pentru produse (titluri optimizate, atribute completate). Se aplică doar după aprobare și se pot anula. */
+/**
+ * Reparații de produs propuse (titlu, descriere, GTIN, marcă, categorie), fiecare cu un scor de încredere.
+ * Se aplică doar în feed-ul Echo, după aprobare (de mână sau automat peste pragul magazinului), și se pot anula.
+ * Un singur rând pe produs și câmp: o propunere nouă îl actualizează doar dacă datele produsului s-au schimbat (input_hash).
+ */
 export const productEdits = pgTable("product_edits", {
   id: id(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-  field: text("field").notNull(), // title | description | brand | gtin | category | color
+  field: text("field").notNull(), // title | description | brand | gtin | category
   value: text("value").notNull(),
   previous: text("previous"),
   source: text("source").notNull().default("ai"), // ai | regula | manual
   status: text("status").notNull().default("propus"), // propus | aprobat | respins
+  confidence: integer("confidence").notNull().default(50), // 0–100, calculat de Echo (nu declarat de AI)
+  reason: text("reason"), // de ce propunem, pe scurt, pentru om
+  inputHash: text("input_hash"), // amprenta datelor produsului din care a ieșit propunerea
+  auto: boolean("auto").notNull().default(false), // aprobat automat, peste pragul magazinului
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
   createdAt: createdAt(),
-}, (t) => [index("product_edits_product_idx").on(t.productId)]);
+}, (t) => [
+  index("product_edits_product_idx").on(t.productId),
+  uniqueIndex("product_edits_product_field_idx").on(t.productId, t.field),
+  index("product_edits_project_status_idx").on(t.projectId, t.status, t.field),
+]);
+
+/**
+ * Apeluri AI care nu sunt întrebări de vizibilitate (ex. propunerile de titluri și descrieri):
+ * costul și tokenii lor intră în bugetul lunar al magazinului, la fel ca rulările.
+ */
+export const aiTasks = pgTable("ai_tasks", {
+  id: id(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // fixes
+  provider: text("provider").notNull(),
+  model: text("model"),
+  items: integer("items").notNull().default(0),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  costUsd: numeric("cost_usd", { precision: 10, scale: 5 }).notNull().default("0"),
+  error: text("error"),
+  createdAt: createdAt(),
+}, (t) => [index("ai_tasks_project_idx").on(t.projectId, t.createdAt)]);
 
 /** Recenzii verificate: doar de la comenzi reale urmărite. */
 export const reviews = pgTable("reviews", {

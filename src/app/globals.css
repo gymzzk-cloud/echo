@@ -61,3 +61,8 @@ pre { white-space: pre-wrap; word-break: break-word; }
 .ob-flash { animation: ob-flash 1.2s ease both; }
 .ob-geo path { stroke: var(--sea); stroke-width: 1.2; stroke-linejoin: round; transition: fill .35s ease; }
 @media (prefers-reduced-motion: reduce) { .ob-in, .ob-pop, .ob-grow, .ob-flash { animation: none; } .ob-pulse { display: none; } }
+
+/* Imagini cu variantă pentru fiecare temă (ex. capturile din panou pe pagina pentru magazine). */
+.only-dark { display: none; }
+:root[data-theme="dark"] .only-dark { display: block; }
+:root[data-theme="dark"] .only-light { display: none; }

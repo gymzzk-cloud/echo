@@ -52,7 +52,9 @@ Fără chei, toate AI-urile rulează în **mod demo** (răspunsuri simulate, det
 |---|---|
 | `OPENAI_API_KEY` | platform.openai.com |
 | `GEMINI_API_KEY` | aistudio.google.com → „Get API key” (planul gratuit merge; limitele sunt în `GEMINI_RPM` și `GEMINI_DAILY_LIMIT`) |
-| `SERPAPI_API_KEY` | serpapi.com → Dashboard → „Your Private API Key”, pentru Google AI Overviews (planul gratuit: 100 de căutări pe lună) |
+| `SERPAPI_API_KEY` | serpapi.com → Dashboard → „Your Private API Key”, pentru Google AI Overviews, Google AI Mode și Copilot (planul gratuit: 100 de căutări pe lună, comune; `SERP_ENGINES` alege motoarele) |
+| `XAI_API_KEY` | console.x.ai → API Keys, pentru Grok (cu căutare web) |
+| `META_API_KEY` | developer.meta.com → Meta Model API, pentru Meta AI (fără căutare web; în 2026 doar din SUA) |
 | `PERPLEXITY_API_KEY` | perplexity.ai/settings/api |
 | `ANTHROPIC_API_KEY` | console.anthropic.com |
 | `RESEND_API_KEY` (opțional) | resend.com, pentru emailul săptămânal |

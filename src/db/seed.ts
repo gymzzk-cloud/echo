@@ -14,7 +14,7 @@ import bcrypt from "bcryptjs";
 import { clock, daysAgo, parseStoreUrl, seededRandom } from "@/lib/util";
 import { checkAgentOrder } from "@/core/agent-gate";
 import { claimStore } from "@/core/stores";
-import { proposeTitleEdits } from "@/core/feed";
+import { generateFixes } from "@/core/fixes";
 import { randomToken, sha256 } from "@/lib/util";
 import { parseFeed } from "@/core/connectors";
 import { connectStore, ensurePrompts, runProject, syncCatalog, auditProject } from "@/core/projects";
@@ -117,7 +117,7 @@ async function demoExtras(ids: string[]) {
     const bots = [["GPTBot", "/"], ["OAI-SearchBot", "/produse"], ["ChatGPT-User", "/produs-1"], ["PerplexityBot", "/"], ["ClaudeBot", "/"], ["Google-Extended", "/"], ["Bytespider", "/"]];
     for (let d = 0; d < 7; d++) for (const [bot, path] of bots) await db.insert(schema.botVisits).values({ projectId, day: daysAgo(d), bot, path, status: bot === "ClaudeBot" ? 403 : 200, hits: 1 + Math.floor(rnd() * 20) }).onConflictDoNothing();
     await db.insert(schema.feedOutputs).values([{ projectId, channel: "google", token: randomToken(24) }, { projectId, channel: "openai", token: randomToken(24) }]).onConflictDoNothing();
-    await proposeTitleEdits(projectId);
+    await generateFixes(projectId);
   }
   // Cont de cumpărător de test, cu produse urmărite și o alertă
   const BUYER = "cumparator@echo.local";

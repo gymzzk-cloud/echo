@@ -57,8 +57,11 @@ export async function loadWorld(): Promise<World> {
 }
 export const invalidateWorld = () => { worldCache = null; };
 
-export function activeProviders(): { id: Provider; live: boolean }[] {
-  return PROVIDERS.map((p) => ({ id: p.id, live: LIVE[p.id].isLive() }));
+export function activeProviders(): { id: Provider; live: boolean; off: "key" | "off" | null }[] {
+  return PROVIDERS.map((p) => {
+    const live = LIVE[p.id].isLive();
+    return { id: p.id, live, off: live ? null : (LIVE[p.id].offReason?.() ?? "key") };
+  });
 }
 export const isDemo = () => activeProviders().every((p) => !p.live);
 /**
@@ -135,13 +138,22 @@ export async function runAll(input: RunInput) {
  * O rulare partajată cu alte magazine se socotește întreagă la fiecare (estimare prudentă pentru plafon).
  */
 export async function projectUsageThisMonth(projectId: string) {
+  // Rulările întrebărilor plus apelurile de scriere (ex. reparațiile de produs), din `ai_tasks`.
   const r = await db.execute(dsql`
-    select count(*)::int as n, coalesce(sum(r.cost_usd),0)::float as usd,
-           coalesce(sum(r.input_tokens),0)::int as "inputTokens", coalesce(sum(r.output_tokens),0)::int as "outputTokens"
-    from runs r
-    where r.run_date >= date_trunc('month', now()) and r.mode = 'live'
-      and r.id in (select pr.run_id from prompt_runs pr join prompts p on p.id = pr.prompt_id where p.project_id = ${projectId})`);
-  return r[0] as unknown as { n: number; usd: number; inputTokens: number; outputTokens: number };
+    with q as (
+      select count(*)::int as n, coalesce(sum(r.cost_usd),0)::float as usd,
+             coalesce(sum(r.input_tokens),0)::int as i, coalesce(sum(r.output_tokens),0)::int as o
+      from runs r
+      where r.run_date >= date_trunc('month', now()) and r.mode = 'live'
+        and r.id in (select pr.run_id from prompt_runs pr join prompts p on p.id = pr.prompt_id where p.project_id = ${projectId})
+    ), t as (
+      select count(*)::int as n, coalesce(sum(cost_usd),0)::float as usd,
+             coalesce(sum(input_tokens),0)::int as i, coalesce(sum(output_tokens),0)::int as o
+      from ai_tasks where project_id = ${projectId} and created_at >= date_trunc('month', now()) and error is null
+    )
+    select q.n as n, (q.usd + t.usd)::float as usd, (q.i + t.i)::int as "inputTokens", (q.o + t.o)::int as "outputTokens", t.n as tasks
+    from q, t`);
+  return r[0] as unknown as { n: number; usd: number; inputTokens: number; outputTokens: number; tasks: number };
 }
 
 export async function costThisMonth() {

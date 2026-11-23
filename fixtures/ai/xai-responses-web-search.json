@@ -1,0 +1,18 @@
+{
+  "id": "resp_sintetic",
+  "model": "grok-4-1-fast-non-reasoning",
+  "output": [
+    { "type": "web_search_call", "id": "ws_1", "status": "completed" },
+    { "type": "web_search_call", "id": "ws_2", "status": "completed" },
+    { "type": "message", "role": "assistant", "content": [
+      { "type": "output_text", "text": "Poți cumpăra o bormașină Bosch GSR 18V-55 de la Dedeman sau eMAG, la aproximativ 899 lei.",
+        "annotations": [
+          { "type": "url_citation", "url": "https://www.dedeman.ro/ro/bormasina-bosch-gsr-18v-55/p/123", "title": "Dedeman", "start_index": 52, "end_index": 59 },
+          { "type": "url_citation", "url": "https://www.emag.ro/bosch-gsr-18v-55/pd/ABC/", "title": "eMAG", "start_index": 63, "end_index": 67 },
+          { "type": "url_citation", "url": "https://www.emag.ro/bosch-gsr-18v-55/pd/ABC/", "title": "eMAG" }
+        ] }
+    ] }
+  ],
+  "citations": ["https://www.emag.ro/bosch-gsr-18v-55/pd/ABC/", "https://www.compari.ro/bormasini/"],
+  "usage": { "input_tokens": 1200, "output_tokens": 80 }
+}

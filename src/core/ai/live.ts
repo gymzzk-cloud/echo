@@ -3,6 +3,8 @@ import type { Provider, Runner, RunInput, RunOutput } from "./types";
 import { costConfig } from "./budget";
 import { gemini } from "./gemini";
 import { envPrice, envValue, postJson } from "./http";
+import { grok } from "./grok";
+import { meta } from "./meta";
 import { aimode, aioverview, copilot } from "./serpapi";
 
 /**
@@ -119,4 +121,4 @@ export const claude: Runner = {
   },
 };
 
-export const LIVE: Record<Provider, Runner> = { chatgpt, gemini, perplexity, claude, aioverview, aimode, copilot };
+export const LIVE: Record<Provider, Runner> = { chatgpt, gemini, perplexity, claude, aioverview, aimode, copilot, grok, meta };

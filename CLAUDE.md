@@ -9,6 +9,8 @@ AgentReady are două părți pe același motor:
 - **căutarea pentru cumpărători** (gratuită), care întreabă toate AI-urile, verifică prețurile și arată magazine de încredere;
 - **panoul pentru magazine** (abonament), care arată dacă le recomandă AI-urile, de ce nu, și le repară problemele.
 
+**Primul fișier de citit: `docs/KNOWLEDGE.md`**, memoria permanentă a proiectului: ce urmărim (partea A) și greșelile pe care nu le mai repetăm (partea B). Când ZoZo spune că ceva e greșit sau bun, punctul se adaugă imediat acolo, în partea potrivită (regula din partea C).
+
 Toate funcțiile sunt în `docs/FUNCTII.md`, planul tehnic în `docs/PLAN-TEHNIC.md`, iar regulile vizuale în `docs/DESIGN.md`. **Toate trei sunt obligatorii.**
 
 ## Priorități, în ordinea asta
@@ -99,7 +101,7 @@ O sarcină e gata doar când:
 ## Costuri AI (regulă permanentă: cât mai puțini tokeni)
 
 - Orice cod nou care apelează un AI trece prin adaptoarele din `src/core/ai/` și prin `runQuery`, care salvează costul și tokenii fiecărei rulări.
-- **Model ieftin implicit**: ChatGPT `gpt-5-mini` cu gândire `low`, Claude `claude-haiku-5-5`, Gemini Flash fără gândire, Perplexity `sonar`. Un model mare doar unde s-a arătat că e nevoie, prin variabila de mediu a adaptorului.
+- **Model ieftin implicit**: ChatGPT `gpt-5-mini` cu gândire `low`, Claude `claude-haiku-5-5`, Gemini Flash fără gândire, Perplexity `sonar`, Grok cel mai ieftin model xAI disponibil (ales singur, cel mult 2 căutări), Meta AI `muse-spark-1.3` (fără căutare web). Un model mare doar unde s-a arătat că e nevoie, prin variabila de mediu a adaptorului.
 - **Planuri gratuite respectate în motor** (`src/core/ai/limits.ts`): un adaptor își declară limitele (`limits()`: pe minut, pe zi, credite pe lună, zile de refolosire). Gemini: `GEMINI_RPM`, iar pe planul gratuit (`GEMINI_FREE_TIER=1`) și `GEMINI_DAILY_LIMIT`; supraîncărcarea (500/503) se reîncearcă de 2 ori cu pauze, apoi trecem la alt model Flash stabil. Google AI Overviews prin SerpApi: `SERPAPI_MONTHLY_LIMIT` credite, rulare refolosită `SERP_REUSE_DAYS` zile, doar motoarele din `SERP_ENGINES`. Peste limită nu întrebăm, iar rularea apare ca „nu am putut întreba”, nu ca „nu ești recomandat”.
 - **Răspuns plafonat**: `AI_MAX_OUTPUT_TOKENS` (implicit 2000), cel mult 2 căutări web pe întrebare, context de căutare „low”.
 - **Întrebarea pleacă exact cum o scrie clientul**, fără instrucțiuni în plus: ar costa tokeni și ar strica măsurătoarea.
@@ -123,7 +125,8 @@ O sarcină e gata doar când:
 
 ## Când lucrează Claude
 
-- Citește `PLAN-TEHNIC.md`, `DESIGN.md` și acest fișier înainte de prima modificare.
+- Citește `KNOWLEDGE.md`, `PLAN-TEHNIC.md`, `DESIGN.md` și acest fișier înainte de prima modificare.
+- Când ZoZo corectează ceva sau confirmă că e bun, adaugă punctul în `docs/KNOWLEDGE.md` în aceeași tură (și în copia din `fundatie/`).
 - Face pași mici, verificabili, fiecare cu testele lui. Nu rescrie module întregi neîntrebat.
 - Nu adaugă dependențe noi fără un motiv scris în PR.
 - Când nu e sigur de o decizie de produs, întreabă. Când e o decizie tehnică mică, alege varianta simplă și o notează în PR.
