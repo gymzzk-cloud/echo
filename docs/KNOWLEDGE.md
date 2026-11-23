@@ -317,6 +317,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: „Cum te văd AI-urile” începe cu câte un card pe fiecare AI, unul lângă altul (apari în X din Y răspunsuri, locul mediu, cine apare în locul tău, produse numite, prețuri greșite, ton), fiecare cifră cu link spre răspunsurile exacte; apoi „Ce s-a schimbat de când folosești Echo” și „Ce repari acum”. Concurenții, tonul și răspunsurile întregi stau în file separate.
 - De ce: „e puțin haotic pentru mine… cum ar trebui să verific cum mă ajută”.
 
+**B28. Laude și critici fără sursă, puse uneori pe seama magazinului greșit** *(23.11.2026, 11:59)*
+- Nu: să arătăm „Ce laudă / Ce critică AI-urile la tine” doar cu fraza și AI-ul, și să lipim de magazin o frază despre alt vânzător („chei fixe indisponibile la CROMWELL Romania”).
+- În schimb: lângă fiecare laudă și critică, sursa (întrebarea, AI-ul, ziua, linkurile citate, răspunsul întreg cu fraza evidențiată); o frază care numește alt vânzător nu e a magazinului de deasupra.
+- De ce: ZoZo: „aici ar trebui să afișezi și sursele… să ne putem asigura că sunt corecte și despre noi este”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

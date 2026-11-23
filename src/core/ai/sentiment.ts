@@ -38,7 +38,7 @@ const ASPECT_WORDS: Record<Aspect, RegExp> = {
 };
 
 /** Cuvinte de laudă (+1) sau critică (-1). `aspect` = cuvântul ține de un singur aspect („ieftin” = preț). */
-type Cue = { re: RegExp; tone: 1 | -1; aspect?: Aspect };
+type Cue = { re: RegExp; tone: 1 | -1; aspect?: Aspect; soft?: boolean };
 const CUES: Cue[] = [
   // Preț
   { re: re("ieftin\\w*|accesibil\\w*|competitiv\\w*|avantajos\\w*|avantajoas\\w*|olcso\\w*|kedvezo|megfizethet\\w*|jutanyos\\w*"), tone: 1, aspect: "pret" },
@@ -52,7 +52,7 @@ const CUES: Cue[] = [
   { re: re("stoc limitat|stocuri limitate|lipsa din stoc|lipsesc din stoc|indisponibil\\w*|epuizat\\w*|nincs keszleten|korlatozott keszlet\\w*|szuk kinalat\\w*"), tone: -1, aspect: "oferta" },
   // Încredere
   { re: re("de incredere|fiabil\\w*|reputatie buna|reputatie solida|bine cotat\\w*|bine apreciat\\w*|autorizat\\w*|oficial\\w*|consacrat\\w*|cunoscut\\w*|renumit\\w*|serios|seriosi|retur gratuit|retur usor|garantie extinsa|megbizhato\\w*|hivatalos\\w*|nepszeru\\w*|ismert\\w*"), tone: 1, aspect: "incredere" },
-  { re: re("recenzii mixte|recenzii negative|pareri mixte|reclamati\\w*|plangeri\\w*|nesigur\\w*|neserios\\w*|teapa|inselatori\\w*|vegyes velemeny\\w*|negativ velemeny\\w*|panasz\\w*|megbizhatatlan\\w*"), tone: -1, aspect: "incredere" },
+  { re: re("recenzii mixte|recenzii negative|pareri mixte|reclamati\\w*|plangeri\\w*|nesigur\\w*|neserios\\w*|teapa|inselatori\\w*|vegyes velemeny\\w*|negativ velemeny\\w*|panasz\\w*|megbizhatatlan\\w*"), tone: -1, aspect: "incredere", soft: true },
   // Servicii
   { re: re("amabil\\w*|competent\\w*|profesionist\\w*|consultanta (?:buna|de specialitate)|segitokesz\\w*|szakszeru\\w*"), tone: 1, aspect: "servicii" },
   { re: re("greu de contactat|nu raspund\\w*|raspund greu|nehezen elerheto\\w*"), tone: -1, aspect: "servicii" },
@@ -93,7 +93,8 @@ export function clauseOpinions(clause: string): { aspect: Aspect | null; tone: 1
       taken.push([at, end]);
       const negated = NEGATION.test(clause.slice(Math.max(0, at - 40), at + 1));
       const tone = (negated ? -c.tone : c.tone) as 1 | -1;
-      let aspect: Aspect | null = c.aspect ?? null;
+      // „Plângeri legate de livrare” e o critică a livrării; „plângeri” singur rămâne la încredere.
+      let aspect: Aspect | null = c.soft && aspects.some((x) => x.aspect !== c.aspect) ? null : c.aspect ?? null;
       if (!aspect && aspects.length) aspect = aspects.reduce((b, x) => (Math.abs(x.at - at) < Math.abs(b.at - at) ? x : b)).aspect;
       found.push({ aspect, tone, at, end });
     }
@@ -118,6 +119,33 @@ const clauses = (sentence: string) => sentence.split(/[;,]|\s(?:dar|[îi]ns[ăa]
 const isBullet = (line: string) => /^\s*(?:[-*•]|\d+[.)])\s/.test(line) || /^\s{2,}\S/.test(line);
 const isHeading = (line: string) => /^\s*(?:#{1,6}\s|\*\*|\d+[.)]\s+\*\*|[-*•]\s+\*\*)/.test(line);
 const isTableRow = (line: string) => /^\s*\|/.test(line);
+
+/** Prepoziții după care vine numele unui vânzător: „la X”, „de pe X”; în maghiară „X-nél”. */
+const MERCHANT_RE = /(?:^|[^\p{L}])(?:la|pe|din|at|from)\s+(\p{Lu}[\p{L}\d&'.-]*(?:\s+\p{Lu}[\p{L}\d&'.-]*)*)/gu;
+const HU_MERCHANT_RE = /(\p{Lu}[\p{L}\d&'.-]*?)-?(?:nál|nél)(?![\p{L}])/gu;
+const ANY_DOMAIN = /\b(?:[a-z0-9-]+\.)+(?:ro|hu|com|eu|net|shop|store|de|pl)\b/gi;
+/** Cuvinte cu majusculă după „la” care nu sunt vânzători. */
+const NOT_MERCHANT = new Set(["final", "fel", "nevoie", "momentul", "comanda", "livrare", "inceput", "romania", "ungaria", "magyarorszag"]);
+
+/**
+ * Numește fraza un alt vânzător, pe care nu-l recunoaștem? Domeniu necunoscut („cromwell.ro”)
+ * sau nume propriu după „la / pe / din” („la CROMWELL Romania”) care nu e al niciunui magazin știut.
+ */
+function otherMerchant(sentence: string, matchers: { rx: RegExp[] }[]) {
+  const known = (s: string) => {
+    const f = ` ${fold(s)} `;
+    return matchers.some((m) => m.rx.some((rx) => rx.test(f)));
+  };
+  for (const m of sentence.matchAll(ANY_DOMAIN)) if (!known(m[0])) return true;
+  for (const re of [MERCHANT_RE, HU_MERCHANT_RE]) {
+    for (const m of sentence.matchAll(re)) {
+      const name = m[1].replace(/[.'-]+$/, "");
+      if (name.length < 3 || NOT_MERCHANT.has(fold(name))) continue;
+      if (!known(name)) return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Părerile despre fiecare magazin dintr-un răspuns.
@@ -167,11 +195,14 @@ export function storeOpinions(text: string, names: Map<string, string[]>): Map<s
     for (const sentence of line.split(/(?<=[.!?])\s+/)) {
       const here = named(sentence);
       const comparative = /\b(?:decat|fata de|comparativ|mint|versus|vs)\b/.test(fold(sentence));
-      const who = here.length ? (comparative ? here.slice(0, 1) : here) : current.length === 1 || !lineStores.length ? current : [];
+      // O frază fără numele nostru care vorbește despre alt vânzător („indisponibile la CROMWELL Romania”) nu e a noastră.
+      const inherited = current.length === 1 || !lineStores.length ? current : [];
+      const who = here.length ? (comparative ? here.slice(0, 1) : here) : otherMerchant(sentence, matchers) ? [] : inherited;
       if (!who.length) continue;
       for (const part of clauses(sentence)) {
         const ops = clauseOpinions(fold(part));
         if (!ops.length) continue;
+        if (!named(part).length && otherMerchant(part, matchers)) continue;
         // Partea care numește alt magazin decât cel al frazei (ex. „, iar la Dedeman livrarea e lentă”) e a aceluia.
         const partStores = named(part);
         for (const d of partStores.length ? (comparative ? partStores.slice(0, 1) : partStores) : who) add(d, sentence, ops);
@@ -233,22 +264,37 @@ export function sentimentBoard(rows: SentimentRow[], domains: string[]): StoreSe
   });
 }
 
-/** Cele mai recente fraze de laudă și de critică despre un magazin, câte una pe aspect. */
-export function sampleQuotes(rows: { run: { mentions: unknown; provider: string; runDate: string } }[], domain: string, perTone = 3) {
+/** De unde vine o laudă sau o critică: întrebarea, AI-ul, ziua, linkurile citate și răspunsul întreg. */
+export type QuoteSource = { runId: string; provider: string; runDate: string; prompt: string | null; sources: { url: string; title?: string }[]; answer: string };
+/** O frază cu sursa ei; `aspects` = toate aspectele lăudate (sau criticate) în ea, `total` = în câte răspunsuri apare. */
+export type SourcedOpinion = Opinion & QuoteSource & { aspects: (Aspect | null)[]; total: number };
+type QuoteRow = { prompt?: string | null; run: { id: string; mentions: unknown; provider: string; runDate: string; answer: string; sources: unknown } };
+
+/**
+ * Cele mai recente fraze de laudă și de critică despre un magazin, fiecare cu sursa ei, ca proprietarul
+ * să verifice că e corectă și chiar despre el. Aceeași frază din mai multe rulări apare o dată (`total` = de câte ori).
+ */
+export function sampleQuotes(rows: QuoteRow[], domain: string, perTone = 6) {
   const sorted = [...rows].sort((a, b) => b.run.runDate.localeCompare(a.run.runDate));
   const pick = (tone: 1 | -1) => {
-    const out: (Opinion & { provider: string })[] = [];
-    const used = new Set<string>();
+    const out = new Map<string, SourcedOpinion>();
     for (const r of sorted) {
       const m = ((r.run.mentions as OpinionMention[]) ?? []).find((x) => x.domain === domain);
       for (const o of m?.opinions ?? []) {
-        if (o.tone !== tone || used.has(String(o.aspect)) || out.some((x) => x.quote === o.quote)) continue;
-        used.add(String(o.aspect));
-        out.push({ ...o, provider: r.run.provider });
-        if (out.length >= perTone) return out;
+        if (o.tone !== tone) continue;
+        // Aceeași frază lăudată pe două aspecte („livrare bună, prețuri competitive”) apare o singură dată, cu ambele.
+        const key = o.quote;
+        const prev = out.get(key);
+        if (prev) {
+          if (!prev.aspects.includes(o.aspect)) prev.aspects.push(o.aspect);
+          else if (prev.runId !== r.run.id) prev.total++;
+          continue;
+        }
+        if (out.size >= perTone) continue;
+        out.set(key, { ...o, aspects: [o.aspect], total: 1, runId: r.run.id, provider: r.run.provider, runDate: r.run.runDate, prompt: r.prompt ?? null, sources: (r.run.sources as QuoteSource["sources"]) ?? [], answer: r.run.answer });
       }
     }
-    return out;
+    return [...out.values()];
   };
   return { positive: pick(1), negative: pick(-1) };
 }

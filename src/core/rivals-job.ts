@@ -59,11 +59,17 @@ export async function detectRivals(projectId: string) {
   return { added: picks.map((r) => r.domain) };
 }
 
+/**
+ * Când s-au schimbat ultima dată regulile de citire a răspunsurilor (mențiuni, păreri). Magazinele citite
+ * înainte se recitesc la următoarea programare, fără să aștepte 24 de ore. Se mută la fiecare schimbare de reguli.
+ */
+export const EXTRACT_RULES_CHANGED_AT = new Date("2026-11-23T13:00:00Z");
+
 /** Magazinele cu răspunsuri AI, necăutate de concurenți în ultimele 24 de ore (pentru programarea workerului). */
 export async function projectsDueForRivals() {
   const rows = await db.select({ id: schema.projects.id }).from(schema.projects)
     .where(and(
-      or(isNull(schema.projects.rivalsCheckedAt), lt(schema.projects.rivalsCheckedAt, new Date(Date.now() - 864e5))),
+      or(isNull(schema.projects.rivalsCheckedAt), lt(schema.projects.rivalsCheckedAt, new Date(Math.max(Date.now() - 864e5, EXTRACT_RULES_CHANGED_AT.getTime())))),
       dsql`exists (select 1 from prompt_runs pr join prompts q on q.id = pr.prompt_id where q.project_id = ${schema.projects.id})`,
     ));
   return rows.map((r) => r.id);

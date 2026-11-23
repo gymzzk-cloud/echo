@@ -74,6 +74,20 @@ describe("storeOpinions", () => {
     expect(tones(ops.get("dedeman.ro"))).toEqual(["incredere+", "livrare+"]);
   });
 
+  it("o frază despre alt vânzător, necunoscut, nu e a magazinului de deasupra (caz real, 23.11.2026)", () => {
+    const text = "Recomand ShopExpert pentru scule Bosch, cu livrare rapidă. Alte produse, precum un set de chei fixe, sunt indisponibile momentan la CROMWELL Romania.";
+    const ops = storeOpinions(text, names);
+    expect(tones(ops.get("shopexpert.com"))).toEqual(["livrare+"]);
+    // Și în sub-puncte: domeniul altui magazin oprește moștenirea.
+    const list = storeOpinions("1. **ShopExpert**\n   - Livrare gratuită\n   - Pe cromwell.ro stocul e limitat", names);
+    expect(tones(list.get("shopexpert.com"))).toEqual(["livrare+"]);
+  });
+
+  it("„plângeri legate de livrare” e o critică a livrării, nu a încrederii", () => {
+    const ops = storeOpinions("ShopExpert are clienți mulțumiți, dar și plângeri serioase legate de livrare.", names);
+    expect(tones(ops.get("shopexpert.com"))).toEqual(["livrare-"]);
+  });
+
   it("fără magazine sau fără păreri: gol", () => {
     expect(storeOpinions("", names).size).toBe(0);
     expect(storeOpinions("ShopExpert vinde bormașini.", names).size).toBe(0);
@@ -129,13 +143,22 @@ describe("sentimentBoard", () => {
     expect(s.overall.positive).toBe(1);
   });
 
-  it("frazele de exemplu: cele mai noi, câte una pe aspect", () => {
+  it("frazele de exemplu: cele mai noi, cu sursa lor, fără dubluri", () => {
     const rows = [
-      row([{ domain: "a.ro", opinions: [{ aspect: "pret", tone: 1, quote: "vechi" }] }], "claude", "2026-11-01"),
-      row([{ domain: "a.ro", opinions: [{ aspect: "pret", tone: 1, quote: "nou" }, { aspect: "livrare", tone: -1, quote: "lent" }] }], "chatgpt", "2026-11-20"),
+      { prompt: "bormasina bosch", run: { id: "r1", mentions: [{ domain: "a.ro", opinions: [{ aspect: "pret", tone: 1, quote: "nou" }] }], provider: "claude", runDate: "2026-11-01", answer: "A1", sources: [{ url: "https://a.ro/x" }] } },
+      { prompt: "flex makita", run: { id: "r2", mentions: [{ domain: "a.ro", opinions: [{ aspect: "pret", tone: 1, quote: "nou" }, { aspect: "livrare", tone: -1, quote: "lent" }] }], provider: "chatgpt", runDate: "2026-11-20", answer: "A2", sources: [] } },
     ];
     const q = sampleQuotes(rows, "a.ro");
-    expect(q.positive.map((x) => x.quote)).toEqual(["nou"]);
-    expect(q.negative).toEqual([{ aspect: "livrare", tone: -1, quote: "lent", provider: "chatgpt" }]);
+    expect(q.positive).toHaveLength(1);
+    expect(q.positive[0]).toMatchObject({ quote: "nou", total: 2, runId: "r2", prompt: "flex makita", provider: "chatgpt", answer: "A2" });
+    expect(q.negative[0]).toMatchObject({ aspect: "livrare", quote: "lent", total: 1, runDate: "2026-11-20" });
+    expect(sampleQuotes([], "a.ro")).toEqual({ positive: [], negative: [] });
+  });
+
+  it("aceeași frază pe două aspecte apare o dată, cu ambele", () => {
+    const rows = [{ prompt: "x", run: { id: "r1", mentions: [{ domain: "a.ro", opinions: [{ aspect: "livrare", tone: 1, quote: "livrare bună, prețuri competitive" }, { aspect: "pret", tone: 1, quote: "livrare bună, prețuri competitive" }] }], provider: "claude", runDate: "2026-11-20", answer: "", sources: [] } }];
+    const q = sampleQuotes(rows, "a.ro");
+    expect(q.positive).toHaveLength(1);
+    expect(q.positive[0]).toMatchObject({ aspects: ["livrare", "pret"], total: 1 });
   });
 });
