@@ -368,6 +368,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: arătăm doar câte produse sunt numite și din câte răspunsuri; o notă spune că restul catalogului nu a fost verificat („nu știm încă, nu înseamnă că lipsesc”) și duce la „Produse urmărite”, unde magazinul alege ce produse întrebăm.
 - De ce: ZoZo: „acum începe analiza la 28000 produse?”, „e derutant, așa cred că doar 57 de produse apar în AI din 28000”.
 
+**B34. „Reparații” de titlu pentru produse care au deja titlul bun pe site și în feed** *(23.11.2026, 12:45)*
+- Nu: să comparăm cu o bucată din date. API-ul ShopExpert dă numele în două câmpuri (`title` = „BOSCH GCM 305-216 S”, `short_description` = „Ferăstrău circular staționar cu sanie de glisare 1300 W, Ø216”), iar site-ul (H1) și feed-ul magazinului le arată împreună. Echo păstra doar `title` (și folosea subtitlul drept descriere, deși 15.856 produse au descriere lungă), apoi propunea 3.261 de titluri care „adăugau” un tip pe care produsul îl avea deja (ex. „…, acumulator”, „Ferăstrău circular…”), plus categoria la plural lipită în titlu („Bosch GTA 50 W, ferăstraie staționare”).
+- În schimb: la preluare, numele produsului e cel de pe site (titlu + subtitlu când sursa le dă separat; descrierea lungă rămâne descriere); propunerile se fac doar față de ce trimite Echo efectiv în feed, iar la fiecare propunere arătăm sursa valorii „Acum” (câmpul, sursa sincronizată, „Vezi produsul în feed”, „pe site”). Reguli fără AI nu mai lipesc categoria în titlu. Înainte să spunem „lipsește X” verificăm o pagină reală de produs. La GTIN: în API, câmpul `ean` are la 1.004 produse un cod de producător (ex. „197280-8”, „0601372201 + 1600A002U5”), la 58 o cifră de control greșită, iar 4.516 produse nu au EAN. Feed-ul Echo lasă deja gol un cod care nu e GTIN, deci propunem doar un EAN real găsit în datele magazinului sau scoaterea unui cod pe care feed-ul chiar l-ar trimite; titlurile scrise numai cu majuscule devin „ca în propoziție”, fără propuneri doar pentru majusculele mărcii.
+- De ce: ZoZo: „în feed shopexpert ro apare acumulator… din start ar fi trebuit să intre corect fără reparație, cum verificăm”. O reparație inutilă îl face pe client să nu mai creadă și reparațiile bune.
+
 ---
 
 ## C. Regula de întreținere (permanentă)
