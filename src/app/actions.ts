@@ -332,5 +332,6 @@ export async function trackProduct(form: FormData) {
   const productId = z.string().uuid().parse(String(form.get("productId")));
   await setProductTracked(projectId, productId, form.get("on") === "1", org.plan);
   revalidatePath("/panou/produse");
+  revalidatePath(`/panou/produse-ai/${productId}`);
   revalidatePath("/panou/setari");
 }
