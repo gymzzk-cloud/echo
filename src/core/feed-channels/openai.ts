@@ -1,4 +1,4 @@
-import type { FeedFileStats, FeedOutputSettings } from "@/db/schema";
+import type { FeedFileStats, FeedIssueSample, FeedOutputSettings } from "@/db/schema";
 import type { FeedProduct } from "../feed";
 
 /**
@@ -15,6 +15,8 @@ export const OPENAI_COLUMNS = [
 export type OpenAiRow = Record<(typeof OPENAI_COLUMNS)[number], string>;
 
 export const OPENAI_DEFAULT_RETURN_DAYS = 14; // dreptul legal de retragere în UE, dacă magazinul nu spune altceva
+/** Câte produse cu problemă păstrăm ca exemplu, ca magazinul să le poată corecta. */
+const SAMPLE_MAX = 50;
 
 type Store = { name: string; domain: string; pathPrefix: string; country: string };
 
@@ -104,6 +106,7 @@ const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"
 /** Scrie feed-ul OpenAI ca CSV, rând cu rând, și ține statistica pentru panou (excluse pe motive, câmpuri recomandate lipsă). */
 export function openAiWriter(store: Store, s: FeedOutputSettings | null) {
   const excluded: Record<string, number> = {};
+  const samples: Record<string, FeedIssueSample[]> = {};
   const missing: Record<string, number> = {};
   let total = 0, included = 0;
   return {
@@ -113,13 +116,17 @@ export function openAiWriter(store: Store, s: FeedOutputSettings | null) {
       const r = openAiRow(p, store, s);
       if ("skip" in r) { excluded[r.skip] = (excluded[r.skip] ?? 0) + 1; return null; }
       if (!r.row.brand) missing.brand = (missing.brand ?? 0) + 1;
-      if (!r.row.brand && (p.brand ?? "").trim()) missing.brand_invalid = (missing.brand_invalid ?? 0) + 1;
+      if (!r.row.brand && (p.brand ?? "").trim()) {
+        missing.brand_invalid = (missing.brand_invalid ?? 0) + 1;
+        const list = (samples.brand_invalid ??= []);
+        if (list.length < SAMPLE_MAX) list.push({ code: p.externalId, title: r.row.title, value: (p.brand ?? "").slice(0, 120) });
+      }
       if (!r.row.gtin && !r.row.mpn) missing.gtin_mpn = (missing.gtin_mpn ?? 0) + 1;
       if (!r.row.product_category) missing.product_category = (missing.product_category ?? 0) + 1;
       included++;
       return `${OPENAI_COLUMNS.map((c) => csvCell(r.row[c])).join(",")}\n`;
     },
-    stats: (): FeedFileStats => ({ total, included, excluded, missing }),
+    stats: (): FeedFileStats => ({ total, included, excluded, missing, ...(Object.keys(samples).length ? { samples } : {}) }),
   };
 }
 

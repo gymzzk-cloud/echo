@@ -80,6 +80,7 @@ describe("feed ChatGPT (OpenAI)", () => {
     const { stats } = renderOpenAiCsv([p({ brand: "N/A" }), p({ externalId: "SE-2", brand: "Bosch" })], store, null);
     expect(stats.included).toBe(2);
     expect(stats.missing).toEqual({ brand: 1, brand_invalid: 1 });
+    expect(stats.samples).toEqual({ brand_invalid: [{ code: "SE-1", title: "BOSCH HBA534BS0", value: "N/A" }] });
   });
 
   it("catalog gol → doar antetul", () => {

@@ -68,6 +68,22 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
               {gaps.length > 0 && <p className="text-muted">Intră, dar ar fi recomandate mai multe date: {gaps.map(([k, n]) => `${num(n)} ${MISSING[k] ?? k}`).join(", ")}.</p>}
             </div>
           )}
+          {(s?.samples?.brand_invalid?.length ?? 0) > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer font-semibold">Produse cu marcă nevalidă în magazin ({num(s?.missing.brand_invalid ?? 0)})</summary>
+              <p className="mt-2 text-muted">Le trimitem fără marcă, ca ChatGPT să nu le respingă. Corectează marca în magazin și feed-ul se reface la următoarea sincronizare.</p>
+              <Table className="mt-2" head={["Cod", "Produs", "Marca din magazin"]}>
+                {s?.samples?.brand_invalid?.map((x) => (
+                  <tr key={x.code} className="border-b border-border last:border-0">
+                    <Td className="whitespace-nowrap font-mono text-xs">{x.code}</Td>
+                    <Td>{x.title}</Td>
+                    <Td className="break-all font-mono text-xs">{x.value}</Td>
+                  </tr>
+                ))}
+              </Table>
+              {(s?.missing.brand_invalid ?? 0) > (s?.samples?.brand_invalid?.length ?? 0) && <p className="mt-2 text-xs text-muted">Arătăm primele {num(s?.samples?.brand_invalid?.length ?? 0)}.</p>}
+            </details>
+          )}
           <ol className="list-decimal space-y-1 pl-6 text-sm">
             <li>Copiază adresa de mai sus.</li>
             <li>În ChatGPT Merchants, la „Add products to ChatGPT”, alege <b>Use a hosted URL</b>.</li>
