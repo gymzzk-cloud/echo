@@ -64,3 +64,30 @@ export function productDescriptionWords($: cheerio.CheerioAPI): number {
   });
   return [...parts].join(" ").split(/\s+/).filter(Boolean).length;
 }
+
+/** Pragul unei descrieri „bune” în catalog: cel puțin atâtea cuvinte. */
+export const GOOD_DESCRIPTION_WORDS = 40;
+export type DescriptionStats = { total: number; pending: number; good: number; short: number; none: number };
+
+const n = (x: number) => x.toLocaleString("ro-RO");
+
+/**
+ * Verificarea descrierilor pe tot catalogul (nu pe o singură pagină, care dă alt scor la fiecare rulare).
+ * Socotim doar produsele cu descrierea deja citită; cele încă necitite le spunem separat, nu ca „lipsă”.
+ * null = nu avem catalog sau nicio descriere citită: rămâne verificarea pe pagină.
+ */
+export function catalogDescriptionVerdict(s: DescriptionStats | undefined) {
+  if (!s || s.total === 0) return null;
+  const checked = s.good + s.short + s.none;
+  if (checked === 0) return null;
+  const pct = Math.round((s.good / checked) * 100);
+  const status: "pass" | "warn" | "fail" = pct >= 80 ? "pass" : pct >= 40 ? "warn" : "fail";
+  const parts = [`${n(s.good)} au descriere de cel puțin ${GOOD_DESCRIPTION_WORDS} de cuvinte (${pct}%)`];
+  if (s.short) parts.push(`${n(s.short)} au descriere scurtă`);
+  if (s.none) parts.push(`${n(s.none)} nu au descriere (sau doar titlul repetat)`);
+  const pending = s.pending ? ` Încă ${n(s.pending)} descrieri nu le-am citit din catalog (le citim treptat); nu le socotim lipsă.` : "";
+  return {
+    status, pct, checked,
+    detail: `Din ${n(checked)} produse în stoc verificate în catalog (ce primesc AI-urile în feed), ${parts.join(", ")}.${pending}`,
+  };
+}

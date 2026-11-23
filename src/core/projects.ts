@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql as dsql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql as dsql } from "drizzle-orm";
 import { PROBLEM_TITLES } from "./audit/problems";
 import { emitEvent } from "./platform";
 import { projectRuns } from "./project-runs";
@@ -20,7 +20,7 @@ import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { isStoreLike } from "./ai/domains";
 import { canAct, notRivals, SOURCE_ADVICE, sourceKind, type SourceCtx } from "./source-kind";
-import { catalogBrands, orgDomains } from "./store-context";
+import { catalogBrands, catalogDescriptionStats, orgDomains } from "./store-context";
 import { refreshPrompts } from "./tracked-prompts";
 import { pruneStalePriceAlerts } from "./price-alerts";
 import { TRIAL_PROVIDERS } from "./onboarding/types";
@@ -433,10 +433,13 @@ export async function runAuditRow(auditId: string) {
   const [a] = await db.select().from(schema.audits).where(eq(schema.audits.id, auditId));
   try {
     // Paginile de produs din catalogul conectat sunt cele mai sigure pentru verificarea datelor structurate.
+    // Aceleași pagini de la o rulare la alta (ordine fixă), ca scorul să nu depindă de ce produs iese întâmplător.
     const productUrls = a.projectId
-      ? (await db.select({ url: schema.products.url }).from(schema.products).where(and(eq(schema.products.projectId, a.projectId), eq(schema.products.inStock, true))).limit(2)).map((x) => x.url).filter(Boolean)
+      ? (await db.select({ url: schema.products.url }).from(schema.products).where(and(eq(schema.products.projectId, a.projectId), eq(schema.products.inStock, true))).orderBy(asc(schema.products.id)).limit(2)).map((x) => x.url).filter(Boolean)
       : [];
-    const r = await runAudit(a.url, { productUrls });
+    // Descrierile pe tot catalogul (SQL), nu pe o singură pagină.
+    const descriptions = a.projectId ? await catalogDescriptionStats(a.projectId) : undefined;
+    const r = await runAudit(a.url, { productUrls, descriptions });
     // Site inaccesibil: nu salvăm un scor 0 înșelător, marcăm auditul ca eșuat.
     if (r.error && !r.checks.some((c) => c.status === "pass")) throw new Error(r.error);
     // Datele stabile ale firmei lipsă acum, dar găsite la o verificare anterioară, se refolosesc

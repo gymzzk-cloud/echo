@@ -156,3 +156,19 @@ describe("llms.txt: categoriile din tot catalogul", () => {
     expect(code.indexOf("Rotopercutoare")).toBeLessThan(code.indexOf("Accesorii > Găurire"));
   });
 });
+
+describe("descrierile: pe tot catalogul, nu pe o pagină", async () => {
+  const { catalogDescriptionVerdict } = await import("@/core/audit/signals");
+  it("numără doar produsele verificate; cele necitite nu sunt „lipsă”", () => {
+    const v = catalogDescriptionVerdict({ total: 28000, pending: 8000, good: 12000, short: 3000, none: 5000 })!;
+    expect(v.checked).toBe(20000);
+    expect(v.pct).toBe(60);
+    expect(v.status).toBe("warn");
+    expect(v.detail).toContain("12.000 au descriere");
+    expect(v.detail).toContain("8.000 descrieri nu le-am citit");
+  });
+  it("fără catalog sau fără nimic citit: rămâne verificarea pe pagină", () => {
+    expect(catalogDescriptionVerdict(undefined)).toBeNull();
+    expect(catalogDescriptionVerdict({ total: 10, pending: 10, good: 0, short: 0, none: 0 })).toBeNull();
+  });
+});
