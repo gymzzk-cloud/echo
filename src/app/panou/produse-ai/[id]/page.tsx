@@ -57,10 +57,10 @@ export default async function ProductSheetPage({ params }: { params: Promise<{ i
         action={trackForm || (tracked && <Badge tone="good">Urmărit în AI</Badge>)} />
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="ChatGPT (feed)" value={scoreValue(openai.report)} hint={openai.active ? "ce trimitem în feed-ul OpenAI" : "feed-ul ChatGPT nu e pornit"} />
-        <Stat label="Google (feed)" value={scoreValue(google.report)} hint={google.active ? "ce trimitem în feed-ul Google" : "ce am trimite (feed-ul Google Echo e oprit)"} />
-        <Stat label="Pagina (Google, Gemini)" value={page?.report ? scoreValue(page.report, "Necitită") : "–"} hint={page ? `citită la ${dateTime(page.checkedAt)}` : "o citim acum"} />
-        <Stat label={`În AI, ${PRODUCT_AI_WINDOW_DAYS} de zile`} value={s ? `${s.withStore} / ${s.appearances}` : "0"} hint={s ? `răspunsuri care te numesc, din cele care numesc produsul · loc mediu ${num(parseFloat(s.avgPosition))}` : "niciun răspuns nu numește produsul"} />
+        <Stat label="Date trimise la ChatGPT" value={scoreValue(openai.report)} hint={openai.active ? "calitatea feed-ului OpenAI, din 100 (nu de câte ori apari)" : "feed-ul ChatGPT nu e pornit"} />
+        <Stat label="Date pentru Google (feed)" value={scoreValue(google.report)} hint={google.active ? "calitatea feed-ului Google, din 100" : "calitatea, din 100, dacă am trimite feed-ul Google Echo (e oprit)"} />
+        <Stat label="Date din pagină (Google, Gemini)" value={page?.report ? scoreValue(page.report, "Necitită") : "–"} hint={page ? `citită la ${dateTime(page.checkedAt)}` : "o citim acum"} />
+        <Stat label={`Numit de AI-uri, ${PRODUCT_AI_WINDOW_DAYS} de zile`} value={s ? `${s.withStore} / ${s.appearances}` : "0"} hint={s ? `răspunsuri care te numesc, din cele care numesc produsul · loc mediu ${num(parseFloat(s.avgPosition))}` : "niciun răspuns nu numește produsul"} />
       </div>
 
       {(fixes.length > 0 || sheet.pendingEdits.length > 0) && (
