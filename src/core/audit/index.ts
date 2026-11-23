@@ -95,7 +95,9 @@ async function get(url: string, ua = OUR_UA, timeoutMs = 12000) {
 }
 
 const isChallenge = (r: { status: number; headers: Headers; body: string }) =>
-  r.status === 403 || r.status === 503 || r.headers.get("cf-mitigated") === "challenge" || /cf-chl|just a moment|challenge-platform|captcha/i.test(r.body.slice(0, 20000));
+  r.status === 403 || r.status === 503 || r.headers.get("cf-mitigated") === "challenge" || /cf-chl|just a moment|challenge-platform/i.test(r.body.slice(0, 20000))
+  // „captcha” apare și în formularele de contact (reCAPTCHA): contează doar pe o pagină mică, fără conținut, adică o pagină de verificare.
+  || (r.body.length < 15000 && /captcha/i.test(r.body));
 
 /**
  * Fișierele tehnice (robots.txt, sitemap) le cerem întâi ca EchoAuditBot. Dacă firewall-ul ne refuză,
@@ -415,7 +417,7 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
   if (!f.cui || !f.hasAnpc) {
     for (const u of trustPages($, origin, pathPrefix)) {
       const tp = await get(u, BROWSER_UA);
-      if (!tp.ok || isChallenge(tp)) { trustEvidence.push({ label: new URL(u).pathname, url: u, value: `nu am putut deschide (răspuns ${tp.status})` }); continue; }
+      if (!tp.ok || isChallenge(tp)) { trustEvidence.push({ label: new URL(u).pathname, url: u, value: tp.ok ? "nu am putut citi pagina (pagină de verificare anti-robot)" : `nu am putut deschide (răspuns ${tp.status || "fără răspuns"})` }); continue; }
       const more = legalSignals(tp.body);
       if (!f.cui && more.cui) f.cui = more.cui;
       if (!f.hasAnpc && more.anpc) f.hasAnpc = true;

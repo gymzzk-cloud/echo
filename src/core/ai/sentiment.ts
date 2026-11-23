@@ -58,7 +58,8 @@ const CUES: Cue[] = [
   { re: re("greu de contactat|nu raspund\\w*|raspund greu|nehezen elerheto\\w*"), tone: -1, aspect: "servicii" },
   // Părerea clienților spusă direct: „clienții apreciază”, „elogiat”; „să se evite magazinul”, „de evitat”.
   { re: re("aprecia\\w*|apreciaz\\w*|elogia\\w*|elogiat\\w*"), tone: 1 },
-  { re: re("evit\\w*|de evitat|kerulje\\w*|kerulendo\\w*"), tone: -1 },
+  // Doar recomandarea de a ocoli magazinul, nu sfaturi ca „pentru a evita deteriorarea”.
+  { re: re("(se|sa|le|il|o) evit[ae]\\w* (magazin\\w*|site\\w*|vanzator\\w*|firma|firm\\w*)|evitati (magazin\\w*|site\\w*|vanzator\\w*)|(magazin|site|vanzator)\\w* (de|ar fi (unul )?de) evitat|unul de evitat|kerulje\\w*|kerulendo\\w*"), tone: -1 },
   // Generale: aspectul vine din fraza („livrare rapidă” → livrare; „rapid” singur → general)
   { re: re("bun|buna|bune|buni|foarte bun\\w*|excelent\\w*|exceptional\\w*|rapid\\w*|prompt\\w*|gratuit\\w*|pozitiv\\w*|recomandat\\w*|ideal\\w*|solid\\w*|jo|jok|kivalo\\w*|gyors\\w*|ingyenes\\w*|pozitiv\\w*|ajanlott\\w*|remek\\w*"), tone: 1 },
   { re: re("slab\\w*|prost\\w*|problem\\w*|negativ\\w*|dificil\\w*|limitat\\w*|mixt\\w*|dezamagit\\w*|nemultumi\\w*|rossz\\w*|gyenge\\w*|problema\\w*|korlatozott\\w*|lassu\\w*"), tone: -1 },

@@ -161,7 +161,7 @@ export async function overview(project: Project) {
 const VENDOR: Record<string, string> = { chatgpt: "OpenAI", gemini: "Google", perplexity: "Perplexity", claude: "Anthropic", aioverview: "Google", aimode: "Google", copilot: "Microsoft", grok: "xAI", meta: "Meta" };
 
 /** „Cine te recomandă și cine nu”: pe fiecare AI, câte întrebări, cine apare în locul tău și problema probabilă. */
-export function whoRecommends(rows: Rows, domain: string, audit: { result: unknown } | null, products: { title: string; price: string | null }[]) {
+export function whoRecommends(rows: Rows, domain: string, audit: { result: unknown } | null, products: { title: string; price: string | null }[], exclude: ReadonlySet<string> = new Set()) {
   const day = rows.map((r) => r.run.runDate).sort().at(-1);
   const today = rows.filter((r) => r.run.runDate === day);
   const bots = ((audit?.result as { bots?: { vendor: string; important: boolean; robots: string }[] } | null)?.bots) ?? [];
@@ -172,7 +172,7 @@ export function whoRecommends(rows: Rows, domain: string, audit: { result: unkno
     const others = new Map<string, number>();
     let wrongPrice = false;
     for (const r of rs) for (const m of r.run.mentions as Mention[]) {
-      if (m.domain !== domain && isStoreLike(m.domain)) others.set(m.name ?? m.domain, (others.get(m.name ?? m.domain) ?? 0) + 1);
+      if (m.domain !== domain && isStoreLike(m.domain) && !exclude.has(m.domain)) others.set(m.name ?? m.domain, (others.get(m.name ?? m.domain) ?? 0) + 1);
       else if (m.productTitle && m.statedPrice) { const real = priceOf.get(m.productTitle); if (real && Math.abs(m.statedPrice - real) / real > 0.05) wrongPrice = true; }
     }
     const instead = [...others.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
@@ -183,11 +183,11 @@ export function whoRecommends(rows: Rows, domain: string, audit: { result: unkno
 }
 
 /** Cota din recomandări: tu, concurenții principali și restul. */
-export function shareOfRecommendations(rows: Rows, domain: string, top = 3) {
+export function shareOfRecommendations(rows: Rows, domain: string, top = 3, exclude: ReadonlySet<string> = new Set()) {
   const n = new Map<string, number>();
   let all = 0;
   for (const r of rows) for (const m of r.run.mentions as Mention[]) {
-    if (m.domain !== domain && !isStoreLike(m.domain)) continue; // directoare, recenzii, presă: nu sunt magazine
+    if (m.domain !== domain && (!isStoreLike(m.domain) || exclude.has(m.domain))) continue; // directoare, presă, producători, propriile magazine: nu sunt concurenți
     all++; n.set(m.domain, (n.get(m.domain) ?? 0) + 1);
   }
   const sorted = [...n.entries()].sort((a, b) => b[1] - a[1]);

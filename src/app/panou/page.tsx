@@ -12,6 +12,8 @@ import { dateShort } from "@/lib/format";
 import { busyKinds } from "@/core/jobs";
 import { activeProviders, isDemo } from "@/core/ai/engine";
 import { CardHelp } from "@/components/card-help";
+import { notRivals } from "@/core/source-kind";
+import { catalogBrands, orgDomains } from "@/core/store-context";
 
 // Tu: culoarea de marcă; concurenții: nuanțe de gri (DESIGN §9).
 const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"];
@@ -27,7 +29,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
     db.select().from(schema.actions).where(and(eq(schema.actions.projectId, project.id), eq(schema.actions.status, "noua"))).limit(50),
     db.select({ title: schema.products.title, price: schema.products.price }).from(schema.products).where(eq(schema.products.projectId, project.id)).limit(5000),
   ]);
-  const busy = await busyKinds(project.id, conns.map((c) => c.id));
+  const [busy, own, brands] = await Promise.all([busyKinds(project.id, conns.map((c) => c.id)), orgDomains(project.orgId), catalogBrands(project.id)]);
+  // Producătorii (Bosch Professional), propriile magazine și site-urile care nu vând nu sunt „în locul tău” (KNOWLEDGE A0, B32).
+  const exclude = new Set(notRivals(o.rows.flatMap((r) => ((r.run.mentions as { domain: string }[]) ?? []).map((m) => m.domain)), { ownDomains: [project.domain, ...own], brands }));
+  exclude.delete(project.domain);
   const analysing = busy.has("audit") || busy.has("run_project") || busy.has("sync");
   const noAi = isDemo() && process.env.ALLOW_DEMO_AI !== "1";
   const working = jobs.filter((j) => (j.payload as Record<string, string>).projectId === project.id || conns.some((c) => c.id === (j.payload as Record<string, string>).connectionId));
@@ -43,8 +48,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
   const checked = o.perProvider.filter((p) => p.checked).length;
   const live = new Set(activeProviders().filter((p) => p.live).map((p) => p.id));
   const unchecked = new Map(o.unchecked.map((u) => [u.provider, u.reason]));
-  const who = whoRecommends(o.rows, project.domain, o.audit, prods);
-  const share = shareOfRecommendations(o.rows.filter((r) => r.run.runDate >= (o.latest?.day ?? "")), project.domain);
+  const who = whoRecommends(o.rows, project.domain, o.audit, prods, exclude);
+  const share = shareOfRecommendations(o.rows.filter((r) => r.run.runDate >= (o.latest?.day ?? "")), project.domain, 3, exclude);
   const perQ = who[0]?.total ?? 0;
 
   if (!o.latest) {
