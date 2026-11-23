@@ -11,6 +11,8 @@ export type HomeCatalog = {
   logo?: string | null; logos?: string[];
   /** Numele declarat de site (og:site_name, application-name, Organization/WebSite), nu titlul paginii. */
   siteName?: string | null;
+  /** Categoriile din meniu cu adresa lor, pentru numărarea paginilor din sitemap (estimare înainte de feed). */
+  categoryLinks?: { name: string; href: string }[];
 };
 
 const NOT_CATEGORY = /^(acas[aă]|home|start|contul? meu|cont|login|autentific|[iî]nregistr|co[sș]|co[sș]ul|cart|checkout|contact|despre|about|blog|noutăți|nout[aă]ți|livrare|retur|termeni|condi[tț]ii|gdpr|cookie|confiden|faq|[iî]ntreb[aă]ri|ajutor|help|suport|cariere|anpc|sal|sol|magazine|loca[tț]ii|favorite|wishlist|comenzi|track|urm[aă]rire|toate|vezi tot|mai mult|meniu|menu|search|caut[aă]|kezd[oő]lap|kos[aá]r|fi[oó]k|bel[eé]p[eé]s|kapcsolat|sz[aá]ll[ií]t[aá]s|visszak[uü]ld[eé]s|aszf|adatv[eé]delem|oferte|promo[tț]ii|reduceri|black friday|outlet|lichidare|newsletter|brand(uri)?|m[aă]rci|produc[aă]tori|blog)$/i;
@@ -34,15 +36,47 @@ const titleCase = (t: string) => (t === t.toUpperCase() && t.length > 3 ? t.char
 
 /** Categoriile de pe primul nivel al meniului: texte scurte (1–4 cuvinte), fără paginile de cont, coș sau condiții. */
 export function menuCategories($: cheerio.CheerioAPI, max = 10) {
-  const found: string[] = [];
+  return menuCategoryLinks($, "https://example.invalid/", max).map((c) => c.name);
+}
+
+/** Aceleași categorii din meniu, cu adresa absolută a fiecăreia (prima găsită pentru un nume). */
+export function menuCategoryLinks($: cheerio.CheerioAPI, pageUrl: string, max = 10) {
+  const found: { name: string; href: string }[] = [];
   const containers = $("nav, header [class*=menu], [class*=main-menu], [class*=mega], [id*=menu], [class*=categor], [class*=navbar]");
   containers.find("a").each((_, a) => {
     const t = clean($(a).text());
     if (t.length < 3 || t.length > 40 || t.split(" ").length > 4 || /\d{2,}|[|•@]/.test(t)) return;
     if (NOT_CATEGORY.test(t) || PROMO.test(t)) return;
-    found.push(titleCase(t));
+    let href = "";
+    try { href = new URL($(a).attr("href") ?? "", pageUrl).toString(); } catch { href = ""; }
+    found.push({ name: titleCase(t), href });
   });
-  return uniq(found, max);
+  const seen = new Set<string>();
+  const out: { name: string; href: string }[] = [];
+  for (const x of found) {
+    const k = x.name.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(x);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/**
+ * Câte pagini din sitemap stau sub fiecare categorie din meniu (adresa paginii începe cu adresa categoriei).
+ * Sunt pagini, nu produse: o estimare din site până conectăm catalogul. null = nu am putut număra
+ * (categoria nu are adresă proprie sau nu avem lista de adrese din sitemap).
+ */
+export function sitemapPagesPerCategory(links: { name: string; href: string }[], sitemapUrls: string[] | null): { name: string; pages: number | null }[] {
+  const paths = sitemapUrls?.map((u) => { try { const x = new URL(u); return x.host.replace(/^www\./, "") + x.pathname.replace(/\/+$/, ""); } catch { return null; } }).filter((x): x is string => !!x) ?? null;
+  return links.map(({ name, href }) => {
+    let base: string | null = null;
+    try { const x = new URL(href); const path = x.pathname.replace(/\/+$/, ""); base = path.split("/").filter(Boolean).length && !x.search ? x.host.replace(/^www\./, "") + path : null; } catch { base = null; }
+    if (!paths || !base) return { name, pages: null };
+    const b = base;
+    return { name, pages: paths.filter((p) => p.startsWith(b + "/")).length };
+  });
 }
 
 /**
@@ -157,5 +191,5 @@ export function homeSiteName($: cheerio.CheerioAPI, nodes: Record<string, unknow
 
 export function extractHomeCatalog($: cheerio.CheerioAPI, nodes: Record<string, unknown>[], pageUrl = "https://example.invalid/"): HomeCatalog {
   const logos = homeLogos($, nodes, pageUrl);
-  return { categories: menuCategories($), brands: homeBrands($, nodes), products: homeProducts($, nodes), logo: logos[0] ?? null, logos, siteName: homeSiteName($, nodes) };
+  return { categories: menuCategories($), categoryLinks: menuCategoryLinks($, pageUrl), brands: homeBrands($, nodes), products: homeProducts($, nodes), logo: logos[0] ?? null, logos, siteName: homeSiteName($, nodes) };
 }

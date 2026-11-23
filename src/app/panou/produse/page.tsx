@@ -9,7 +9,7 @@ import { money } from "@/lib/format";
 import { trackedProducts } from "@/core/tracked-prompts";
 import { trackProduct } from "@/app/actions";
 
-type Sp = { f?: string; q?: string };
+type Sp = { f?: string; q?: string; set?: string };
 
 // Antetul apare imediat; tabelul (calcul pe tot catalogul) vine în Suspense, ca pagina să nu pară blocată.
 export default async function Products({ searchParams }: { searchParams: Promise<Sp> }) {
@@ -18,7 +18,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Vizibilitate" title="Produse" subtitle="Ce produse recomandă AI-urile, la ce preț și ce date le lipsesc." />
-      <Suspense key={`${sp.f ?? ""}|${sp.q ?? ""}`} fallback={<Card><p className="animate-pulse text-sm text-muted">Calculăm pentru tot catalogul…</p></Card>}>
+      <Suspense key={`${sp.f ?? ""}|${sp.q ?? ""}|${sp.set ?? ""}`} fallback={<Card><p className="animate-pulse text-sm text-muted">Calculăm pentru tot catalogul…</p></Card>}>
         <ProductsBody project={project} sp={sp} />
       </Suspense>
     </div>
@@ -29,25 +29,46 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
   const { rows } = await loadBase(project, 30);
   const tracked = await trackedProducts(project.id);
   const q = (sp.q ?? "").trim();
-  const pi = await productInsights(project, rows, { f: sp.f, q, tracked: [...tracked.keys()] });
+  // „Produse focus” întâi (ZoZo, 23.11.2026); „Tot catalogul” e o alegere separată, cu cifrele lui.
+  const hasFocus = (project.focusConfig?.counts?.focus ?? 0) > 0;
+  const focus = hasFocus && sp.set !== "tot";
+  const pi = await productInsights(project, rows, { f: sp.f, q, tracked: [...tracked.keys()], focus });
   if (!pi.total) return <><Empty title="Nu avem încă produsele tale" action={<ButtonLink href="/panou/setari">Conectează catalogul</ButtonLink>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
   const list = pi.list;
   const missing = (p: (typeof list)[number]) => [!p.gtin && "GTIN", !p.brand && "brand", !p.hasDescription && "descriere", !p.hasImage && "imagine"].filter(Boolean) as string[];
+  const n = (x: number) => x.toLocaleString("ro-RO");
+  const link = (o: Partial<Sp>) => {
+    const v = { set: focus ? "" : hasFocus ? "tot" : "", f: sp.f ?? "", q, ...o };
+    const u = new URLSearchParams(Object.entries(v).filter(([, x]) => x) as [string, string][]).toString();
+    return u ? `?${u}` : "?";
+  };
+  const stat = (f: number, all: number) => (focus ? n(f) : n(all));
+  const other = (f: number, all: number) => (hasFocus ? (focus ? `tot magazinul: ${n(all)}` : `produse focus: ${n(f)}`) : null);
   const filters = [["", "Toate"], ["urmarite", "Urmărite în AI"], ["populare", "Cele mai vândute"], ["recomandate", "Numite de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
 
   return (
     <>
+      {hasFocus && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Chips items={[
+            { href: link({ set: "" }), label: `Produse focus (${n(pi.focus.total)})`, active: focus },
+            { href: link({ set: "tot" }), label: `Tot catalogul (${n(pi.total)})`, active: !focus },
+          ]} />
+          <TextLink href="/panou/setari#focus" className="text-sm">Alege categoriile</TextLink>
+        </div>
+      )}
       <div className="grid gap-6 sm:grid-cols-3">
-        <Stat label="Produse numite de AI" value={pi.recommended.toLocaleString("ro-RO")} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
-        <Stat label="Prețuri greșite spuse de AI" value={pi.wrongPriceCount} hint={pi.wrongPriceCount ? <TextLink href="/panou/produse-ai?f=pret" className="text-xs">Vezi dovezile</TextLink> : "totul corect"} />
-        <Stat label="Produse cu date incomplete" value={pi.incompleteCount} hint="GTIN, brand, descriere, imagine" />
+        <Stat label={`Produse numite de AI${hasFocus ? (focus ? " · focus" : " · tot magazinul") : ""}`} value={stat(pi.focus.recommended, pi.recommended)} hint={<><TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>{other(pi.focus.recommended, pi.recommended) && <span className="block text-xs text-muted">{other(pi.focus.recommended, pi.recommended)}</span>}</>} />
+        <Stat label={`Prețuri greșite spuse de AI${hasFocus ? (focus ? " · focus" : " · tot magazinul") : ""}`} value={stat(pi.focus.wrongPrice, pi.wrongPriceCount)} hint={<>{(focus ? pi.focus.wrongPrice : pi.wrongPriceCount) ? <TextLink href="/panou/produse-ai?f=pret" className="text-xs">Vezi dovezile</TextLink> : "totul corect"}{other(pi.focus.wrongPrice, pi.wrongPriceCount) && <span className="block text-xs text-muted">{other(pi.focus.wrongPrice, pi.wrongPriceCount)}</span>}</>} />
+        <Stat label={`Produse cu date incomplete${hasFocus ? (focus ? " · focus" : " · tot magazinul") : ""}`} value={stat(pi.focus.incomplete, pi.incompleteCount)} hint={<>GTIN, brand, descriere, imagine{other(pi.focus.incomplete, pi.incompleteCount) && <span className="block text-xs text-muted">{other(pi.focus.incomplete, pi.incompleteCount)}</span>}</>} />
       </div>
 
       <Card>
         <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <Chips items={filters.map(([k, l]) => ({ href: `?f=${k}${q ? `&q=${encodeURIComponent(q)}` : ""}`, label: l, active: (sp.f ?? "") === k }))} />
+          <Chips items={filters.map(([k, l]) => ({ href: link({ f: k }), label: l, active: (sp.f ?? "") === k }))} />
           <Form action="/panou/produse" prefetch={false} role="search" className="w-full lg:w-64">
             <input type="hidden" name="f" value={sp.f ?? ""} />
+            {hasFocus && !focus && <input type="hidden" name="set" value="tot" />}
             <label htmlFor="q" className="sr-only">Caută produs</label>
             <Input id="q" name="q" defaultValue={sp.q} placeholder="Caută produs…" />
           </Form>
@@ -81,7 +102,7 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
             </tr>
           ))}
         </Table>
-        {list.length === 100 && <p className="mt-4 text-xs text-muted">Afișăm primele 100 din {pi.total} produse. Folosește căutarea sau filtrele.</p>}
+        {list.length === 100 && <p className="mt-4 text-xs text-muted">Afișăm primele 100 din {n(focus ? pi.focus.total : pi.total)} {focus ? "produse focus" : "produse"}. Folosește căutarea sau filtrele.</p>}
         {list.length === 0 && <p className="mt-4 text-sm text-muted">Niciun produs pentru acest filtru.</p>}
       </Card>
 

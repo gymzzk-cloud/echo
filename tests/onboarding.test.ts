@@ -92,7 +92,7 @@ describe("extractHomeCatalog", () => {
     expect(h.brands).toEqual(["Bosch", "Makita"]);
     expect(h.products).toEqual(["Bosch GSR 12V", "Makita DHP485Z mașină de găurit"]);
   });
-  it("pagină goală: liste goale, fără siglă", () => expect(extractHomeCatalog(cheerio.load(""), [])).toEqual({ categories: [], brands: [], products: [], logo: null, logos: [], siteName: null }));
+  it("pagină goală: liste goale, fără siglă", () => expect(extractHomeCatalog(cheerio.load(""), [])).toEqual({ categories: [], categoryLinks: [], brands: [], products: [], logo: null, logos: [], siteName: null }));
 });
 
 describe("homeLogo", () => {

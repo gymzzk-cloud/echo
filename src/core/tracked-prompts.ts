@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { humanName, promptLimit, suggestPrompts, type SuggestedPrompt } from "./prompts";
+import { humanName, promptLimit, promptPool, suggestPrompts, type SuggestedPrompt } from "./prompts";
 import { enqueue } from "./jobs";
 
 type Existing = { id: string; text: string; active: boolean; suggested: boolean; retiredAt?: Date | null };
@@ -48,10 +48,11 @@ export async function refreshPrompts(projectId: string) {
   const [org] = await db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, p.orgId));
   const limit = promptLimit(org?.plan ?? "trial");
   const products = (await onlyTestCatalog(projectId)) ? [] : await db
-    .select({ id: schema.products.id, externalId: schema.products.externalId, title: schema.products.title, category: schema.products.category, brand: schema.products.brand, price: schema.products.price, gtin: schema.products.gtin, mpn: schema.products.mpn, rank: schema.products.popularityRank })
+    .select({ id: schema.products.id, externalId: schema.products.externalId, title: schema.products.title, category: schema.products.category, brand: schema.products.brand, price: schema.products.price, gtin: schema.products.gtin, mpn: schema.products.mpn, rank: schema.products.popularityRank, focus: schema.products.focus })
     .from(schema.products).where(and(eq(schema.products.projectId, projectId), eq(schema.products.inStock, true)));
   const lang = p.language as "ro" | "hu";
-  const desired = suggestPrompts(products, p.name, lang, limit);
+  // Întrebările propuse se aleg întâi din „Produse focus” (ZoZo, 23.11.2026); catalogul întreg doar dacă setul e prea mic.
+  const desired = suggestPrompts(promptPool(products), p.name, lang, limit);
   const existing = await db.select({ id: schema.prompts.id, text: schema.prompts.text, active: schema.prompts.active, suggested: schema.prompts.suggested, retiredAt: schema.prompts.retiredAt })
     .from(schema.prompts).where(eq(schema.prompts.projectId, projectId));
   const { remove, add, revive } = planPromptChanges(existing, desired, limit);

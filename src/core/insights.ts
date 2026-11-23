@@ -74,7 +74,7 @@ export type ProductFilter = "" | "recomandate" | "pret" | "stoc" | "urmarite" | 
  * Totul în SQL, pe tot catalogul (nu doar pe primele 20.000 de rânduri): numărătorile cu count, lista cu filtru și limită 100.
  * „Preț greșit” = aceeași definiție ca în Vizibilitate (price_wrong din calculul salvat), ca cifrele să se lege între pagini.
  */
-export async function productInsights(project: Project, rows: Rows, opts: { f?: string; q?: string; tracked?: string[] } = {}) {
+export async function productInsights(project: Project, rows: Rows, opts: { f?: string; q?: string; tracked?: string[]; focus?: boolean } = {}) {
   const P = schema.products, S = schema.productAiStats;
   const incomplete = dsql`(coalesce(${P.gtin}, '') = '' or coalesce(${P.brand}, '') = '' or coalesce(octet_length(${P.description}), 0) = 0 or coalesce(${P.imageUrl}, '') = '')`;
   const [counts] = await db.select({
@@ -82,9 +82,15 @@ export async function productInsights(project: Project, rows: Rows, opts: { f?: 
     recommended: dsql<number>`count(*) filter (where ${S.appearances} > 0)::int`,
     wrongPrice: dsql<number>`count(*) filter (where ${S.priceWrong})::int`,
     incomplete: dsql<number>`count(*) filter (where ${incomplete})::int`,
+    // Aceleași cifre doar pe „Produse focus”, arătate primele (ZoZo, 23.11.2026).
+    focusTotal: dsql<number>`count(*) filter (where ${P.focus})::int`,
+    focusRecommended: dsql<number>`count(*) filter (where ${P.focus} and ${S.appearances} > 0)::int`,
+    focusWrongPrice: dsql<number>`count(*) filter (where ${P.focus} and ${S.priceWrong})::int`,
+    focusIncomplete: dsql<number>`count(*) filter (where ${P.focus} and ${incomplete})::int`,
   }).from(P).leftJoin(S, eq(S.productId, P.id)).where(eq(P.projectId, project.id));
   const f = opts.f as ProductFilter | undefined;
   const conds: SQL[] = [eq(P.projectId, project.id)];
+  if (opts.focus) conds.push(eq(P.focus, true));
   if (f === "recomandate") conds.push(dsql`${S.appearances} > 0`);
   if (f === "pret") conds.push(dsql`${S.priceWrong}`);
   if (f === "stoc") conds.push(dsql`not ${P.inStock}`);
@@ -108,6 +114,7 @@ export async function productInsights(project: Project, rows: Rows, opts: { f?: 
   return {
     list: list.map(({ providersMap, avgPositionRaw, wrongPricesRaw, ...p }) => ({ ...p, providers: providersMap ? Object.keys(providersMap) : [], avgPosition: avgPositionRaw ? parseFloat(avgPositionRaw) : null, wrongPrices: wrongPricesRaw ?? [] })),
     total: counts?.total ?? 0, recommended: counts?.recommended ?? 0, wrongPriceCount: counts?.wrongPrice ?? 0, incompleteCount: counts?.incomplete ?? 0,
+    focus: { total: counts?.focusTotal ?? 0, recommended: counts?.focusRecommended ?? 0, wrongPrice: counts?.focusWrongPrice ?? 0, incomplete: counts?.focusIncomplete ?? 0 },
     topDestinations: [...where.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
   };
 }

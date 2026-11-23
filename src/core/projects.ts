@@ -8,7 +8,7 @@ import type { StoreFacts } from "./audit";
 import { db, schema } from "@/db";
 import type { Mention } from "@/db/schema";
 import { daysAgo, decrypt, domainOf, encrypt, parseStoreUrl, today } from "@/lib/util";
-import { runAudit, type AuditResult } from "./audit";
+import { focusFirstDetail, runAudit, type AuditResult } from "./audit";
 import { refreshPopularity, savePopularity } from "./popularity";
 import { rankFromItems } from "./connectors/popularity";
 import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogItem, type ConnectorKind } from "./connectors";
@@ -343,10 +343,11 @@ export async function generateActions(projectId: string) {
 
   if (audit?.result) {
     const checks = (audit.result as AuditResult).checks;
+    const focus = (audit.result as AuditResult).focus;
     for (const c of checks) {
       // „Nu am putut verifica” nu devine niciodată o acțiune „lipsește X”.
       if (c.status === "pass" || c.status === "info" || c.status === "unknown") continue;
-      await upsertAction(projectId, { key: `audit:${c.id}`, title: PROBLEM_TITLES[c.id] ?? c.title, why: c.detail, fixKind: c.fixKind, impact: IMPACT[c.id] ?? "mediu", effort: EFFORT[c.id] ?? "mediu" }, baseline);
+      await upsertAction(projectId, { key: `audit:${c.id}`, title: PROBLEM_TITLES[c.id] ?? c.title, why: focusFirstDetail(c, focus), fixKind: c.fixKind, impact: IMPACT[c.id] ?? "mediu", effort: EFFORT[c.id] ?? "mediu" }, baseline);
     }
     // O recomandare din audit a cărei verificare trece acum nu mai rămâne deschisă (ex. sitemap găsit după corectarea detectorului).
     const passing = staleAuditKeys(checks);

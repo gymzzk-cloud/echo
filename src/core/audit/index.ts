@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { parseStoreUrl } from "@/lib/util";
-import { extractHomeCatalog, type HomeCatalog } from "../onboarding/home";
+import { extractHomeCatalog, sitemapPagesPerCategory, type HomeCatalog } from "../onboarding/home";
 import { describeProductFields, isType, jsonLdNodes, missingProductFields, ORG_TYPES, productFields, sdSummary, structuredData, type SdEntity } from "./structured";
 import { findSitemap, productLikeUrls } from "./sitemap";
 import { catalogDescriptionVerdict, legalSignals, productDescriptionWords, sitemapUnsure, trustPages, UNSURE_PROBES, type DescriptionStats } from "./signals";
@@ -61,6 +61,8 @@ export type AuditResult = {
   error?: string;
   reusedFacts?: string[]; // date stabile luate din verificarea anterioară (site-ul nu le-a mai arătat acum)
   home?: HomeCatalog; // categoriile, mărcile și produsele de pe prima pagină (propunere pentru profilul din onboarding)
+  /** Categoriile din meniu cu paginile lor din sitemap: estimare „din site” până conectăm catalogul (pagini, nu produse). */
+  siteCategories?: { name: string; pages: number | null }[];
   /**
    * Același audit pe „Produse focus”: verificările de site sunt aceleași, iar cele pe produse (descrierile)
    * sunt socotite doar pe setul focus. `products` = câte produse are setul. Lipsește fără catalog.
@@ -320,6 +322,7 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
   // Sitemap întâi: ne dă și adrese de produs, dacă pagina principală nu are linkuri clare spre produse.
   const sm = await findSitemap(origin, pathPrefix, parsedRobots.sitemaps, (u) => getBytes(u));
   result.sitemapUrl = sm.found?.url;
+  if (result.home?.categoryLinks?.length) result.siteCategories = sitemapPagesPerCategory(result.home.categoryLinks, sm.allUrls ?? null);
 
   // 4. Date: pagina de produs (din catalog, din pagina principală sau din sitemap), în oricare formă schema.org
   const candidates = [...new Set([...(opts.productUrls ?? []).slice(0, 2), findProductUrl($, origin, pathPrefix), ...productLikeUrls(sm.sampleUrls, pathPrefix, 2)].filter(Boolean) as string[])].slice(0, 2);
@@ -488,6 +491,18 @@ export function focusVariant(r: Pick<AuditResult, "checks">, focus: DescriptionS
   });
   const f = finalize({ checks, score: 0 } as unknown as AuditResult);
   return { score: f.score, products: focus.total, checks: checks.filter((c) => c.id === "content-product") };
+}
+
+/**
+ * Textul recomandării pentru o verificare care are și variantă pe „Produse focus”: întâi focusul, apoi tot magazinul
+ * (ZoZo, 23.11.2026: datele separate clar, focusul prioritar). Fără variantă focus rămâne textul verificării.
+ */
+export function focusFirstDetail(c: Pick<Check, "id" | "detail" | "evidence">, focus: AuditResult["focus"]): string {
+  const f = focus?.checks.find((x) => x.id === c.id);
+  const fv = f?.evidence?.find((e) => e.label === "Produse focus")?.value;
+  const cv = c.evidence?.find((e) => e.label === "Catalogul conectat")?.value;
+  if (!fv || !cv) return c.detail;
+  return `Produse focus: ${fv}. Tot magazinul: ${cv}. AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară; începe cu produsele focus.`;
 }
 
 function finalize(r: AuditResult) {

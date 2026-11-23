@@ -18,6 +18,7 @@ import { EngineCards, type EvidenceLinks } from "@/components/visibility/engine-
 import { ProgressCards } from "@/components/visibility/progress-cards";
 import { AnswersList } from "@/components/visibility/answers-list";
 import { CardHelp } from "@/components/card-help";
+import { focusPromptCounts } from "@/core/focus";
 
 // Tu: culoarea de marcă; concurenții: nuanțe de gri (DESIGN §9).
 const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
@@ -66,7 +67,7 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
 
 /** Fila implicită: câte un card pe AI și „ce s-a schimbat / ce repari acum”. Fără textul răspunsurilor. */
 async function EnginesTab({ project, days, link }: Ctx) {
-  const [runs, products, progress, own, brands] = await Promise.all([engineRuns(project.id, daysAgo(days)), engineProducts(project.id), progressData(project.id), orgDomains(project.orgId), catalogBrands(project.id)]);
+  const [runs, products, progress, own, brands, scope] = await Promise.all([engineRuns(project.id, daysAgo(days)), engineProducts(project.id), progressData(project.id), orgDomains(project.orgId), catalogBrands(project.id), focusPromptCounts(project.id)]);
   // Producătorii (Bosch Professional) și magazinele proprii nu sunt „în locul tău” sau „cel mai vizibil magazin”.
   const excluded = notRivals(runs.rows.flatMap((r) => ((r.run.mentions as { domain: string }[]) ?? []).map((m) => m.domain)), { ownDomains: [project.domain, ...own], brands });
   const list = perEngine(runs.rows, runs.failed, project.domain, products, excluded);
@@ -83,7 +84,8 @@ async function EnginesTab({ project, days, link }: Ctx) {
       <EngineCards list={list} links={links} off={off} />
       <ProgressCards data={progress} links={{ wrongPrice: "/panou/produse-ai?f=pret", withoutStore: "/panou/produse-ai?f=fara-magazin" }} />
       <p className="text-xs text-muted">
-        Cifrele vin din răspunsurile deja primite în ultimele {days} zile, fără întrebări în plus. Produsele și prețurile sunt din ultimele 30 de zile și se recunosc doar după cod, link sau numele complet din catalog.
+        Cifrele vin din răspunsurile deja primite în ultimele {days} zile, fără întrebări în plus.
+        {scope.active > 0 && <> Din cele {scope.active} întrebări urmărite acum, {scope.focus} sunt despre <TextLink href="/panou/setari#focus">produsele focus</TextLink>; restul sunt despre tipuri de produs și despre magazin.</>} Produsele și prețurile sunt din ultimele 30 de zile și se recunosc doar după cod, link sau numele complet din catalog.
       </p>
     </div>
   );

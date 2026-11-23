@@ -80,6 +80,8 @@ async function handle(kind: string, payload: Record<string, string>) {
     }
     case "focus": {
       const r = await computeFocus(payload.projectId);
+      // Set nou → întrebările propuse se aleg din el. Doar la schimbare: „prompts” pune „focus” la coadă, fără buclă.
+      if (r.changed) await enqueue("prompts", { projectId: payload.projectId });
       // Alegere nouă în Setări: auditul se reface, ca scorul „Produse focus” să o arate.
       if (payload.then === "audit") await enqueue("audit", { projectId: payload.projectId });
       return r;
