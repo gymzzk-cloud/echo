@@ -27,7 +27,7 @@ export function FocusCard({ projectId, cfg, busy }: { projectId: string; cfg: Fo
             <li><Badge>{n(c.aiNamed)} numite de AI-uri</Badge></li>
             <li><Badge>{n(c.fromCategories)} din categoriile bifate</Badge></li>
           </ul>
-        ) : <Notice>Calculăm setul după prima sincronizare a catalogului.</Notice>}
+        ) : <Notice>Setul nu e calculat încă. Îl calculăm după sincronizarea catalogului și la următorul audit; apare aici în câteva minute.</Notice>}
         {c && c.bestsellers === 0 && <p className="text-sm text-muted">Nu avem topul vânzărilor de la platforma ta. Dacă feed-ul are un câmp de vânzări (ex. vânzări pe 30 de zile), îl folosim automat.</p>}
         {available && available.categories.length > 0 && (
           <form action={saveFocus} className="space-y-4">
