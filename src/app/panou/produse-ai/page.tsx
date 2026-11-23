@@ -60,11 +60,16 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
       {header}
       {search}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Produse numite de AI" value={`${sum.named} / ${sum.catalog}`} hint={`în ${answers} răspunsuri, ultimele ${PRODUCT_AI_WINDOW_DAYS} de zile`} />
+        {/* Doar produsele găsite în răspunsuri; catalogul nu e numitorul (ZoZo a citit „57 / 28192” ca „doar 57 apar în AI”). */}
+        <Stat label="Produse numite de AI" value={num(sum.named)} hint={`în ${num(answers)} răspunsuri AI deja primite, ultimele ${PRODUCT_AI_WINDOW_DAYS} de zile`} />
         <Stat label="Numite fără magazinul tău" value={sum.named ? sum.withoutStore : "–"} hint={!sum.named ? "niciun produs numit" : sum.withoutStore ? "AI-ul le trimite în alt magazin" : "de fiecare dată cu tine"} />
         <Stat label="Preț greșit spus de AI" value={sum.named ? sum.wrongPrice : "–"} hint={!sum.named ? "niciun produs numit" : sum.wrongPrice ? "diferență peste 5% față de catalog" : "fără prețuri greșite"} />
-        <Stat label="Calculat" value={sum.computedAt ? dateTime(sum.computedAt).split(", ")[1] ?? "–" : "–"} hint={sum.computedAt ? dateTime(sum.computedAt).split(", ")[0] : "încă nu"} />
+        <Stat label="Calculat" value={sum.computedAt ? dateTime(sum.computedAt).split(", ")[1] ?? "–" : "–"} hint={sum.computedAt ? `${dateTime(sum.computedAt).split(", ")[0]}, fără întrebări noi către AI` : "încă nu"} />
       </div>
+
+      <Notice tone="primary">
+        Am citit doar răspunsurile AI la cele {num(sum.questions)} întrebări urmărite, nu am întrebat despre fiecare produs. Din {num(sum.catalog)} produse în catalog, {sum.asked ? <>despre {num(sum.asked)} întrebăm AI-urile direct</> : "despre niciunul nu întrebăm încă direct"}; pentru restul, nu știm încă dacă AI-urile le recomandă, nu înseamnă că lipsesc. <TextLink href="/panou/produse">Urmărește produsele importante</TextLink> ca să le verificăm.
+      </Notice>
 
       {sum.named === 0 && <Notice tone="warn">În cele {answers} răspunsuri AI din ultimele {PRODUCT_AI_WINDOW_DAYS} de zile nu apare niciun produs din catalogul tău, cu numele sau codul lui. Alege produsele importante cu „Urmărește” în <TextLink href="/panou/produse">pagina Produse</TextLink>, ca să întrebăm AI-urile direct despre ele.</Notice>}
 
