@@ -103,7 +103,8 @@ async function getFile(url: string, timeoutMs = 12000) {
   return { ...b, botBlocked: true };
 }
 
-async function getBytes(url: string, timeoutMs = 10000): Promise<{ status: number; body: Uint8Array }> {
+// Multe magazine generează sitemap-ul la cerere: ShopExpert RO răspunde abia după ~11 s (1,5 MB). Îl așteptăm până la 45 s (rulează în worker).
+async function getBytes(url: string, timeoutMs = 45000): Promise<{ status: number; body: Uint8Array }> {
   const once = async (ua: string) => {
     const res = await fetch(url, { headers: { "user-agent": ua, accept: "application/xml,text/xml,*/*" }, redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
     const buf = new Uint8Array(await res.arrayBuffer());
@@ -368,7 +369,7 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
 
   // 6. Sitemap: există? E declarat în robots.txt?
   const probeText = (k: string, st: number, locs: number) =>
-    k === "urlset" ? `sitemap valid cu ${locs} adrese` : k === "sitemapindex" ? `index de sitemap-uri (${locs} fișiere)` : k === "html" ? `răspuns ${st}, dar e o pagină HTML, nu un sitemap` : k === "blocked" ? `răspuns ${st}, blocat de firewall` : k === "error" ? "fără răspuns" : `răspuns ${st}`;
+    k === "urlset" ? `sitemap valid cu ${locs} adrese` : k === "sitemapindex" ? `index de sitemap-uri (${locs} fișiere)` : k === "html" ? `răspuns ${st}, dar e o pagină HTML, nu un sitemap` : k === "blocked" ? `răspuns ${st}, blocat de firewall` : k === "timeout" ? "nu a răspuns în 45 s" : k === "error" ? "fără răspuns (eroare de rețea)" : `răspuns ${st}`;
   const smEvidence: Evidence[] = [
     { label: "robots.txt", url: origin + "/robots.txt", value: robots.ok ? (parsedRobots.sitemaps.length ? `declară: ${parsedRobots.sitemaps.join(", ")}` : "nu are nicio linie „Sitemap:”") : `răspuns ${robots.status}`, ok: parsedRobots.sitemaps.length > 0 },
     ...sm.probes.map((p) => ({ label: new URL(p.url).pathname, url: p.url, value: probeText(p.kind, p.status, p.locs), ok: p.kind === "urlset" || p.kind === "sitemapindex" })),

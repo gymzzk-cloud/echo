@@ -165,3 +165,15 @@ describe("auditul complet pe un site ca ShopExpert RO", () => {
     }
   });
 });
+
+describe("sitemap lent", () => {
+  it("un sitemap care nu răspunde la timp apare ca „timeout”, nu ca lipsă de răspuns", async () => {
+    const r = await findSitemap("https://a.ro", "", [], async () => { throw new DOMException("The operation was aborted due to timeout", "TimeoutError"); });
+    expect(r.probes[0].kind).toBe("timeout");
+  });
+
+  it("așteptăm un sitemap generat încet (ShopExpert: ~11 s), nu renunțăm după 10 s", async () => {
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("src/core/audit/index.ts", "utf8")).toMatch(/getBytes\(url: string, timeoutMs = 45000\)/);
+  });
+});
