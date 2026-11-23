@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { CopyButton, SubmitButton } from "@/components/client";
-import { Badge, Card, Notice, Table, Td, Working } from "@/components/ui";
+import { Badge, Card, Notice, Table, Td, TextLink, Working } from "@/components/ui";
 import { CHANNELS } from "@/core/feed";
 import { busyKinds } from "@/core/jobs";
 import { missingOpenAiSettings } from "@/core/feed-channels/openai";
@@ -90,6 +90,17 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
             <li>Lipește adresa și salvează. ChatGPT o descarcă singur, periodic.</li>
             <li>Dacă OpenAI arată erori la import, le vezi acolo. Feed-ul se reface singur după fiecare sincronizare a catalogului.</li>
           </ol>
+          <div className="border-t border-border pt-6">
+            <span className="label mb-2 block">Reclame în ChatGPT (ChatGPT Ads Manager)</span>
+            <p className="text-sm text-muted">
+              Pentru campaniile din feed în ChatGPT Ads Manager folosești <b className="font-semibold text-fg">aceeași adresă</b>: OpenAI cere același format de catalog ca pentru ChatGPT Merchants, așa că nu e nevoie de un al doilea feed. Reclamele și bugetul lor le setezi în contul tău de reclame OpenAI, nu în Echo.
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-6 text-sm">
+              <li>Intră în <TextLink href="https://ads.openai.com" external>ads.openai.com</TextLink>, la <b>Tools → Feeds</b>, și apasă <b>Create feed</b>.</li>
+              <li>Alege varianta cu adresă găzduită (hosted URL) și lipește adresa de mai sus. Adresa ține reclamele la zi singură (prețuri, stoc); un fișier încărcat de mână rămâne cum l-ai încărcat.</li>
+              <li>Când feed-ul apare ca procesat, creează o campanie de tip <b>Product feed</b> și alege România la țări.</li>
+            </ol>
+          </div>
           <div className="border-t border-border pt-6">
             <span className="label mb-2 block">Găsite automat pe site</span>
             <ul className="space-y-1 text-sm">
