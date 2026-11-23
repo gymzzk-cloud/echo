@@ -29,7 +29,8 @@ Definite o singură dată în `src/app/globals.css`, cu valori pentru luminos ș
 |---|---|---|---|---|
 | `--surface` | `bg-surface` | #F7F9F8 | #0F1715 | fundalul paginii, fundalul rândurilor la hover |
 | `--bg` | `bg-bg` | #FFFFFF | #16211E | carduri, câmpuri, antet |
-| `--border` | `border-border` | #E1E8E6 | #24332F | toate chenarele și separatoarele |
+| `--border` | `border-border` | #E1E8E6 | #24332F | chenarele cardurilor, câmpurilor și separatoarele |
+| `--border-strong` | `border-border-strong` | #7F918C | #5C736D | doar chenarul butoanelor `secondary` și `danger` (contrast cel puțin 3:1 față de card, ZoZo 23.11.2026: butoanele albe nu se vedeau) |
 | `--text` | `text-fg` | #13231F | #E4ECEA | text principal |
 | `--text-muted` | `text-muted` | #5B6D68 | #93A6A1 | text secundar, ajutor, etichete |
 | `--primary` | `bg-primary` / `text-primary` | #0D7A6A | #4CC3AD | marca, acțiunea principală, „tu” în grafice, link-uri |
@@ -92,8 +93,8 @@ Toate stau în `src/components/ui.tsx` (când depășește ~300 de rânduri, se 
 | Variantă | Când | Exemple |
 |---|---|---|
 | `primary` (plin, verde) | acțiunea pentru care ai venit pe card; **una singură pe card** | Conectează, Salvează, Caută, Cumpără, Rezolvă, Trimite invitația |
-| `secondary` (alb, cu chenar) | acțiuni suplimentare | Adaugă, Importă, Sincronizează, Rulează acum, Exportă, Testează |
-| `danger` (alb, text roșu) | elimină sau revocă ceva | Șterge, Elimină, Revocă, Anulează invitația |
+| `secondary` (alb, cu chenar închis `border-strong`) | acțiuni suplimentare | Adaugă, Importă, Sincronizează, Rulează acum, Exportă, Testează |
+| `danger` (alb, chenar `border-strong`, text roșu) | elimină sau revocă ceva | Șterge, Elimină, Revocă, Anulează invitația |
 | `ghost` (fără chenar) | comutatoare și acțiuni discrete în rânduri | Oprește / Pornește, Am rezolvat, Marchează citite, Respinge |
 | `TextLink` (text verde) | **doar navigare** spre altă pagină, niciodată o acțiune | Detalii, Toate, Vezi lista |
 | `Chips` (cipuri rotunjite) | filtre și file care schimbă ce arată pagina | 7 / 30 / 90 zile, De făcut / Rezolvate, exemplele de întrebări |

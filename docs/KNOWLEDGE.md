@@ -471,6 +471,16 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: marca e obligatorie pentru OpenAI. Un produs fără marcă validă nu intră în feed-ul ChatGPT (motiv „fără marcă”). Cardul ChatGPT îl listează (cod, produs, marca din magazin), iar fișa produsului spune ce trebuie reparat. Marca nu se ghicește din titlu sau din adresă. Produsul intră singur după ce magazinul o completează.
 - De ce: ZoZo: „acelasi 10 produse au eroare in feed … fara brand”. O regulă despre ce acceptă OpenAI se verifică pe motivul respingerii, nu pe presupuneri (A0).
 
+**B51. Butoanele secundare albe pe card alb, fără contrast** *(23.11.2026, 21:06)*
+- Nu: butoanele `secondary` și `danger` („Regenerează acum”, „Adaugă regula”…) aveau fundal alb și chenarul cel mai deschis (`--border`, #E1E8E6) pe un card alb, deci nu se vedeau pe pagină.
+- În schimb: aceste butoane au chenarul `--border-strong` (#7F918C luminos, #5C736D întunecat) și text `fg`, cu contrast de cel puțin 3:1 față de card. Chenarele cardurilor și ale câmpurilor rămân deschise. Regula e în `docs/DESIGN.md` (tokenuri și §6.1), iar componenta e una singură (`btn` din `src/components/ui.tsx`), deci se aplică pe tot panoul.
+- De ce: ZoZo: „butoanele … cu fundal alb nu sunt vizibile în pagină”.
+
+**B52. Etichete de feed din lipsa datelor („Fără vânzări / fără AI”)** *(23.11.2026, 21:06)*
+- Nu: eticheta automată `zombie` („Fără vânzări / fără AI”) se punea pe orice produs fără clicuri în căutarea Echo și nenumit de AI. Așa a ajuns pe 28.146 de produse ShopExpert, deși nu avem date de vânzări de la platformă, iar AI-urile au fost întrebate direct doar despre câteva zeci de produse. Eticheta pleca în feed ca custom_label, deci campaniile s-ar fi făcut pe o etichetă falsă. Lângă ea, „Recomandat de AI: 45” părea tot ce analizăm.
+- În schimb: o etichetă de feed vine doar din date verificate. `recomandat_ai` = numit de AI în răspunsuri; `ai_nu_apare` = întrebat direct (răspuns valid în 30 de zile) și nu apare; un produs neîntrebat nu primește etichetă AI („nu știm”). Fără vânzări reale de la platformă nu există etichetă de vânzări. Cardul „Etichete automate” spune pe câte produse se sprijină fiecare cifră („X din Y încă neîntrebate”) și că nu avem date de vânzări.
+- De ce: ZoZo: „de ce apar 28 mii de produse fără AI și doar 45 recomandat de AI … nu este corect cum afișează”. Lipsa datelor nu e o performanță slabă (A0).
+
 ## C. Regula de întreținere (permanentă)
 
 1. **De fiecare dată când ZoZo spune că ceva e greșit**, punctul se adaugă imediat, în aceeași tură, în **partea B**, în forma „Nu / În schimb / De ce”, cu data.
