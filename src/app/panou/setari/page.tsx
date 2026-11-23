@@ -10,7 +10,8 @@ import { ActionForm } from "@/components/forms";
 import { addCompetitor, addPrompt, connectFeed, removeCompetitor, removeConnection, syncNow, togglePrompt, uploadFeed } from "@/app/actions";
 import { FEED_HINTS } from "@/core/connectors/platforms";
 import { dateShort } from "@/lib/format";
-import { syncingConnections } from "@/core/jobs";
+import { busyKinds, syncingConnections } from "@/core/jobs";
+import { FocusCard } from "@/components/focus-card";
 import { promptLimit } from "@/core/prompts";
 import { CardHelp } from "@/components/card-help";
 
@@ -27,7 +28,7 @@ export default async function Settings() {
     projectUsageThisMonth(project.id),
     db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, project.orgId)),
   ]);
-  const syncing = await syncingConnections(conns.map((c) => c.id));
+  const [syncing, busy] = await Promise.all([syncingConnections(conns.map((c) => c.id)), busyKinds(project.id)]);
   const limit = promptLimit(org[0]?.plan ?? "trial");
   const providers = activeProviders();
   const cfg = costConfig();
@@ -100,6 +101,8 @@ export default async function Settings() {
         ) : connectForms}
         <details className="mt-4 text-xs text-muted"><summary className="cursor-pointer font-medium text-primary">Unde găsesc feed-ul sau cheia pe platforma mea?</summary><ul className="mt-2 space-y-1">{Object.values(FEED_HINTS).map((h) => <li key={h}>{h}</li>)}</ul></details>
       </Card>
+
+      <FocusCard projectId={project.id} cfg={project.focusConfig ?? null} busy={busy.has("focus")} />
 
       <Card title={`Concurenți (${comps.length})`} description="Îi comparăm cu tine în fiecare zi. Adăugăm automat magazinele pe care AI-urile le recomandă în locul tău sau înaintea ta. Dacă scoți unul, nu-l mai adăugăm.">
         <ul className="mb-4 flex flex-wrap gap-2">

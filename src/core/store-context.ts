@@ -42,12 +42,12 @@ export async function catalogCategories(projectId: string) {
  * Descrierile din catalog (ce primesc AI-urile în feed), pe tot catalogul în stoc, numărate în SQL (în worker, la audit).
  * „bună” = cel puțin 40 de cuvinte; „lipsă” = goală sau doar titlul repetat; „necitite” = încă nu am citit-o din API (product_details).
  */
-export async function catalogDescriptionStats(projectId: string): Promise<DescriptionStats> {
+export async function catalogDescriptionStats(projectId: string, focusOnly = false): Promise<DescriptionStats> {
   const r = await db.execute(dsql`
     with p as (
       select p.title, coalesce(p.description, '') as d,
         exists (select 1 from product_details d where d.project_id = p.project_id and d.external_id = p.external_id and d.fetched_at is null) as pending
-      from products p where p.project_id = ${projectId} and p.in_stock
+      from products p where p.project_id = ${projectId} and p.in_stock ${focusOnly ? dsql`and p.focus` : dsql``}
     ), w as (
       select pending, case when btrim(regexp_replace(d, '<[^>]+>', ' ', 'g')) = '' or lower(btrim(d)) = lower(btrim(title)) then 0
         else coalesce(array_length(regexp_split_to_array(btrim(regexp_replace(d, '<[^>]+>', ' ', 'g')), '\\s+'), 1), 0) end as words

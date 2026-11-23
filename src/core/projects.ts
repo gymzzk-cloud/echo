@@ -23,6 +23,7 @@ import { canAct, notRivals, SOURCE_ADVICE, sourceKind, type SourceCtx } from "./
 import { catalogBrands, catalogDescriptionStats, orgDomains } from "./store-context";
 import { refreshPrompts } from "./tracked-prompts";
 import { pruneStalePriceAlerts } from "./price-alerts";
+import { computeFocus } from "./focus";
 import { TRIAL_PROVIDERS } from "./onboarding/types";
 
 type Project = typeof schema.projects.$inferSelect;
@@ -438,8 +439,13 @@ export async function runAuditRow(auditId: string) {
       ? (await db.select({ url: schema.products.url }).from(schema.products).where(and(eq(schema.products.projectId, a.projectId), eq(schema.products.inStock, true))).orderBy(asc(schema.products.id)).limit(2)).map((x) => x.url).filter(Boolean)
       : [];
     // Descrierile pe tot catalogul (SQL), nu pe o singură pagină.
-    const descriptions = a.projectId ? await catalogDescriptionStats(a.projectId) : undefined;
-    const r = await runAudit(a.url, { productUrls, descriptions });
+    // „Produse focus” calculat cel puțin o dată înainte, ca auditul să aibă și scorul pe focus.
+    if (a.projectId) {
+      const [pf] = await db.select({ cfg: schema.projects.focusConfig }).from(schema.projects).where(eq(schema.projects.id, a.projectId));
+      if (!pf?.cfg?.computedAt) await computeFocus(a.projectId);
+    }
+    const [descriptions, descriptionsFocus] = a.projectId ? await Promise.all([catalogDescriptionStats(a.projectId), catalogDescriptionStats(a.projectId, true)]) : [undefined, undefined];
+    const r = await runAudit(a.url, { productUrls, descriptions, descriptionsFocus });
     // Site inaccesibil: nu salvăm un scor 0 înșelător, marcăm auditul ca eșuat.
     if (r.error && !r.checks.some((c) => c.status === "pass")) throw new Error(r.error);
     // Datele stabile ale firmei lipsă acum, dar găsite la o verificare anterioară, se refolosesc

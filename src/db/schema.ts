@@ -93,8 +93,22 @@ export const projects = pgTable("projects", {
   onboarding: jsonb("onboarding").$type<Onboarding>(), // testul gratuit de la prima logare; gol = magazin obișnuit
   fixAutoThreshold: integer("fix_auto_threshold"), // reparațiile de produs cu încredere de cel puțin atât se aplică singure; gol = oprit
   fixesCheckedAt: timestamp("fixes_checked_at", { withTimezone: true }), // ultima căutare de reparații de produs
+  focusConfig: jsonb("focus_config").$type<FocusConfig>(), // categoriile și mărcile de focus (alese sau automate) și numărătorile setului
   createdAt: createdAt(),
 }, (t) => [index("projects_org_idx").on(t.orgId), index("projects_domain_idx").on(t.domain)]);
+
+/**
+ * „Produse focus”: ce a ales magazinul (categorii, mărci; null = automat) și ce a calculat workerul.
+ * Categoriile sunt primele două niveluri ale căii din catalog („Scule electrice > Rotopercutoare”).
+ */
+export type FocusConfig = {
+  categories?: string[] | null;
+  brands?: string[] | null;
+  auto?: { categories: string[] };
+  available?: { categories: { name: string; n: number }[]; brands: { name: string; n: number }[] };
+  counts?: { inStock: number; focus: number; chosen: number; bestsellers: number; aiNamed: number; fromCategories: number };
+  computedAt?: string;
+};
 
 /** Condițiile magazinului citite automat de pe site (retur, plată, livrare, întrebări frecvente); nu se completează de mână. */
 export type StoreInfo = { policies?: StorePolicies };
@@ -142,11 +156,13 @@ export const products = pgTable("products", {
   description: text("description"),
   delivery: text("delivery"), // ex. „1-2 zile lucrătoare · transport 20 RON”, din feed
   popularityRank: integer("popularity_rank"), // 1 = cel mai vândut (de la platformă sau din feed); null = necunoscut
+  focus: boolean("focus").notNull().default(false), // în setul „Produse focus” (calculat în worker, src/core/focus.ts)
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("products_project_ext_idx").on(t.projectId, t.externalId),
   index("products_project_idx").on(t.projectId),
   index("products_project_popularity_idx").on(t.projectId, t.popularityRank),
+  index("products_project_focus_idx").on(t.projectId, t.focus),
   index("products_gtin_idx").on(t.gtin), // fișa produsului: căutare după EAN și prețul aceluiași EAN în alte magazine
   index("products_project_mpn_idx").on(t.projectId, t.mpn), // fișa produsului: căutare după codul producătorului
 ]);
