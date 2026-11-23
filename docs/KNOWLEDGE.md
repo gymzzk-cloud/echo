@@ -312,6 +312,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: recunoaștere doar după cod, link sau numele complet, iar lângă fiecare preț spus de AI, dovada (AI, dată și oră, întrebare, rândul exact, criteriul).
 - De ce: ZoZo nu putea verifica dacă prețul chiar apare așa.
 
+**B27. Pagina de vizibilitate ca o listă lungă de tabele, fără răspuns pe fiecare AI** *(23.11.2026, 11:57)*
+- Nu: o singură pagină cu concurenți, ton, mărci, grafic și toate întrebările una după alta, din care nu reiese cum te prezintă ChatGPT, Claude sau Google și cum te ajută Echo.
+- În schimb: „Cum te văd AI-urile” începe cu câte un card pe fiecare AI, unul lângă altul (apari în X din Y răspunsuri, locul mediu, cine apare în locul tău, produse numite, prețuri greșite, ton), fiecare cifră cu link spre răspunsurile exacte; apoi „Ce s-a schimbat de când folosești Echo” și „Ce repari acum”. Concurenții, tonul și răspunsurile întregi stau în file separate.
+- De ce: „e puțin haotic pentru mine… cum ar trebui să verific cum mă ajută”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)
