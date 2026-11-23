@@ -141,6 +141,13 @@
       "when": 1795437424653,
       "tag": "0019_product_ai_store_price",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795437484653,
+      "tag": "0020_resync_full_titles",
+      "breakpoints": true
     }
   ]
 }
