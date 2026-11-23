@@ -204,6 +204,13 @@
       "when": 1795458447533,
       "tag": "0028_panel_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795461310082,
+      "tag": "0029_job_progress",
+      "breakpoints": true
     }
   ]
 }

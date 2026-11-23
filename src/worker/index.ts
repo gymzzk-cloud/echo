@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { finishJob, enqueue, pickJob, pendingJobs, requeueInterrupted } from "@/core/jobs";
+import { finishJob, enqueue, pickJob, pendingJobs, requeueInterrupted, setCurrentJob } from "@/core/jobs";
 import { computeFocus } from "@/core/focus";
 import { refreshPrompts } from "@/core/tracked-prompts";
 import { allProjectIds, auditProject, runAuditRow, runProject, syncCatalog, dueConnections } from "@/core/projects";
@@ -188,8 +188,18 @@ async function schedule() {
 const PANEL_AFTER = new Set(["run_project", "rivals", "audit", "focus", "product_ai", "feed"]);
 
 let stopping = false;
-process.on("SIGINT", () => { stopping = true; });
-process.on("SIGTERM", () => { stopping = true; });
+let running: string | null = null;
+/**
+ * La oprire (publicare nouă, repornire): lucrarea în curs se pune imediat înapoi la coadă, cu progresul ei,
+ * ca serverul nou s-o reia primul, de unde a rămas (întrebările puse deja azi nu se plătesc și nu se repetă).
+ */
+const stop = async () => {
+  stopping = true;
+  if (running) await db.execute(sql`update jobs set status = 'queued', run_at = now() - interval '1 minute' where id = ${running} and status = 'running'`).catch(() => undefined);
+  process.exit(0);
+};
+process.on("SIGINT", stop);
+process.on("SIGTERM", stop);
 
 console.log("Worker pornit.");
 try {
@@ -222,14 +232,18 @@ while (!stopping) {
   const job = await pickJob();
   if (!job) { await new Promise((r) => setTimeout(r, 2000)); continue; }
   const t0 = Date.now();
+  running = job.id;
+  setCurrentJob(job.id);
   try {
     await handle(job.kind, job.payload);
+    running = null;
     await finishJob(job.id);
     // Răspunsuri, concurenți sau audit noi → cifrele paginilor (Acasă, Surse, Reputație, Produse) se refac în fundal,
     // ca pagina să le citească gata calculate (KNOWLEDGE B48). Jobul nu face nimic dacă sunt deja la zi.
     if (PANEL_AFTER.has(job.kind) && job.payload.projectId) await enqueue("panel", { projectId: job.payload.projectId }).catch((e) => console.error("panel enqueue", (e as Error).message));
     console.log(`✓ ${job.kind} (${Date.now() - t0} ms)`);
   } catch (e) {
+    running = null;
     console.error(`✗ ${job.kind}:`, e);
     await finishJob(job.id, String(e).slice(0, 1000), job.attempts);
   }

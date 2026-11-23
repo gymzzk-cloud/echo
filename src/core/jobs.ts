@@ -36,23 +36,42 @@ export async function busyKinds(projectId: string, connectionIds: string[] = [])
 
 /**
  * La pornirea workerului: joburile rămase „în lucru” au fost întrerupte (deploy, restart, adormire).
- * Le punem înapoi la coadă, cu ora de acum, ca butonul să arate în continuare „în lucru” și jobul să ruleze din nou.
+ * Le punem înapoi la coadă, primele, ca butonul să arate în continuare „în lucru” și jobul să ruleze din nou.
  * Avem un singur worker, deci nimic altceva nu le rulează în acest moment. Joburile sunt idempotente.
  */
 export async function requeueInterrupted() {
-  const rows = await db.execute(dsql`update jobs set status = 'queued', run_at = now(), created_at = now()
+  // Înaintea celorlalte (run_at în trecut): lucrarea întreruptă, de obicei cea cerută de magazin, se reia prima, nu după citirile programate.
+  const rows = await db.execute(dsql`update jobs set status = 'queued', run_at = now() - interval '1 hour', created_at = now()
     where status = 'running' returning id`);
   return rows.length;
 }
 
 export async function pickJob() {
   const rows = await db.execute(dsql`
-    update jobs set status = 'running', attempts = attempts + 1
+    update jobs set status = 'running', attempts = attempts + 1, started_at = now(), progress = null
     where id = (
       select id from jobs where status = 'queued' and run_at <= now()
       order by run_at for update skip locked limit 1
     ) returning id, kind, payload, attempts`);
   return (rows[0] as unknown as { id: string; kind: JobKind; payload: Record<string, string>; attempts: number }) ?? null;
+}
+
+/** Jobul pe care îl rulează acum workerul (unul singur odată), ca lucrările lungi să-și poată raporta progresul. */
+let currentJobId: string | null = null;
+let lastReport = 0;
+export function setCurrentJob(id: string | null) { currentJobId = id; lastReport = 0; }
+
+/**
+ * Progresul real al lucrării curente (ex. întrebarea 12 din 30), pentru bara de stare din panou.
+ * Cel mult o scriere pe secundă, ca raportarea să nu încarce baza de date; ultima valoare (done = total) se scrie mereu.
+ * O eroare la scriere nu oprește lucrarea.
+ */
+export async function reportProgress(done: number, total: number) {
+  if (!currentJobId) return;
+  const now = Date.now();
+  if (done < total && now - lastReport < 1000) return;
+  lastReport = now;
+  await db.execute(dsql`update jobs set progress = ${JSON.stringify({ done, total })}::jsonb where id = ${currentJobId}`).catch(() => undefined);
 }
 
 export async function finishJob(id: string, error?: string, attempts = 1) {
@@ -90,7 +109,13 @@ export const JOB_LABELS: Partial<Record<JobKind, string>> = {
   product_page: "Verificarea paginii produsului", catalog_details: "Citirea descrierilor de produs", prompts: "Actualizarea listei de întrebări", focus: "Calculul produselor focus", panel: "Actualizarea cifrelor din panou",
 };
 
-export type JobState = { id: string; kind: JobKind; label: string; status: "queued" | "running" | "done" | "failed"; error: string | null };
+export type JobState = {
+  id: string; kind: JobKind; label: string; status: "queued" | "running" | "done" | "failed"; error: string | null;
+  /** Cât s-a făcut (ex. întrebarea 12 din 30) și de câte secunde lucrează, pentru „~3 min rămase”. */
+  progress: { done: number; total: number } | null; elapsedSec: number | null;
+  /** La coadă: câte lucrări (ale oricui, doar numărul) rulează sau așteaptă înaintea ei. */
+  ahead: number | null;
+};
 
 /**
  * Starea lucrărilor unui magazin, pentru actualizarea paginii fără reîncărcare:
@@ -98,12 +123,17 @@ export type JobState = { id: string; kind: JobKind; label: string; status: "queu
  * Filtrează după magazin (projectId sau o conexiune a lui), deci nu se văd lucrările altor clienți.
  */
 export async function jobStates(projectId: string, connectionIds: string[], ids: string[]): Promise<JobState[]> {
-  const conns = connectionIds.length ? dsql`or payload->>'connectionId' in ${connectionIds}` : dsql``;
-  const asked = ids.length ? dsql`or id::text in ${ids}` : dsql``;
-  const r = await db.execute(dsql`select id::text as id, kind, status, last_error as error from jobs
-    where (payload->>'projectId' = ${projectId} ${conns})
-      and ((status in ('queued','running') and created_at > now() - interval '30 minutes') ${asked})
-    order by created_at desc limit 50`);
+  const conns = connectionIds.length ? dsql`or j.payload->>'connectionId' in ${connectionIds}` : dsql``;
+  const asked = ids.length ? dsql`or j.id::text in ${ids}` : dsql``;
+  // „ahead”: doar un număr (nicio dată a altor clienți): lucrarea care rulează acum și cele scadente înaintea ei.
+  const r = await db.execute(dsql`select j.id::text as id, j.kind, j.status, j.last_error as error, j.progress,
+      case when j.status = 'running' and j.started_at is not null then extract(epoch from now() - j.started_at)::int end as "elapsedSec",
+      case when j.status = 'queued' then (select count(*)::int from jobs o where o.id <> j.id and (o.status = 'running'
+        or (o.status = 'queued' and o.run_at <= now() and o.run_at < j.run_at))) end as ahead
+    from jobs j
+    where (j.payload->>'projectId' = ${projectId} ${conns})
+      and ((j.status in ('queued','running') and j.created_at > now() - interval '30 minutes') ${asked})
+    order by j.created_at desc limit 50`);
   return (r as unknown as Omit<JobState, "label">[])
     .filter((j) => JOB_LABELS[j.kind])
     .map((j) => ({ ...j, label: JOB_LABELS[j.kind]!, error: j.error ? j.error.slice(0, 160) : null }));

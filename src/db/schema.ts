@@ -377,6 +377,9 @@ export const jobs = pgTable("jobs", {
   runAt: timestamp("run_at", { withTimezone: true }).notNull().defaultNow(),
   lastError: text("last_error"),
   createdAt: createdAt(),
+  // Progresul real, scris de worker cât lucrează (ex. întrebarea 12 din 30), afișat de JobWatcher cu o estimare.
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  progress: jsonb("progress").$type<{ done: number; total: number }>(),
 }, (t) => [index("jobs_pick_idx").on(t.status, t.runAt)]);
 
 

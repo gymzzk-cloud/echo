@@ -1,3 +1,4 @@
+import { reportProgress } from "./jobs";
 import { and, asc, desc, eq, gte, inArray, sql as dsql } from "drizzle-orm";
 import { PROBLEM_TITLES } from "./audit/problems";
 import { emitEvent } from "./platform";
@@ -186,7 +187,10 @@ export async function runProject(projectId: string) {
   let asked = 0;
   let failed = 0;
   const strikes = new Map<string, { n: number; msg: string }>();
-  for (const pr of ps) {
+  // Progresul real pentru bara de stare („Analiza AI: întrebarea 12 din 30”). Întrebările puse deja azi nu se plătesc din nou:
+  // după o repornire, analiza trece repede peste ele și continuă de unde a rămas.
+  await reportProgress(0, ps.length);
+  for (const [i, pr] of ps.entries()) {
     // Plafonul lunar: ne oprim înainte să-l depășim și anunțăm o singură dată pe zi.
     if (!withinBudget(spent, monthlyBudgetUsd)) {
       await alert(projectId, "ai_budget", "warn", "Am pus luna aceasta toate întrebările incluse în plan. Restul întrebărilor rulează luna viitoare.", true);
@@ -209,6 +213,7 @@ export async function runProject(projectId: string) {
     spent = (await projectUsageThisMonth(projectId)).usd;
     asked += runs.length;
     failed += runs.filter((r) => r?.model === ERROR_MODEL).length;
+    await reportProgress(i + 1, ps.length);
   }
   console.log(`AI ${p.domain}${p.pathPrefix}: ${ps.length} întrebări, ${asked} rulări, ${failed} erori, cost lunar ${spent.toFixed(3)} USD`);
   await registerAiStores(seen);
