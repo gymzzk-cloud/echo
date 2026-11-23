@@ -101,8 +101,9 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
               <div className="flex flex-wrap gap-1">
                 {r.wrongPrices.map((w) => <Badge key={w.provider} tone="bad">{providerLabel(w.provider)}: {money(w.price, r.currency)}</Badge>)}
                 {!r.priceWrong && r.statedPrice && <Badge tone="good">Preț corect</Badge>}
-                {r.withStore === 0 ? <Badge tone="warn">Fără magazinul tău</Badge> : <Badge>Cu tine: {r.withStore} din {r.appearances}</Badge>}
+                {r.withStore === 0 ? <Badge tone="warn">Fără tine în {r.appearances} din {r.appearances}</Badge> : <Badge>Cu tine: {r.withStore} din {r.appearances}</Badge>}
               </div>
+              <AskedFrom r={r} />
               <TextLink href={proofHref(r)} className="block text-xs">{r.statedPrice ? "Vezi unde a spus prețul" : "Vezi răspunsurile și dovezile"}</TextLink>
             </li>
           ))}
@@ -117,7 +118,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
               <Td className="num whitespace-nowrap text-right">{money(r.price, r.currency)}<SitePrice r={r} /></Td>
               <Td className="num whitespace-nowrap text-right">{r.appearances}× <span className="block text-xs text-muted">{share(r.appearances)} din răspunsuri</span></Td>
               <Td className="num whitespace-nowrap text-right">{num(parseFloat(r.avgPosition))}<span className="block text-xs text-muted">cel mai bun: {r.bestPosition}</span></Td>
-              <Td><div className="flex flex-wrap gap-1">{Object.entries(r.providers).sort((a, b) => b[1] - a[1]).map(([x, n]) => <Badge key={x}>{providerLabel(x)} {n}</Badge>)}</div></Td>
+              <Td className="min-w-48"><div className="flex flex-wrap gap-1">{Object.entries(r.providers).sort((a, b) => b[1] - a[1]).map(([x, n]) => <Badge key={x}>{providerLabel(x)} {n}</Badge>)}</div><AskedFrom r={r} /></Td>
               <Td>
                 <div className="flex flex-wrap gap-1">
                   {r.wrongPrices.map((w) => <Badge key={w.provider} tone="bad">{providerLabel(w.provider)}: {money(w.price, r.currency)}</Badge>)}
@@ -125,7 +126,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
                 </div>
                 {r.statedPrice && <TextLink href={proofHref(r)} className="mt-1 block text-xs">Vezi unde a spus-o</TextLink>}
               </Td>
-              <Td className="num whitespace-nowrap text-right">{r.withStore === 0 ? <Badge tone="warn">Niciodată</Badge> : `${r.withStore} din ${r.appearances}`}</Td>
+              <Td className="num whitespace-nowrap text-right">{r.withStore === 0 ? <Badge tone="warn">0 din {r.appearances}</Badge> : `${r.withStore} din ${r.appearances}`}<span className="block text-xs text-muted">răspunsuri de aici</span></Td>
             </tr>
           ))}
         </Table>
@@ -142,6 +143,20 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
         <p className="mt-4 text-xs text-muted">Căutăm produsele tale în răspunsurile AI deja primite la întrebările urmărite, doar după dovezi sigure: codul (EAN, cod producător), linkul spre pagina produsului sau numele complet din catalog, fără întrebări în plus. „Preț spus de AI” e doar prețul scris pe rândul care numește magazinul tău (sau are linkul lui); prețurile altor magazine din răspuns nu contează. Îl comparăm cu prețul de pe pagina produsului (citită automat, o dată pe zi), iar până o citim, cu cel din catalog, actualizat la fiecare preluare. Pe pagina fiecărui produs vezi răspunsul AI-ului, data și ora, rândul exact cu prețul și criteriul după care l-am recunoscut. „Cu magazinul tău” înseamnă că răspunsul numește și magazinul sau dă linkul produsului. Locul e al câtelea produs recomandat în răspuns.</p>
       </Card>}
     </div>
+  );
+}
+
+/**
+ * La ce întrebări l-au numit AI-urile și dacă îi întrebăm direct despre el. Fără asta, „0 din 4” se citește ca
+ * „AI-urile nu te arată niciodată la acest produs”, deși am întrebat doar ceva general (KNOWLEDGE B47).
+ */
+function AskedFrom({ r }: { r: { productId: string; queries: string[]; askedDirect: boolean } }) {
+  const qs = r.queries.filter(Boolean);
+  return (
+    <span className="mt-1 block text-xs text-muted">
+      {qs.length > 0 && <>La: {qs.slice(0, 2).map((q) => `„${q}”`).join(", ")}{qs.length > 2 ? ` și încă ${qs.length - 2}` : ""}. </>}
+      {r.askedDirect ? "Îl întrebăm și direct." : <>Nu îl întrebăm direct (nici ChatGPT); un cumpărător care caută exact produsul poate vedea altceva. <TextLink href={`/panou/produse-ai/${r.productId}`} className="text-xs">Urmărește-l</TextLink></>}
+    </span>
   );
 }
 
