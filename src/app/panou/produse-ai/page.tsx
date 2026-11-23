@@ -68,10 +68,10 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
       </div>
 
       <Notice tone="primary">
-        Am citit doar răspunsurile AI la cele {num(sum.questions)} întrebări urmărite, nu am întrebat despre fiecare produs. Din {num(sum.catalog)} produse în catalog, {sum.asked ? <>despre {num(sum.asked)} întrebăm AI-urile direct</> : "despre niciunul nu întrebăm încă direct"}; pentru restul, nu știm încă dacă AI-urile le recomandă, nu înseamnă că lipsesc. <TextLink href="/panou/produse">Urmărește produsele importante</TextLink> ca să le verificăm.
+        Am citit doar răspunsurile AI la cele {num(sum.questions)} întrebări urmărite, nu am întrebat despre fiecare produs. Din {num(sum.catalog)} produse în catalog, {sum.asked ? <>despre {num(sum.asked)} întrebăm AI-urile direct</> : "despre niciunul nu întrebăm încă direct"}; pentru restul, nu știm încă dacă AI-urile le recomandă, nu înseamnă că lipsesc. <TextLink href="/panou/produse-urmarite">Alege produsele pe care le urmărim</TextLink> ca să le verificăm.
       </Notice>
 
-      {sum.named === 0 && <Notice tone="warn">În cele {answers} răspunsuri AI din ultimele {PRODUCT_AI_WINDOW_DAYS} de zile nu apare niciun produs din catalogul tău, cu numele sau codul lui. Alege produsele importante cu „Urmărește” în <TextLink href="/panou/produse">pagina Produse</TextLink>, ca să întrebăm AI-urile direct despre ele.</Notice>}
+      {sum.named === 0 && <Notice tone="warn">În cele {answers} răspunsuri AI din ultimele {PRODUCT_AI_WINDOW_DAYS} de zile nu apare niciun produs din catalogul tău, cu numele sau codul lui. Alege produsele importante în <TextLink href="/panou/produse-urmarite">Produse urmărite</TextLink>, ca să întrebăm AI-urile direct despre ele.</Notice>}
 
       {sum.named > 0 && <Card>
         <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

@@ -74,6 +74,9 @@
     De ce: clientul verifică întâi că problema e reală, abia apoi o repară.
     Cum: pe fiecare produs arătăm codul din catalog, EAN-ul și linkul spre pagina lui. Pentru fiecare apariție în AI păstrăm și arătăm AI-ul, data și ora, întrebarea, rândul exact cu prețul și criteriul după care am recunoscut produsul (cod, link sau numele complet), plus tot răspunsul. Un produs se recunoaște doar după aceste criterii sigure, niciodată după câteva cuvinte comune (PR #43).
 
+13c. **Magazinul alege singur ce produse întrebăm AI-urile.** *(ZoZo, 23.11.2026: „să pot numi eu alte produse dacă vreau, să șterg și să adaug altele din catalog… fiecare magazin știe mai bine ce produse să verifice”)*
+    Cum: pagina „Produse urmărite” (`/panou/produse-urmarite`): caută după cod, EAN, cod producător sau nume, sau lipește o listă de coduri; „Scoate” oprește întrebarea și lista automată nu o mai pune la loc; cele propuse automat (cele mai vândute, din fiecare categorie) umplu locurile libere. Aceeași limită pe plan ca întrebările alese de mână, același buget lunar, nicio întrebare plătită de două ori. „Urmărește în AI” din fișa produsului intră în aceeași listă.
+
 ### A3. Întrebările urmărite (ce întrebăm AI-urile)
 
 14. **Întrebările vin din catalogul real și seamănă cu ce caută un om.** *(ZoZo, 20.11.2026)*
@@ -343,6 +346,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - Nu: să socotim drept „preț spus de AI” orice preț de lângă produs (alt magazin, un comparator) sau dintr-un răspuns mai vechi, în timp ce dovada arată „Nu spune prețul”, iar „Vezi unde a spus-o” duce la alt răspuns.
 - În schimb: prețul spus de AI e doar cel de pe rândul care numește magazinul (sau are linkul lui), în partea de răspuns despre acel produs; se salvează rularea care l-a spus, iar linkul duce exact la dovada ei, cu rândul evidențiat. Lista și dovezile arată același preț.
 - De ce: ZoZo: „aici spune că Claude a zis greșit prețul, deși dacă dau pe vezi unde, apare corect” (BOSCH GBH 4-32 DFR, ShopExpert 2.635 lei în răspuns).
+
+**B33. „57 / 28192” la Produse în AI, citit ca „doar 57 apar în AI” sau „analizăm 28.000 de produse”** *(23.11.2026, 12:40–12:42)*
+- Nu: să punem numărul de produse numite peste tot catalogul, ca o fracție, când am citit doar răspunsurile la câteva zeci de întrebări urmărite.
+- În schimb: arătăm doar câte produse sunt numite și din câte răspunsuri; o notă spune că restul catalogului nu a fost verificat („nu știm încă, nu înseamnă că lipsesc”) și duce la „Produse urmărite”, unde magazinul alege ce produse întrebăm.
+- De ce: ZoZo: „acum începe analiza la 28000 produse?”, „e derutant, așa cred că doar 57 de produse apar în AI din 28000”.
 
 ---
 
