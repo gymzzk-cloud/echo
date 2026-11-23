@@ -92,7 +92,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
             <li key={r.productId} className="space-y-2 py-3">
               <div className="flex items-start justify-between gap-3">
                 <TextLink href={`/panou/produse-ai/${r.productId}`} className="min-w-0 font-medium">{r.title}</TextLink>
-                <span className="num shrink-0 text-sm">{money(r.price, r.currency)}</span>
+                <span className="num shrink-0 text-right text-sm">{money(r.price, r.currency)}<SitePrice r={r} /></span>
               </div>
               <ProductIds r={r} />
               <p className="num text-xs text-muted">{r.appearances}× ({share(r.appearances)} din răspunsuri) · loc mediu {num(parseFloat(r.avgPosition))} · {Object.keys(r.providers).map(providerLabel).join(", ")}</p>
@@ -112,7 +112,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
                 <TextLink href={`/panou/produse-ai/${r.productId}`} className="font-medium">{r.title}</TextLink>
                 <ProductIds r={r} />
               </Td>
-              <Td className="num whitespace-nowrap text-right">{money(r.price, r.currency)}</Td>
+              <Td className="num whitespace-nowrap text-right">{money(r.price, r.currency)}<SitePrice r={r} /></Td>
               <Td className="num whitespace-nowrap text-right">{r.appearances}× <span className="block text-xs text-muted">{share(r.appearances)} din răspunsuri</span></Td>
               <Td className="num whitespace-nowrap text-right">{num(parseFloat(r.avgPosition))}<span className="block text-xs text-muted">cel mai bun: {r.bestPosition}</span></Td>
               <Td><div className="flex flex-wrap gap-1">{Object.entries(r.providers).sort((a, b) => b[1] - a[1]).map(([x, n]) => <Badge key={x}>{providerLabel(x)} {n}</Badge>)}</div></Td>
@@ -137,10 +137,16 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
             </div>
           </div>
         )}
-        <p className="mt-4 text-xs text-muted">Căutăm produsele tale în răspunsurile AI deja primite la întrebările urmărite, doar după dovezi sigure: codul (EAN, cod producător), linkul spre pagina produsului sau numele complet din catalog, fără întrebări în plus. „Preț spus de AI” e doar prețul scris pe rândul care numește magazinul tău (sau are linkul lui); prețurile altor magazine din răspuns nu contează. Pe pagina fiecărui produs vezi răspunsul AI-ului, data și ora, rândul exact cu prețul și criteriul după care l-am recunoscut. „Cu magazinul tău” înseamnă că răspunsul numește și magazinul sau dă linkul produsului. Locul e al câtelea produs recomandat în răspuns.</p>
+        <p className="mt-4 text-xs text-muted">Căutăm produsele tale în răspunsurile AI deja primite la întrebările urmărite, doar după dovezi sigure: codul (EAN, cod producător), linkul spre pagina produsului sau numele complet din catalog, fără întrebări în plus. „Preț spus de AI” e doar prețul scris pe rândul care numește magazinul tău (sau are linkul lui); prețurile altor magazine din răspuns nu contează. Îl comparăm cu prețul de pe pagina produsului (citită automat, o dată pe zi), iar până o citim, cu cel din catalog, actualizat la fiecare preluare. Pe pagina fiecărui produs vezi răspunsul AI-ului, data și ora, rândul exact cu prețul și criteriul după care l-am recunoscut. „Cu magazinul tău” înseamnă că răspunsul numește și magazinul sau dă linkul produsului. Locul e al câtelea produs recomandat în răspuns.</p>
       </Card>}
     </div>
   );
+}
+
+/** Prețul de pe site, sub cel din catalog, când diferă (comparația cu AI-ul se face cu el). */
+function SitePrice({ r }: { r: { price: string | null; currency: string; realPrice: string | null; realSource: string | null } }) {
+  if (r.realSource !== "site" || !r.realPrice || r.realPrice === r.price) return null;
+  return <span className="block text-xs text-muted">pe site {money(r.realPrice, r.currency)}</span>;
 }
 
 /** Linkul spre dovada exactă a prețului afișat: întâi prețul greșit (cel arătat în roșu), apoi ultimul preț spus. */

@@ -373,6 +373,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: la preluare, numele produsului e cel de pe site (titlu + subtitlu când sursa le dă separat; descrierea lungă rămâne descriere); propunerile se fac doar față de ce trimite Echo efectiv în feed, iar la fiecare propunere arătăm sursa valorii „Acum” (câmpul, sursa sincronizată, „Vezi produsul în feed”, „pe site”). Reguli fără AI nu mai lipesc categoria în titlu. Înainte să spunem „lipsește X” verificăm o pagină reală de produs. La GTIN: în API, câmpul `ean` are la 1.004 produse un cod de producător (ex. „197280-8”, „0601372201 + 1600A002U5”), la 58 o cifră de control greșită, iar 4.516 produse nu au EAN. Feed-ul Echo lasă deja gol un cod care nu e GTIN, deci propunem doar un EAN real găsit în datele magazinului sau scoaterea unui cod pe care feed-ul chiar l-ar trimite; titlurile scrise numai cu majuscule devin „ca în propoziție”, fără propuneri doar pentru majusculele mărcii.
 - De ce: ZoZo: „în feed shopexpert ro apare acumulator… din start ar fi trebuit să intre corect fără reparație, cum verificăm”. O reparație inutilă îl face pe client să nu mai creadă și reparațiile bune.
 
+**B35. Preț „greșit” comparat cu un catalog care nu are prețul de pe site** *(23.11.2026, 12:56)*
+- Nu: să marcăm prețul spus de AI ca greșit doar față de prețul din API-ul de catalog, care la ShopExpert poate fi mai mare decât cel de pe site (2.848 în catalog, 2.635 pe site).
+- În schimb: pentru produsele cu preț spus de AI citim pagina produsului (schema.org, o cerere pe produs, cel mult o dată pe zi, maxim 40 după fiecare calcul) și comparăm cu prețul de pe site; afișăm „pe site X, în catalog Y, citit la HH:MM”. Până o citim, comparăm cu catalogul (actualizat la fiecare preluare, apoi recalculăm) și spunem asta.
+- De ce: ZoZo: „în catalog apare mai scump, în catalog nu actualizăm prețurile”, „altfel oricând pot fi diferențe de preț”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

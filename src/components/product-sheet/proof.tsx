@@ -7,7 +7,7 @@ import { dateShort, dateTime, money, pct } from "@/lib/format";
 const MATCH_LABEL = { cod: "după cod", link: "după linkul produsului", nume: "după numele complet" } as const;
 
 /** O apariție, cu tot ce trebuie ca să o verifici: unde, când, ce a scris AI-ul și de ce e acest produs. */
-export function Proof({ e, real, currency, answer }: { e: ProductExample; real: number | null; currency: string; answer?: string }) {
+export function Proof({ e, real, realLabel = "în catalog", currency, answer }: { e: ProductExample; real: number | null; realLabel?: string; currency: string; answer?: string }) {
   const diff = real && e.statedPrice ? (e.statedPrice - real) / real : null;
   const wrong = diff !== null && Math.abs(diff) > PRICE_TOLERANCE;
   // Prețul evidențiat în rândul citat, exact cum l-a scris AI-ul.
@@ -32,7 +32,7 @@ export function Proof({ e, real, currency, answer }: { e: ProductExample; real: 
         : "după nume (calcul vechi, se reface automat în câteva minute)"}</p>
       <div className="flex flex-wrap gap-2">
         {e.statedPrice !== null && (wrong
-          ? <Badge tone="bad">Spune {money(e.statedPrice, currency)}, în catalog {money(real, currency)} ({diff! > 0 ? "+" : ""}{pct(diff! * 100)})</Badge>
+          ? <Badge tone="bad">Spune {money(e.statedPrice, currency)}, {realLabel} {money(real, currency)} ({diff! > 0 ? "+" : ""}{pct(diff! * 100)})</Badge>
           : <Badge tone="good">Preț corect: {money(e.statedPrice, currency)}</Badge>)}
         {e.statedPrice === null && <Badge>Nu spune prețul la magazinul tău</Badge>}
       </div>

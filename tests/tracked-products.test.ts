@@ -32,3 +32,10 @@ describe("monthlyCostEstimate", () => {
     expect(monthlyCostEstimate(30, 3, 7, { n: 0, usd: 0 })).toBeNull();
   });
 });
+
+import { parseSitePrice } from "@/core/product-visibility-job";
+describe("parseSitePrice", () => {
+  it("formatele din schema.org", () => {
+    expect([parseSitePrice("2635.00"), parseSitePrice("2.635,00"), parseSitePrice("2.635"), parseSitePrice(2635), parseSitePrice(""), parseSitePrice(null)]).toEqual([2635, 2635, 2635, 2635, null, null]);
+  });
+});
