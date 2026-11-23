@@ -21,6 +21,7 @@ import { isStoreLike } from "./ai/domains";
 import { canAct, notRivals, SOURCE_ADVICE, sourceKind, type SourceCtx } from "./source-kind";
 import { catalogBrands, orgDomains } from "./store-context";
 import { refreshPrompts } from "./tracked-prompts";
+import { pruneStalePriceAlerts } from "./price-alerts";
 import { TRIAL_PROVIDERS } from "./onboarding/types";
 
 type Project = typeof schema.projects.$inferSelect;
@@ -294,22 +295,17 @@ export const priceAlertKind = (productId: string, provider: string) => `price:${
 
 async function priceAlerts(projectId: string, todayRunIds: Set<string>) {
   const S = schema.productAiStats, P = schema.products;
-  const stats = await db.select({ productId: S.productId, wrongPrices: S.wrongPrices, title: P.title, price: P.price })
+  const stats = await db.select({ productId: S.productId, wrongPrices: S.wrongPrices, realPrice: S.realPrice, realSource: S.realSource, title: P.title, price: P.price })
     .from(S).innerJoin(P, eq(P.id, S.productId))
     .where(and(eq(S.projectId, projectId), dsql`jsonb_array_length(${S.wrongPrices}) > 0`)).limit(200);
-  const current = new Set<string>();
   for (const s of stats) for (const w of s.wrongPrices) {
-    const kind = priceAlertKind(s.productId, w.provider);
-    current.add(kind);
-    if (!w.runId || !todayRunIds.has(w.runId) || !s.price) continue;
-    const real = parseFloat(s.price);
-    await alert(projectId, kind, "warn", `${providerLabel(w.provider)} spune ${fmtLei(w.price)} pentru „${s.title}”, dar prețul din catalog e ${fmtLei(real)}.`, true);
+    // Comparăm cu prețul cu care a comparat și calculul: de pe site când l-am citit, altfel din catalog.
+    const ref = s.realPrice ?? s.price;
+    if (!w.runId || !todayRunIds.has(w.runId) || !ref) continue;
+    const where = s.realSource === "site" ? "de pe site" : "din catalog";
+    await alert(projectId, priceAlertKind(s.productId, w.provider), "warn", `${providerLabel(w.provider)} spune ${fmtLei(w.price)} pentru „${s.title}”, dar prețul ${where} e ${fmtLei(parseFloat(ref))}.`, true);
   }
-  // Alertele de preț necitite care nu mai sunt susținute de calcul (ex. din potrivirea veche după cuvinte) dispar.
-  const open = await db.select({ id: schema.alerts.id, kind: schema.alerts.kind }).from(schema.alerts)
-    .where(and(eq(schema.alerts.projectId, projectId), eq(schema.alerts.read, false), dsql`${schema.alerts.kind} like 'price:%'`));
-  const gone = open.filter((x) => !current.has(x.kind)).map((x) => x.id);
-  if (gone.length) await db.delete(schema.alerts).where(inArray(schema.alerts.id, gone));
+  await pruneStalePriceAlerts(projectId);
 }
 
 const fmtLei = (n: number) => `${n.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei`;

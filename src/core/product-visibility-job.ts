@@ -4,6 +4,7 @@ import type { Mention } from "@/db/schema";
 import { daysAgo } from "@/lib/util";
 import { projectRuns } from "./project-runs";
 import { enqueue } from "./jobs";
+import { pruneStalePriceAlerts } from "./price-alerts";
 import { aggregateProducts, type AnswerRun, type CatalogProduct } from "./product-visibility";
 
 /** Fereastra pentru vizibilitatea pe produs: ultimele 30 de zile de răspunsuri (aceeași ca în restul panoului). */
@@ -55,6 +56,8 @@ export async function computeProductVisibility(projectId: string) {
   // ca să comparăm cu prețul de pe site, nu doar cu cel din catalog. Jobul paginii recalculează la final.
   const due = [...stats.values()].filter((s) => s.statedPrice !== null && !freshCheck(site.get(s.productId)?.at)).slice(0, SITE_CHECKS_PER_RUN);
   for (const s of due) await enqueue("product_page", { projectId, productId: s.productId, then: "product_ai" });
+  // Alertele de preț pe care noul calcul nu le mai susține (ex. prețul de pe site era cel spus de AI) dispar.
+  await pruneStalePriceAlerts(projectId);
   return { products: stats.size, answers: runs.size, pageChecks: due.length };
 }
 
