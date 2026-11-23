@@ -1,10 +1,10 @@
-import { Suspense } from "react";
 import { ActionForm } from "@/components/forms";
 import { SubmitButton } from "@/components/client";
 import { Badge, Card, Chips, Field, Input, Notice, RowActions, Select, SubCard, Table, Td } from "@/components/ui";
 import { CardHelp } from "@/components/card-help";
-import { CHANNELS, buildFeed, type FeedProduct } from "@/core/feed";
-import { RULE_PRESETS, presetById, suggestRules, type RulePreset } from "@/core/feed-rule-presets";
+import { CHANNELS } from "@/core/feed";
+import type { FeedSummary, SummaryProduct } from "@/core/feed-summary";
+import { RULE_PRESETS, presetById, same, type RulePreset } from "@/core/feed-rule-presets";
 import { addRule, deleteRule, toggleRule } from "@/app/actions-feed";
 import { money, num } from "@/lib/format";
 import type { schema } from "@/db";
@@ -30,16 +30,20 @@ function PresetFields({ p }: { p: RulePreset }) {
   );
 }
 
-const show = (p: FeedProduct | null, field: string | undefined) => {
+const show = (p: SummaryProduct | null, field: string | undefined) => {
   if (!p) return "nu mai intră în feed";
   if (field === "description") return p.description?.trim() || "(fără descriere)";
   return p.title;
 };
 
 /** Ce reguli ar ajuta acum, calculat pe produsele reale care pleacă spre canalul ales. */
-async function Suggestions({ projectId, channel, rules }: { projectId: string; channel: string; rules: Rule[] }) {
-  const feed = await buildFeed(projectId, channel);
-  const list = suggestRules(feed.items, rules, channel);
+function Suggestions({ projectId, channel, rules, summary }: { projectId: string; channel: string; rules: Rule[]; summary: FeedSummary | null }) {
+  if (!summary) return <p className="animate-pulse text-sm text-muted">Verificăm produsele din feed, în fundal…</p>;
+  // Calculate în worker; o regulă adăugată între timp nu se mai propune.
+  const list = summary.suggestions.flatMap((s) => {
+    const preset = presetById(s.presetId);
+    return preset && !rules.some((r) => same(r, preset)) ? [{ ...s, preset }] : [];
+  });
   const pid = <input type="hidden" name="projectId" value={projectId} />;
   if (!list.length) return <Notice tone="good">Feed-ul spre {channelName(channel)} nu are acum nimic pe care o regulă gata făcută l-ar repara. Nu trebuie să adaugi nicio regulă; folosește formularul de mai jos doar dacă vrei o schimbare a ta.</Notice>;
   return (
@@ -76,7 +80,7 @@ async function Suggestions({ projectId, channel, rules }: { projectId: string; c
   );
 }
 
-export function RulesCard({ projectId, rules, channel, example }: { projectId: string; rules: Rule[]; channel: string; example?: string }) {
+export function RulesCard({ projectId, rules, channel, example, summary }: { projectId: string; rules: Rule[]; channel: string; example?: string; summary: FeedSummary | null }) {
   const pid = <input type="hidden" name="projectId" value={projectId} />;
   const ex = presetById(example);
   return (
@@ -103,9 +107,7 @@ export function RulesCard({ projectId, rules, channel, example }: { projectId: s
       )}
 
       <div className="label mb-2">Propuse pentru catalogul tău</div>
-      <Suspense fallback={<p className="animate-pulse text-sm text-muted">Verificăm produsele din feed…</p>}>
-        <Suggestions projectId={projectId} channel={channel} rules={rules} />
-      </Suspense>
+      <Suggestions projectId={projectId} channel={channel} rules={rules} summary={summary} />
 
       <div id="regula-noua" className="mt-6 scroll-mt-6 border-t border-border pt-6">
         <div className="label mb-2">Regulă nouă, scrisă de tine</div>

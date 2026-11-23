@@ -5,7 +5,9 @@ import { currentProject } from "@/lib/project";
 import { BRAND } from "@/lib/brand";
 import { isDemo } from "@/core/ai/engine";
 import { PanelNav } from "@/components/panel-nav";
+import { Suspense } from "react";
 import { JobWatcher } from "@/components/job-watcher";
+import { NavProgress } from "@/components/nav-progress";
 import { ProjectSwitcher, SubmitButton, ThemeToggle } from "@/components/client";
 import { Badge, Logo } from "@/components/ui";
 import { logout, selectProject } from "@/app/actions";
@@ -46,6 +48,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </header>
         <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
         <JobWatcher />
+        <Suspense fallback={null}><NavProgress /></Suspense>
       </div>
     </div>
   );

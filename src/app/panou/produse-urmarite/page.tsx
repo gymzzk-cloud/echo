@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { currentProject } from "@/lib/project";
 import { productCodes } from "@/lib/product-codes";
 import { db, schema } from "@/db";
@@ -62,11 +63,11 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
 
       {canWrite && (
         <Card title="Adaugă produse" description={<CardHelp id="tracked.add" />}>
-          <form role="search" className="grid items-start gap-2 md:grid-cols-[1fr_auto]">
+          <Form action="/panou/produse-urmarite" prefetch={false} role="search" className="grid items-start gap-2 md:grid-cols-[1fr_auto]">
             <label htmlFor="cauta" className="sr-only">Cod, EAN, cod producător sau nume</label>
             <Input id="cauta" name="cauta" defaultValue={q} placeholder="ex. 24924, un EAN sau „GBH 4-32”" />
             <Button type="submit" variant="secondary">Caută</Button>
-          </form>
+          </Form>
           {shown && (shown.length ? (
             <form action={addTracked} className="mt-4 space-y-3">
               {hidden}<input type="hidden" name="cauta" value={q} />
@@ -98,7 +99,7 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
 
       <Card title={`Lista ta: ${num(active.length)} produse`} description={<CardHelp id="tracked.list" />}>
         {active.length ? (
-          <form className="space-y-4">
+          <form action={removeTracked} className="space-y-4">
             {hidden}
             <Table head={["", "Produs", "Preț", "Stare"]}>
               {active.map((i) => (

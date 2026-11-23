@@ -76,7 +76,7 @@ export type ProductFilter = "" | "recomandate" | "pret" | "stoc" | "urmarite" | 
  */
 export async function productInsights(project: Project, rows: Rows, opts: { f?: string; q?: string; tracked?: string[] } = {}) {
   const P = schema.products, S = schema.productAiStats;
-  const incomplete = dsql`(coalesce(${P.gtin}, '') = '' or coalesce(${P.brand}, '') = '' or coalesce(${P.description}, '') = '' or coalesce(${P.imageUrl}, '') = '')`;
+  const incomplete = dsql`(coalesce(${P.gtin}, '') = '' or coalesce(${P.brand}, '') = '' or coalesce(octet_length(${P.description}), 0) = 0 or coalesce(${P.imageUrl}, '') = '')`;
   const [counts] = await db.select({
     total: dsql<number>`count(*)::int`,
     recommended: dsql<number>`count(*) filter (where ${S.appearances} > 0)::int`,
@@ -94,7 +94,7 @@ export async function productInsights(project: Project, rows: Rows, opts: { f?: 
   if (opts.q) conds.push(ilike(P.title, `%${opts.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`));
   const list = await db.select({
     id: P.id, title: P.title, url: P.url, popularityRank: P.popularityRank, brand: P.brand, category: P.category, price: P.price, currency: P.currency, inStock: P.inStock, gtin: P.gtin,
-    hasDescription: dsql<boolean>`coalesce(${P.description}, '') <> ''`, hasImage: dsql<boolean>`coalesce(${P.imageUrl}, '') <> ''`,
+    hasDescription: dsql<boolean>`coalesce(octet_length(${P.description}), 0) > 0`, hasImage: dsql<boolean>`coalesce(${P.imageUrl}, '') <> ''`,
     mentions: dsql<number>`coalesce(${S.appearances}, 0)::int`, providersMap: S.providers, avgPositionRaw: S.avgPosition, wrongPricesRaw: S.wrongPrices,
   }).from(P).leftJoin(S, eq(S.productId, P.id)).where(and(...conds))
     .orderBy(f === "populare" ? asc(P.popularityRank) : dsql`coalesce(${S.appearances}, 0) desc, ${P.inStock} desc, ${P.popularityRank} asc nulls last`).limit(100);

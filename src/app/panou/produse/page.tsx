@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { Suspense } from "react";
 import { currentProject } from "@/lib/project";
 import { loadBase, productInsights } from "@/core/insights";
@@ -45,11 +46,11 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
       <Card>
         <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <Chips items={filters.map(([k, l]) => ({ href: `?f=${k}${q ? `&q=${encodeURIComponent(q)}` : ""}`, label: l, active: (sp.f ?? "") === k }))} />
-          <form role="search" className="w-full lg:w-64">
+          <Form action="/panou/produse" prefetch={false} role="search" className="w-full lg:w-64">
             <input type="hidden" name="f" value={sp.f ?? ""} />
             <label htmlFor="q" className="sr-only">Caută produs</label>
             <Input id="q" name="q" defaultValue={sp.q} placeholder="Caută produs…" />
-          </form>
+          </Form>
         </div>
         <Table head={["Produs", "Preț", "În AI", "De cine", "Loc mediu", "Probleme", "Urmărit în AI"]}>
           {list.slice(0, 100).map((p) => (
