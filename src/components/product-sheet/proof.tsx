@@ -17,7 +17,7 @@ export function Proof({ e, real, currency, answer }: { e: ProductExample; real: 
     return <>„{text.slice(0, i)}<strong className={wrong ? "text-bad" : "text-fg"}>{e.priceText}</strong>{text.slice(i + e.priceText!.length)}”</>;
   };
   return (
-    <SubCard className="space-y-3">
+    <SubCard id={`dovada-${e.runId}`} className="scroll-mt-6 space-y-3 target:ring-2 target:ring-primary">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-semibold">{providerLabel(e.provider)}</span>
         <span className="num text-muted">{e.at ? dateTime(e.at) : dateShort(e.runDate)}</span>
@@ -26,7 +26,7 @@ export function Proof({ e, real, currency, answer }: { e: ProductExample; real: 
       </div>
       <p className="text-sm"><span className="text-muted">Întrebarea: </span>{e.query}</p>
       <p className="text-sm text-muted">{e.priceLine ? <>„{e.snippet}”</> : quote(e.snippet)}</p>
-      {e.priceLine && <p className="text-sm text-muted"><span>Prețul, pe rândul de sub produs: </span>{quote(e.priceLine)}</p>}
+      {e.priceLine && <p className="text-sm text-muted"><span>Prețul la magazinul tău, pe rândul: </span>{quote(e.priceLine)}</p>}
       <p className="text-sm"><span className="text-muted">Recunoscut </span>{e.match
         ? <>{MATCH_LABEL[e.match.kind]}: <span className="break-all font-medium">{e.match.value}</span></>
         : "după nume (calcul vechi, se reface automat în câteva minute)"}</p>
@@ -34,7 +34,7 @@ export function Proof({ e, real, currency, answer }: { e: ProductExample; real: 
         {e.statedPrice !== null && (wrong
           ? <Badge tone="bad">Spune {money(e.statedPrice, currency)}, în catalog {money(real, currency)} ({diff! > 0 ? "+" : ""}{pct(diff! * 100)})</Badge>
           : <Badge tone="good">Preț corect: {money(e.statedPrice, currency)}</Badge>)}
-        {e.statedPrice === null && <Badge>Nu spune prețul</Badge>}
+        {e.statedPrice === null && <Badge>Nu spune prețul la magazinul tău</Badge>}
       </div>
       {answer && (
         <details className="text-sm">

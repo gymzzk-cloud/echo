@@ -101,7 +101,7 @@ export default async function ProductSheetPage({ params }: { params: Promise<{ i
       </Suspense>
 
       {s && (
-        <Card title="Unde numesc AI-urile produsul" description="Fiecare apariție a produsului, cele mai noi primele: AI-ul, data și ora, întrebarea, rândul exact și după ce l-am recunoscut.">
+        <Card title="Unde numesc AI-urile produsul" description="Fiecare apariție a produsului, cele mai noi primele: AI-ul, data și ora, întrebarea, rândul exact și după ce l-am recunoscut. Prețul e doar cel scris pe rândul cu magazinul tău.">
           <div className="mb-4 flex flex-wrap gap-2">
             {Object.entries(s.providers).sort((a, b) => b[1] - a[1]).map(([x, n]) => <Badge key={x}>{providerLabel(x)}: {n}×</Badge>)}
             {s.wrongPrices.map((w) => <Badge key={`w${w.provider}`} tone="bad">{providerLabel(w.provider)} spune {money(w.price, p.currency)}</Badge>)}

@@ -96,7 +96,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
                 {!r.priceWrong && r.statedPrice && <Badge tone="good">Preț corect</Badge>}
                 {r.withStore === 0 ? <Badge tone="warn">Fără magazinul tău</Badge> : <Badge>Cu tine: {r.withStore} din {r.appearances}</Badge>}
               </div>
-              <TextLink href={`/panou/produse-ai/${r.productId}#dovezi`} className="block text-xs">Vezi răspunsurile și dovezile</TextLink>
+              <TextLink href={proofHref(r)} className="block text-xs">{r.statedPrice ? "Vezi unde a spus prețul" : "Vezi răspunsurile și dovezile"}</TextLink>
             </li>
           ))}
         </ul>
@@ -114,9 +114,9 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
               <Td>
                 <div className="flex flex-wrap gap-1">
                   {r.wrongPrices.map((w) => <Badge key={w.provider} tone="bad">{providerLabel(w.provider)}: {money(w.price, r.currency)}</Badge>)}
-                  {!r.priceWrong && (r.statedPrice ? <Badge tone="good">Corect: {money(r.statedPrice, r.currency)}</Badge> : <span className="text-xs text-muted">Nu spune prețul</span>)}
+                  {!r.priceWrong && (r.statedPrice ? <Badge tone="good">Corect: {money(r.statedPrice, r.currency)}</Badge> : <span className="text-xs text-muted">Nu spune prețul tău</span>)}
                 </div>
-                {r.statedPrice && <TextLink href={`/panou/produse-ai/${r.productId}#dovezi`} className="mt-1 block text-xs">Vezi unde a spus-o</TextLink>}
+                {r.statedPrice && <TextLink href={proofHref(r)} className="mt-1 block text-xs">Vezi unde a spus-o</TextLink>}
               </Td>
               <Td className="num whitespace-nowrap text-right">{r.withStore === 0 ? <Badge tone="warn">Niciodată</Badge> : `${r.withStore} din ${r.appearances}`}</Td>
             </tr>
@@ -132,10 +132,16 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
             </div>
           </div>
         )}
-        <p className="mt-4 text-xs text-muted">Căutăm produsele tale în răspunsurile AI deja primite la întrebările urmărite, doar după dovezi sigure: codul (EAN, cod producător), linkul spre pagina produsului sau numele complet din catalog, fără întrebări în plus. Pe pagina fiecărui produs vezi răspunsul AI-ului, data și ora, rândul exact cu prețul și criteriul după care l-am recunoscut. „Cu magazinul tău” înseamnă că răspunsul numește și magazinul sau dă linkul produsului. Locul e al câtelea produs recomandat în răspuns.</p>
+        <p className="mt-4 text-xs text-muted">Căutăm produsele tale în răspunsurile AI deja primite la întrebările urmărite, doar după dovezi sigure: codul (EAN, cod producător), linkul spre pagina produsului sau numele complet din catalog, fără întrebări în plus. „Preț spus de AI” e doar prețul scris pe rândul care numește magazinul tău (sau are linkul lui); prețurile altor magazine din răspuns nu contează. Pe pagina fiecărui produs vezi răspunsul AI-ului, data și ora, rândul exact cu prețul și criteriul după care l-am recunoscut. „Cu magazinul tău” înseamnă că răspunsul numește și magazinul sau dă linkul produsului. Locul e al câtelea produs recomandat în răspuns.</p>
       </Card>}
     </div>
   );
+}
+
+/** Linkul spre dovada exactă a prețului afișat: întâi prețul greșit (cel arătat în roșu), apoi ultimul preț spus. */
+function proofHref(r: { productId: string; statedRunId: string | null; wrongPrices: { runId?: string }[] }) {
+  const run = r.wrongPrices[0]?.runId ?? r.statedRunId;
+  return `/panou/produse-ai/${r.productId}#${run ? `dovada-${run}` : "dovezi"}`;
 }
 
 /** Cum găsești produsul sigur: codul din catalog, EAN-ul și pagina lui de pe magazin. */

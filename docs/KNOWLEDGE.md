@@ -339,6 +339,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: sub titlu, ce face și la ce te ajută; lângă el, feed-ul așa cum îl primește fiecare canal; regulile propuse doar când ajută, cu „înainte → după” pe produse reale.
 - De ce: ZoZo: „la ce ajută? optimizare sau ce? nu înțeleg… așa nimeni n-o să știe” și „clientul să vadă produsele cum apar, să știe dacă trebuie introdusă regula sau nu”.
 
+**B31. „Claude: 3.700 lei” luat de la alt magazin din aceeași listă** *(23.11.2026, 12:29)*
+- Nu: să socotim drept „preț spus de AI” orice preț de lângă produs (alt magazin, un comparator) sau dintr-un răspuns mai vechi, în timp ce dovada arată „Nu spune prețul”, iar „Vezi unde a spus-o” duce la alt răspuns.
+- În schimb: prețul spus de AI e doar cel de pe rândul care numește magazinul (sau are linkul lui), în partea de răspuns despre acel produs; se salvează rularea care l-a spus, iar linkul duce exact la dovada ei, cu rândul evidențiat. Lista și dovezile arată același preț.
+- De ce: ZoZo: „aici spune că Claude a zis greșit prețul, deși dacă dau pe vezi unde, apare corect” (BOSCH GBH 4-32 DFR, ShopExpert 2.635 lei în răspuns).
+
 ---
 
 ## C. Regula de întreținere (permanentă)

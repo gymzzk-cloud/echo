@@ -32,14 +32,14 @@ export async function computeProductVisibility(projectId: string) {
   const prods = runs.size ? await db.select({ id: P.id, title: P.title, brand: P.brand, gtin: P.gtin, mpn: P.mpn, price: P.price, currency: P.currency, url: P.url, inStock: P.inStock })
     .from(P).where(eq(P.projectId, projectId)).limit(100000) : [];
   const catalog: CatalogProduct[] = prods.map((x) => ({ ...x, price: x.price ? parseFloat(x.price) : null }));
-  const stats = aggregateProducts([...runs.values()], catalog);
+  const stats = aggregateProducts([...runs.values()], catalog, { domain: p.domain });
 
   await db.transaction(async (tx) => {
     await tx.delete(schema.productAiStats).where(eq(schema.productAiStats.projectId, projectId));
     const values = [...stats.values()].map((s) => ({
       projectId, productId: s.productId, appearances: s.appearances, prompts: s.prompts, providers: s.providers,
       avgPosition: s.avgPosition.toFixed(1), bestPosition: s.bestPosition, withStore: s.withStore,
-      statedPrice: s.statedPrice?.toFixed(2) ?? null, statedProvider: s.statedProvider,
+      statedPrice: s.statedPrice?.toFixed(2) ?? null, statedProvider: s.statedProvider, statedRunId: s.statedRunId,
       priceWrong: s.wrongPrices.length > 0, wrongPrices: s.wrongPrices, examples: s.examples, lastSeen: s.lastSeen,
     }));
     for (let i = 0; i < values.length; i += 500) await tx.insert(schema.productAiStats).values(values.slice(i, i + 500));

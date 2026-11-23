@@ -134,6 +134,13 @@
       "when": 1795436572378,
       "tag": "0018_product_sheet",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795437424653,
+      "tag": "0019_product_ai_store_price",
+      "breakpoints": true
     }
   ]
 }

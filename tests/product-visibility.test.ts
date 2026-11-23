@@ -100,6 +100,58 @@ describe("dovada potrivirii", () => {
   });
 });
 
+describe("prețul spus pentru magazinul tău (bug raportat de ZoZo, 23.11)", () => {
+  const STORE = { domain: "shopexpert.com" };
+  const gbh = prod("gbh", "BOSCH GBH 4-32 DFR", 2848, { brand: "BOSCH", url: "https://www.shopexpert.com/ro/bosch/gbh-4-32-dfr" });
+  const idx = buildProductIndex([gbh, ...CATALOG]);
+  const CLAUDE = [
+    "Bosch GBH 4-32 DFR se găsește în România la mai mulți comercianți.",
+    "",
+    "**Magazine și prețuri observate:**",
+    "- **Bosch Shop România (site oficial):** prețul standard este 2.868 lei cu TVA. [Bosch Shop](https://www.bosch-shop.ro/products/gbh-4-32-dfr)",
+    "- **Comparatoare de prețuri (ShopMania):** oferta cea mai ieftină e la expotehnica.ro, la aproximativ 2.494 lei.",
+    "- **ShopExpert:** 2.635 lei, dar pagina indică ultima bucată disponibilă. [ShopExpert](https://www.shopexpert.com/ro/bosch/ciocane-rotopercutoare-sds-plus/gbh-4-32-dfr-2)",
+    "- **eLinx:** 2.079 lei, dar pagina arată produsul ca fiind epuizat.",
+  ].join("\n");
+
+  it("ia prețul de pe rândul cu ShopExpert, nu de la alt magazin", () => {
+    const [h] = findProducts(CLAUDE, idx, STORE);
+    expect(h).toMatchObject({ productId: "gbh", statedPrice: 2635, priceText: "2.635 lei" });
+    expect(h.priceLine).toContain("ShopExpert: 2.635 lei");
+  });
+
+  it("un preț lângă produs, dar de la alt magazin, nu e prețul tău", () => {
+    const [h] = findProducts("1. BOSCH GBH 4-32 DFR – 3.700 lei la Dedeman\n2. Makita DDF484Z", idx, STORE);
+    expect(h).toMatchObject({ productId: "gbh", statedPrice: null, priceText: null });
+  });
+
+  it("magazinul numit doar prin link sau scris cu spațiu", () => {
+    expect(findProducts("BOSCH GBH 4-32 DFR\n- [aici](https://shopexpert.com/ro/x) la 2.850 lei", idx, STORE)[0].statedPrice).toBe(2850);
+    expect(findProducts("BOSCH GBH 4-32 DFR: la Shop Expert 2.850 lei, la eMAG 3.100 lei", idx, STORE)[0].statedPrice).toBe(2850);
+  });
+
+  it("rândul cu magazinul aparține produsului din secțiunea lui, nu celui de dinainte", () => {
+    const hits = findProducts("1. BOSCH GBH 4-32 DFR\n   - eMAG: 3.000 lei\n2. Makita DDF484Z\n   - ShopExpert: 640 lei", idx, STORE);
+    expect(hits.map((h) => [h.productId, h.statedPrice])).toEqual([["gbh", null], ["ddf", 640]]);
+  });
+
+  it("lista și dovezile spun același lucru: prețul arătat are rularea lui", () => {
+    const runs = [
+      run("r1", "1. BOSCH GBH 4-32 DFR – 3.700 lei la Dedeman", { provider: "claude" }),
+      run("r2", CLAUDE, { provider: "claude", at: "2026-11-23T10:45:00Z" }),
+    ];
+    const s = aggregateProducts(runs, [gbh], STORE).get("gbh")!;
+    expect(s.statedPrice).toBe(2635);
+    expect(s.statedRunId).toBe("r2");
+    // 2.635 față de 2.848 în catalog = −7,5%: greșit, cu dovada exactă (rularea r2), nu 3.700 de la Dedeman.
+    expect(s.wrongPrices).toEqual([{ provider: "claude", price: 2635, runId: "r2" }]);
+    expect(s.examples.find((e) => e.runId === "r1")?.statedPrice).toBeNull();
+    // Rândul cu prețul numește magazinul: apariția e „cu magazinul tău”, chiar dacă lista de mențiuni nu l-a prins.
+    expect(s.examples.find((e) => e.runId === "r2")?.withStore).toBe(true);
+    expect(s.withStore).toBe(1);
+  });
+});
+
 describe("aggregateProducts", () => {
   it("fără răspunsuri (AI căzut sau încă nerulat): nimic", () => {
     expect(aggregateProducts([], CATALOG).size).toBe(0);

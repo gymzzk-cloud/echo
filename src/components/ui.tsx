@@ -21,8 +21,8 @@ export function Card({ children, className, title, action, description }: { chil
 }
 
 /** Card în card (DESIGN §5): ex. o acțiune din lista „3 lucruri”. Chenar 1 px, colțuri 8 px. */
-export function SubCard({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("min-w-0 rounded-lg border border-border p-4", className)}>{children}</div>;
+export function SubCard({ children, className, id }: { children: ReactNode; className?: string; id?: string }) {
+  return <div id={id} className={cx("min-w-0 rounded-lg border border-border p-4", className)}>{children}</div>;
 }
 
 const tones = {
