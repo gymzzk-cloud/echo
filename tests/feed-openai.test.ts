@@ -60,8 +60,9 @@ describe("feed ChatGPT (OpenAI)", () => {
     expect(lines[2]).toContain('"Set ""Pro"", 3 piese"');
     expect(stats).toEqual({ total: 3, included: 2, excluded: { "fără preț": 1 }, missing: { brand: 1, gtin_mpn: 1 } });
   });
-  it("TSV (fișierul găzduit pentru ChatGPT): tab între coloane, fără tab-uri sau rânduri noi în celule", () => {
-    const w = openAiWriter(store, null);
+  it("TSV la cerere: tab între coloane, fără tab-uri sau rânduri noi în celule; implicit CSV", () => {
+    expect(openAiWriter(store, null).head).toBe(`${OPENAI_COLUMNS.join(",")}\n`);
+    const w = openAiWriter(store, null, "tsv");
     expect(w.head).toBe(`${OPENAI_COLUMNS.join("\t")}\n`);
     const row = w.row(p({ title: 'Set "Pro",\t3 piese' }))!;
     expect(row.endsWith("\n")).toBe(true);

@@ -221,7 +221,7 @@ export function feedWriter(channel: string, project: StoreRef, settings?: FeedOu
   const simpleStats = () => ({ total, included, excluded: {}, missing: {} });
   if (channel === "openai") {
     const w = openAiWriter({ ...project, pathPrefix: project.pathPrefix ?? "", country: project.country ?? "RO" }, settings ?? null);
-    return { type: "text/tab-separated-values; charset=utf-8", head: w.head, row: w.row, foot: "", stats: w.stats };
+    return { type: "text/csv; charset=utf-8", head: w.head, row: w.row, foot: "", stats: w.stats };
   }
   if (channel === "emag") {
     const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
