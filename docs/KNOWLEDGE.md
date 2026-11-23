@@ -383,6 +383,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: codul producătorului și EAN-ul (`productCodes()` din `src/lib/product-codes.ts`); codul intern apare doar când produsul nu are niciunul, marcat „Cod intern”. Căutarea după codul intern merge în continuare.
 - De ce: ZoZo: „codurile interne de unde sunt? nu ne ajută, cod producător și EAN să apară în panou”.
 
+**B37. Un scor de calitate care pare un scor de apariție** *(23.11.2026, 18:00)*
+- Nu: în fișa produsului „ChatGPT (feed) 95”, iar în listă coloana „AI-uri: Claude 1”, fără să spunem că primul e calitatea datelor, iar al doilea cine a numit produsul.
+- În schimb: fiecare cifră spune ce măsoară („Date trimise la ChatGPT: calitatea feed-ului, din 100, nu de câte ori apari”, „Numit de”).
+- De ce: ZoZo: „afară apare doar că are Claude, deși dacă intru pe el apar toate scorurile, ChatGPT și Gemini la fel scor 95”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)
