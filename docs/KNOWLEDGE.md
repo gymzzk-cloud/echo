@@ -194,6 +194,7 @@
 ### A11. Feed, MCP și AI-uri
 
 41. **Feed-ul ChatGPT se pornește din panou** (Reparații → Feed și canale), cu adresă `/feed/<token>.csv` pusă în ChatGPT ca „hosted URL”. OpenAI a acceptat 27.818 din 27.828 de produse ShopExpert (20.11.2026).
+41b. **ChatGPT Ads Manager folosește același feed** (ads.openai.com → Tools → Feeds, adresă găzduită): aceeași schemă de produse OpenAI ca ChatGPT Merchants, deci nu facem un al doilea canal. Pașii apar pe cardul ChatGPT (PR #85, 23.11.2026). ZoZo l-a importat pe 23.11.2026; previzualizarea reclamei nu a putut deschide shopexpert.com (Cloudflare).
 42. **MCP-ul nu e un feed.** E conectorul prin care un AI întreabă magazinul live. Ajunge la public doar după listarea în directoarele Claude și ChatGPT; un conector adăugat în contul tău îl vede doar contul tău.
 43. **Pentru listarea MCP mai trebuie:** domeniu propriu, Render plătit, datele firmei, logo pătrat; Cloudflare de pe shopexpert.com trebuie să lase roboții AI verificați. Recomandat: un singur conector Echo pentru toate magazinele.
 44. **Cheile AI sunt puse** (OpenAI, Anthropic, Gemini cu facturare). Nu le mai cerem. Google AI Overviews merge prin SerpApi (`SERPAPI_API_KEY`, 100 de căutări gratuite pe lună). Din 22.11.2026: Google AI Mode și Copilot tot prin SerpApi (aceleași credite, pornite implicit), Grok prin `XAI_API_KEY` (console.x.ai), Meta AI prin `META_API_KEY` (Meta Model API, doar din SUA în 2026, fără căutare web). Un AI fără cheie apare „Fără cheie” în Setări și nu e întrebat.
@@ -464,6 +465,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - Nu: la „The feed service could not complete this request” (OpenAI, „Update products with hosted URL”) am schimbat feed-ul ChatGPT din CSV în TSV pe baza unui singur raport de pe forum. Am mai spus că OpenAI nu ceruse niciodată feed-ul, deși pe 20.11 importase 27.818 rânduri CSV de la aceeași adresă (feed ID bpfeed_e9874da5…). Logurile Render pe care le-am citit acopereau doar câteva ore.
 - În schimb: formatul care a mers (CSV) nu se schimbă fără dovadă. Întâi verificăm adresa din afară (status, timp, headers, primele rânduri) și spunem doar ce am verificat, cu intervalul de loguri citit. Am revenit la CSV: adresa `.csv` funcționează, iar `.tsv` servește același fișier.
 - De ce: corectura coordonatorului, cu datele importului OpenAI din 20.11. O afirmație despre logurile noastre trebuie să spună ce interval acoperă (A0, doar date verificate).
+
+**B50. Marca nevalidă trimisă goală în feed-ul ChatGPT** *(23.11.2026, 20:55)*
+- Nu: PR #36 golea mărcile nevalide („N/A”, simboluri, doar cifre) și trimitea rândul fără marcă, presupunând că OpenAI acceptă o marcă goală. OpenAI a respins aceleași 10 produse și la importul din Ads Manager, motivul fiind „fără brand”.
+- În schimb: marca e obligatorie pentru OpenAI. Un produs fără marcă validă nu intră în feed-ul ChatGPT (motiv „fără marcă”). Cardul ChatGPT îl listează (cod, produs, marca din magazin), iar fișa produsului spune ce trebuie reparat. Marca nu se ghicește din titlu sau din adresă. Produsul intră singur după ce magazinul o completează.
+- De ce: ZoZo: „acelasi 10 produse au eroare in feed … fara brand”. O regulă despre ce acceptă OpenAI se verifică pe motivul respingerii, nu pe presupuneri (A0).
 
 ## C. Regula de întreținere (permanentă)
 
