@@ -34,7 +34,7 @@ export function competitorView(runs: SheetRun[], opts: { ownDomain: string; ownD
   const views = runs.map((run) => {
     const hosts = run.sources.map((s) => hostOf(s.url)).filter(Boolean);
     const storeNamed = run.mentions.some((m) => self(m.domain)) || hosts.some(self);
-    const productPageCited = run.sources.some((s) => pathOf(s.url) === productPath) || run.answer.toLowerCase().includes(productPath);
+    const productPageCited = !!productPath && (run.sources.some((s) => pathOf(s.url) === productPath) || run.answer.toLowerCase().includes(productPath));
     const rivals = run.mentions.filter((m) => !own(m.domain) && !isComparator(m.domain))
       .map((m) => ({ domain: m.domain, name: m.name ?? m.domain, position: m.position, marketplace: MARKETPLACES.has(m.domain) }))
       .sort((a, b) => a.position - b.position);

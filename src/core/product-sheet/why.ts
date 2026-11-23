@@ -135,14 +135,29 @@ export function whyNotRecommended(input: WhyInput): WhyItem[] {
     });
   }
 
-  // 5. Fiecare AI care a răspuns și n-a numit deloc produsul.
+  // 5. Fiecare AI care a răspuns și n-a numit deloc produsul. „Numit” = recunoscut la calculul pe produs, sau
+  // magazinul numit, sau codul produsului scris în răspuns (calculul pe produs poate fi mai vechi decât răspunsul).
+  const codes = [p.mpn, p.gtin].filter((c): c is string => !!c && c.length >= 4).map((c) => c.toLowerCase());
+  const namesProduct = (r: (typeof runs)[number]) => r.productNamed || r.storeNamed || r.productPageCited || codes.some((c) => r.run.answer.toLowerCase().includes(c));
   const byProvider = new Map<string, { runs: number; named: number; queries: Set<string> }>();
   for (const r of runs) {
     const e = byProvider.get(r.run.provider) ?? { runs: 0, named: 0, queries: new Set<string>() };
     e.runs++;
     e.queries.add(r.run.query);
-    if (r.productNamed) e.named++;
+    if (namesProduct(r)) e.named++;
     byProvider.set(r.run.provider, e);
+  }
+  // 5b. AI-ul a vorbit despre produs, dar n-a recomandat niciun magazin (de obicei întreabă ce vrei: specificații, preț).
+  const noShop = without.filter((r) => namesProduct(r) && !r.others.length);
+  for (const provider of new Set(noShop.map((r) => r.run.provider))) {
+    const r = noShop.find((x) => x.run.provider === provider)!;
+    out.push({
+      key: `noshop:${provider}`,
+      title: `${input.providerLabel(provider)} a descris produsul, dar n-a recomandat niciun magazin`,
+      evidence: `La „${r.run.query}” a răspuns despre produs fără să numească vreun magazin, nici pe tine, nici pe alții. Echo pune o singură întrebare; în aplicație, după un al doilea mesaj (de ex. „cumpărare”), ${input.providerLabel(provider)} poate arăta oferte.`,
+      action: "Aici nu pierzi în fața altui magazin. Ca să măsurăm și intenția de cumpărare, adaugă în Setări o căutare cu prețul, de ex. „" + (code ? `${code} preț` : "numele produsului + preț") + "”.",
+      links: [{ href: "/panou/setari", label: "Adaugă căutarea în Setări" }],
+    });
   }
   for (const [provider, s] of byProvider) {
     if (s.named) continue;
