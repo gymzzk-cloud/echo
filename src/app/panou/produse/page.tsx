@@ -26,27 +26,20 @@ export default async function Products({ searchParams }: { searchParams: Promise
 
 async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeof currentProject>>["project"]; sp: Sp }) {
   const { rows } = await loadBase(project, 30);
-  const [pi, tracked] = await Promise.all([productInsights(project, rows), trackedProducts(project.id)]);
-  if (!pi.list.length) return <><Empty title="Nu avem încă produsele tale" action={<ButtonLink href="/panou/setari">Conectează catalogul</ButtonLink>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
-
-  const q = (sp.q ?? "").toLowerCase();
-  let list = pi.list;
-  if (sp.f === "recomandate") list = list.filter((p) => p.mentions > 0);
-  if (sp.f === "pret") list = list.filter((p) => p.wrongPrices.length);
-  if (sp.f === "stoc") list = list.filter((p) => !p.inStock);
-  if (sp.f === "urmarite") list = list.filter((p) => tracked.has(p.id));
-  if (sp.f === "populare") list = list.filter((p) => p.popularityRank).sort((a, b) => a.popularityRank! - b.popularityRank!);
-  if (sp.f === "incomplete") list = list.filter((p) => !p.gtin || !p.brand || !p.hasDescription || !p.hasImage);
-  if (q) list = list.filter((p) => p.title.toLowerCase().includes(q));
+  const tracked = await trackedProducts(project.id);
+  const q = (sp.q ?? "").trim();
+  const pi = await productInsights(project, rows, { f: sp.f, q, tracked: [...tracked.keys()] });
+  if (!pi.total) return <><Empty title="Nu avem încă produsele tale" action={<ButtonLink href="/panou/setari">Conectează catalogul</ButtonLink>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
+  const list = pi.list;
   const missing = (p: (typeof list)[number]) => [!p.gtin && "GTIN", !p.brand && "brand", !p.hasDescription && "descriere", !p.hasImage && "imagine"].filter(Boolean) as string[];
   const filters = [["", "Toate"], ["urmarite", "Urmărite în AI"], ["populare", "Cele mai vândute"], ["recomandate", "Numite de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
 
   return (
     <>
       <div className="grid gap-6 sm:grid-cols-3">
-        <Stat label="Produse numite de AI" value={`${pi.recommended} / ${pi.list.length}`} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
-        <Stat label="Prețuri greșite spuse de AI" value={pi.wrongPriceCount} hint={pi.wrongPriceCount ? "verifică datele structurate" : "totul corect"} />
-        <Stat label="Produse cu date incomplete" value={pi.list.filter((p) => missing(p).length).length} hint="GTIN, brand, descriere, imagine" />
+        <Stat label="Produse numite de AI" value={pi.recommended.toLocaleString("ro-RO")} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
+        <Stat label="Prețuri greșite spuse de AI" value={pi.wrongPriceCount} hint={pi.wrongPriceCount ? <TextLink href="/panou/produse-ai?f=pret" className="text-xs">Vezi dovezile</TextLink> : "totul corect"} />
+        <Stat label="Produse cu date incomplete" value={pi.incompleteCount} hint="GTIN, brand, descriere, imagine" />
       </div>
 
       <Card>
@@ -87,7 +80,7 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
             </tr>
           ))}
         </Table>
-        {list.length > 100 && <p className="mt-4 text-xs text-muted">Afișăm primele 100 din {list.length}. Folosește căutarea.</p>}
+        {list.length === 100 && <p className="mt-4 text-xs text-muted">Afișăm primele 100 din {pi.total} produse. Folosește căutarea sau filtrele.</p>}
         {list.length === 0 && <p className="mt-4 text-sm text-muted">Niciun produs pentru acest filtru.</p>}
       </Card>
 

@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { currentProject } from "@/lib/project";
 import { brandMentions, catalogBrands, loadBase, leaderboard, perPrompt, trend } from "@/core/insights";
+import { notRivals } from "@/core/source-kind";
+import { orgDomains } from "@/core/store-context";
 import { PROVIDERS, providerLabel } from "@/core/ai/types";
 import { activeProviders } from "@/core/ai/engine";
 import { perEngine } from "@/core/engine-view";
@@ -64,8 +66,10 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
 
 /** Fila implicită: câte un card pe AI și „ce s-a schimbat / ce repari acum”. Fără textul răspunsurilor. */
 async function EnginesTab({ project, days, link }: Ctx) {
-  const [runs, products, progress] = await Promise.all([engineRuns(project.id, daysAgo(days)), engineProducts(project.id), progressData(project.id)]);
-  const list = perEngine(runs.rows, runs.failed, project.domain, products);
+  const [runs, products, progress, own, brands] = await Promise.all([engineRuns(project.id, daysAgo(days)), engineProducts(project.id), progressData(project.id), orgDomains(project.orgId), catalogBrands(project.id)]);
+  // Producătorii (Bosch Professional) și magazinele proprii nu sunt „în locul tău” sau „cel mai vizibil magazin”.
+  const excluded = notRivals(runs.rows.flatMap((r) => ((r.run.mentions as { domain: string }[]) ?? []).map((m) => m.domain)), { ownDomains: [project.domain, ...own], brands });
+  const list = perEngine(runs.rows, runs.failed, project.domain, products, excluded);
   const off = activeProviders().filter((p) => !p.live && !list.some((e) => e.provider === p.id)).map((p) => providerLabel(p.id));
   if (!list.length) return <Empty title="Încă nu avem răspunsuri de la AI-uri">Prima rulare pornește automat după înregistrare. Pagina se actualizează singură când e gata.</Empty>;
   const links: EvidenceLinks = {
@@ -135,7 +139,7 @@ async function DetailTab({ tab, project, days, ai, only, link }: Ctx & { tab: Ta
       <Card title={`Evoluția vizibilității ${scope}`} description={<CardHelp id="vis.trend" />}>
         {chart.length > 1 ? <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...top.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} /> : <p className="text-sm text-muted">Graficul apare după a doua zi de măsurători.</p>}
       </Card>
-      <RivalsCard report={rankRivals(rows, project.domain)} projectId={project.id} projectName={project.name} competitors={base.competitors} />
+      <RivalsCard report={rankRivals(rows, project.domain, notRivals(rows.flatMap((r) => (r.run.mentions as { domain: string }[]).map((m) => m.domain)), { ownDomains: [project.domain, ...(await orgDomains(project.orgId))], brands: await catalogBrands(project.id) }))} projectId={project.id} projectName={project.name} competitors={base.competitors} />
       <Card title="Clasament: tu și concurenții urmăriți" description={`Pe ultimele ${days} zile, ${scope}, din ${rows.length} răspunsuri.`}>
         <Table head={["#", "Magazin", "Vizibilitate", "Mențiuni", "Poziția medie"]}>
           {board.map((b, i) => (

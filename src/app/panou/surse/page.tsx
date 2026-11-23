@@ -1,22 +1,18 @@
 import { currentProject } from "@/lib/project";
 import { loadBase, sourceInsights } from "@/core/insights";
 import { providerLabel } from "@/core/ai/types";
+import { SOURCE_ADVICE } from "@/core/source-kind";
+import { catalogBrands, orgDomains } from "@/core/store-context";
 import { Badge, Card, Empty, PageHeader, SubCard, Table, Td } from "@/components/ui";
 import { CardHelp } from "@/components/card-help";
 
-const ADVICE: Record<string, string> = {
-  comparator: "Listează-ți produsele pe acest comparator, cu prețuri și stoc corecte.",
-  forum: "Răspunde util la discuțiile despre categoria ta (fără reclamă agresivă).",
-  video: "Un video scurt de prezentare sau comparație, cu link spre produs.",
-  "marketplace / retailer": "Dacă vinzi și aici, completează fișele de produs; recenziile contează.",
-  "editorial / blog": "Propune un articol, un test de produs sau intră în topurile lor („cele mai bune …”).",
-};
 
 export default async function Sources() {
   const { project } = await currentProject();
   const { rows, competitors } = await loadBase(project, 30);
   if (!rows.length) return <><PageHeader eyebrow="Vizibilitate" title="Surse" /><Empty title="Încă nu avem răspunsuri de la AI-uri" /></>;
-  const s = sourceInsights(rows, project.domain, competitors.map((c) => c.domain));
+  const [own, brands] = await Promise.all([orgDomains(project.orgId), catalogBrands(project.id)]);
+  const s = sourceInsights(rows, project.domain, competitors.map((c) => c.domain), { ownDomains: own, brands });
 
   return (
     <div className="space-y-6">
@@ -29,7 +25,7 @@ export default async function Sources() {
                 <SubCard>
                   <div className="flex flex-wrap gap-2"><Badge tone="warn">+{g.gap} răspunsuri cu concurenți</Badge><Badge>{g.kind}</Badge></div>
                   <div className="mt-2 break-all font-semibold">{g.domain}</div>
-                  <p className="mt-1 text-sm text-muted">{ADVICE[g.kind] ?? ADVICE["editorial / blog"]}</p>
+                  <p className="mt-1 text-sm text-muted">{SOURCE_ADVICE[g.kind]}</p>
                 </SubCard>
               </li>
             ))}
@@ -41,7 +37,7 @@ export default async function Sources() {
           {s.list.slice(0, 100).map((x) => (
             <tr key={x.domain}>
               <Td className="font-medium">{x.domain}</Td>
-              <Td><Badge tone={x.kind === "site propriu" ? "good" : x.kind === "concurent" ? "bad" : "muted"}>{x.kind}</Badge></Td>
+              <Td><Badge tone={x.kind === "site propriu" ? "good" : x.kind === "concurent" ? "bad" : x.kind === "magazin sau alt site" || x.kind === "producător" ? "muted" : "primary"}>{x.kind}</Badge></Td>
               <Td className="text-xs text-muted">{x.providers.map(providerLabel).join(", ")}</Td>
               <Td className="num text-right">{x.citations}</Td>
               <Td className="num text-right">{x.withMe}</Td>

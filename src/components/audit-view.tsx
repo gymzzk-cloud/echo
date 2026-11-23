@@ -25,6 +25,7 @@ type FixCtx = Parameters<typeof fixFor>[1];
 export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fixCtx: FixCtx; showFixes: boolean }) {
   const groups = Object.keys(GROUPS).map((g) => ({ g, checks: audit.checks.filter((c) => c.group === g) })).filter((x) => x.checks.length);
   const problems = audit.checks.filter((c) => c.status === "fail" || c.status === "warn");
+  const unsure = audit.checks.filter((c) => c.status === "unknown").length;
   const kinds = [...new Set(problems.map((c) => c.fixKind).filter(Boolean) as string[])];
   return (
     <div className="space-y-6">
@@ -35,7 +36,7 @@ export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fi
             <div className="text-lg font-semibold">
               {audit.score >= 75 ? "AI-urile îți pot citi bine magazinul." : audit.score >= 50 ? "AI-urile te citesc parțial. Câteva reparații fac diferența." : "AI-urile au probleme serioase să-ți citească magazinul."}
             </div>
-            <p className="mt-1 text-sm text-muted">{problems.length ? `${problems.length} lucruri de reparat` : "Nicio problemă găsită"} · platformă: {audit.platform ?? "necunoscută"} · {audit.url}</p>
+            <p className="mt-1 text-sm text-muted">{problems.length ? `${problems.length} lucruri de reparat` : "Nicio problemă găsită"}{unsure ? ` · ${unsure} ${unsure === 1 ? "verificare nu a putut fi făcută" : "verificări nu au putut fi făcute"} (nu intră în scor)` : ""} · platformă: {audit.platform ?? "necunoscută"} · {audit.url}</p>
             {audit.error && <p className="mt-2 text-sm text-bad">{audit.error}</p>}
           </div>
         </div>

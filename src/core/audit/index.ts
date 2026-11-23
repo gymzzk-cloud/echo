@@ -3,6 +3,7 @@ import { parseStoreUrl } from "@/lib/util";
 import { extractHomeCatalog, type HomeCatalog } from "../onboarding/home";
 import { describeProductFields, isType, jsonLdNodes, missingProductFields, ORG_TYPES, productFields, sdSummary, structuredData, type SdEntity } from "./structured";
 import { findSitemap, productLikeUrls } from "./sitemap";
+import { legalSignals, productDescriptionWords, sitemapUnsure, trustPages, UNSURE_PROBES } from "./signals";
 
 /**
  * Auditul tehnic: verifică dacă AI-urile pot citi și înțelege magazinul.
@@ -27,7 +28,11 @@ export const AI_BOTS = [
   { ua: "CCBot", vendor: "Common Crawl", purpose: "date pentru multe modele", important: false },
 ] as const;
 
-export type CheckStatus = "pass" | "warn" | "fail" | "info";
+/**
+ * „unknown” = nu am putut verifica (timeout, firewall, eroare de rețea, pagină pe care nu o recunoaștem).
+ * Regula (KNOWLEDGE A0): o verificare nesigură nu spune niciodată „lipsește”; nu intră în scor și nu creează acțiuni.
+ */
+export type CheckStatus = "pass" | "warn" | "fail" | "info" | "unknown";
 export type Check = {
   id: string;
   group: "acces" | "date" | "continut" | "incredere" | "viteza";
@@ -201,8 +206,7 @@ function findProductUrl($: cheerio.CheerioAPI, origin: string, prefix: string) {
 
 function extractFacts($: cheerio.CheerioAPI, html: string, nodes: Record<string, unknown>[]): StoreFacts {
   const links = $("a").map((_, a) => `${$(a).text()} ${$(a).attr("href") ?? ""}`.toLowerCase()).get().join(" | ");
-  const text = $("body").text().replace(/\s+/g, " ");
-  const cui = text.match(/\b(?:CUI|C\.U\.I\.|CIF|Cod fiscal|Adószám)\s*:?\s*(RO)?\s?(\d{2,10}(?:-\d-\d{2})?)/i);
+  const legal = legalSignals(html);
   const trustmarks: string[] = [];
   if (/trusted\.ro/i.test(html)) trustmarks.push("Trusted.ro");
   if (/arukereso.*megbizhato|megbízható bolt/i.test(html)) trustmarks.push("Árukereső Megbízható Bolt");
@@ -214,11 +218,11 @@ function extractFacts($: cheerio.CheerioAPI, html: string, nodes: Record<string,
     title: $("title").first().text().trim() || undefined,
     description: $('meta[name="description"]').attr("content")?.trim() || undefined,
     lang: $("html").attr("lang") || undefined,
-    cui: cui ? `${cui[1] ?? ""}${cui[2]}` : undefined,
+    cui: legal.cui,
     hasReturnPolicy: /retur|returnare|elall[aá]s|visszak[uü]ld/.test(links),
     hasTerms: /termeni|conditii|condiții|[aá]szf|felt[eé]tel/.test(links),
     hasContact: /contact|kapcsolat/.test(links),
-    hasAnpc: /anpc\.ro|ec\.europa\.eu\/consumers\/odr|solutionare|sal|sol/i.test(links) && /anpc|odr/i.test(html),
+    hasAnpc: legal.anpc,
     trustmarks,
     socials,
     organization: org ? { name: org.name as string, telephone: org.telephone as string, email: org.email as string } : undefined,
@@ -344,14 +348,16 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
       missing: !productSd ? ["Product"] : missing.length ? missing : undefined,
     });
     const $p = cheerio.load(productPage.body);
-    const desc = $p('[itemprop="description"], .product-description, #description, .woocommerce-Tabs-panel--description, .product__description').text().trim();
-    const words = desc.split(/\s+/).filter(Boolean).length;
+    const words = productDescriptionWords(cheerio.load(productPage.body));
     checks.push({
       id: "content-product", group: "continut", title: "Descrierile de produs răspund la întrebări",
-      status: words >= 120 ? "pass" : words >= 40 ? "warn" : "fail",
-      detail: words ? `Descrierea are ~${words} cuvinte. AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.` : "Nu am găsit o descriere de produs vizibilă în pagină.",
-      fixKind: words >= 120 ? undefined : "content", weight: 8,
-      evidence: [{ label: "Pagina de produs verificată", url: productPage.url, value: words ? `~${words} cuvinte în descriere` : "nicio descriere găsită" }],
+      // Zero cuvinte găsite = nu am recunoscut unde stă descrierea pe această platformă, nu „nu ai descriere”.
+      status: words === 0 ? "unknown" : words >= 120 ? "pass" : words >= 40 ? "warn" : "fail",
+      detail: words === 0
+        ? "Nu am putut verifica: nu am recunoscut automat unde e descrierea pe pagina de produs (nu e într-un câmp de descriere standard). Nu spunem că lipsește."
+        : `Descrierea are ~${words} cuvinte. AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.`,
+      fixKind: words === 0 || words >= 120 ? undefined : "content", weight: 8,
+      evidence: [{ label: "Pagina de produs verificată", url: productPage.url, value: words ? `~${words} cuvinte în descriere și specificații` : "descrierea nu e într-un câmp standard (itemprop=description, #description etc.)" }],
     });
   } else {
     checks.push({ id: "jsonld-product", group: "date", title: "Produsele au date structurate complete (Product)", status: "info", detail: "Nu am putut deschide automat o pagină de produs (din catalog, din pagina principală sau din sitemap). Conectează catalogul pentru o verificare completă.", weight: 0 });
@@ -374,13 +380,16 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
     { label: "robots.txt", url: origin + "/robots.txt", value: robots.ok ? (parsedRobots.sitemaps.length ? `declară: ${parsedRobots.sitemaps.join(", ")}` : "nu are nicio linie „Sitemap:”") : `răspuns ${robots.status}`, ok: parsedRobots.sitemaps.length > 0 },
     ...sm.probes.map((p) => ({ label: new URL(p.url).pathname, url: p.url, value: probeText(p.kind, p.status, p.locs), ok: p.kind === "urlset" || p.kind === "sitemapindex" })),
   ];
+  const smUnsure = !sm.found && sitemapUnsure(sm.probes);
   checks.push({
     id: "sitemap", group: "acces", title: "Sitemap disponibil",
-    status: sm.found ? "pass" : "warn",
+    status: sm.found ? "pass" : smUnsure ? "unknown" : "warn",
     detail: sm.found
       ? `Sitemap găsit la ${sm.found.url} (${sm.found.kind === "urlset" ? `${sm.found.locs} adrese` : `index cu ${sm.found.locs} fișiere`}).`
-      : `Nu am găsit un sitemap valid în ${sm.probes.length} locuri verificate (${sm.probes.map((p) => new URL(p.url).pathname).join(", ")}). Roboții descoperă produsele mai greu.`,
-    fixKind: sm.found ? undefined : "sitemap", weight: 5, evidence: smEvidence,
+      : smUnsure
+        ? `Nu am putut verifica: ${sm.probes.filter((p) => UNSURE_PROBES.has(p.kind)).map((p) => `${new URL(p.url).pathname} ${probeText(p.kind, p.status, p.locs)}`).join(", ")}. Nu spunem că lipsește; reîncercăm la următorul audit.`
+        : `Nu am găsit un sitemap valid în ${sm.probes.length} locuri verificate (${sm.probes.map((p) => new URL(p.url).pathname).join(", ")}). Roboții descoperă produsele mai greu.`,
+    fixKind: sm.found || smUnsure ? undefined : "sitemap", weight: 5, evidence: smEvidence,
   });
   if (sm.found && !sm.found.declared && robots.ok) {
     checks.push({
@@ -401,12 +410,26 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
   });
 
   // 8. Încredere: semnale pe care AI-urile și cumpărătorii le caută
-  const trust = [f.hasReturnPolicy, f.hasTerms, f.hasContact, !!f.cui, f.hasAnpc].filter(Boolean).length;
+  // CUI-ul și ANPC/SOL stau des doar în Termeni sau pe pagina de contact, nu pe prima pagină: le căutăm și acolo (cel mult 2 cereri).
+  const trustEvidence: Evidence[] = [{ label: "Pagina principală", url: home, value: "verificată" }];
+  if (!f.cui || !f.hasAnpc) {
+    for (const u of trustPages($, origin, pathPrefix)) {
+      const tp = await get(u, BROWSER_UA);
+      if (!tp.ok || isChallenge(tp)) { trustEvidence.push({ label: new URL(u).pathname, url: u, value: `nu am putut deschide (răspuns ${tp.status})` }); continue; }
+      const more = legalSignals(tp.body);
+      if (!f.cui && more.cui) f.cui = more.cui;
+      if (!f.hasAnpc && more.anpc) f.hasAnpc = true;
+      trustEvidence.push({ label: new URL(u).pathname, url: u, value: [more.cui && `CUI ${more.cui}`, more.anpc && "ANPC/SOL"].filter(Boolean).join(", ") || "fără CUI sau ANPC/SOL" });
+    }
+  }
+  const trustItems: [boolean, string][] = [[f.hasReturnPolicy, "politică de retur"], [f.hasTerms, "termeni"], [f.hasContact, "contact"], [!!f.cui, f.cui ? `CUI ${f.cui}` : "CUI"], [f.hasAnpc, "ANPC/SOL"]];
+  const trust = trustItems.filter(([ok]) => ok).length;
+  const trustMissing = trustItems.filter(([ok]) => !ok).map(([, l]) => l);
   checks.push({
     id: "trust", group: "incredere", title: "Semnale de încredere vizibile",
     status: trust >= 4 ? "pass" : trust >= 2 ? "warn" : "fail",
-    detail: `Găsite: ${[f.hasReturnPolicy && "politică de retur", f.hasTerms && "termeni", f.hasContact && "contact", f.cui && `CUI ${f.cui}`, f.hasAnpc && "ANPC/SOL", ...f.trustmarks].filter(Boolean).join(", ") || "niciunul"}.`,
-    fixKind: trust >= 4 ? undefined : "content", weight: 6,
+    detail: `Găsite: ${[...trustItems.filter(([ok]) => ok).map(([, l]) => l), ...f.trustmarks].join(", ") || "niciunul"}.${trustMissing.length ? ` Negăsite: ${trustMissing.join(", ")}.` : ""}`,
+    fixKind: trust >= 4 ? undefined : "content", weight: 6, evidence: trustEvidence, missing: trustMissing.length ? trustMissing : undefined,
   });
 
   // 9. Viteză
@@ -421,7 +444,8 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
 }
 
 function finalize(r: AuditResult) {
-  const scored = r.checks.filter((c) => c.weight > 0);
+  // „Nu am putut verifica” nu intră în scor: nici ca reușită, nici ca problemă.
+  const scored = r.checks.filter((c) => c.weight > 0 && c.status !== "unknown" && c.status !== "info");
   const total = scored.reduce((s, c) => s + c.weight, 0) || 1;
   const got = scored.reduce((s, c) => s + c.weight * (c.status === "pass" ? 1 : c.status === "warn" ? 0.5 : 0), 0);
   r.score = Math.round((got / total) * 100);

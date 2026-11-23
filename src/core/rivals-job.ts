@@ -6,6 +6,9 @@ import { runMentions } from "./ai/extract";
 import { invalidateWorld, loadWorld } from "./ai/engine";
 import { projectRuns } from "./project-runs";
 import { isOwnBrand, pickAutoRivals, rankRivals } from "./rivals";
+import { notRivals } from "./source-kind";
+import { catalogBrands, orgDomains } from "./store-context";
+import { generateActions } from "./projects";
 
 /** Fereastra în care căutăm concurenții: ultimele 30 de zile de răspunsuri. */
 export const RIVALS_WINDOW_DAYS = 30;
@@ -24,7 +27,10 @@ export async function detectRivals(projectId: string) {
   // înainte de recitire, ca mențiunile lui să fie socotite ale magazinului.
   const ownAuto = await db.select({ id: schema.competitors.id, domain: schema.competitors.domain }).from(schema.competitors)
     .where(and(eq(schema.competitors.projectId, projectId), eq(schema.competitors.suggested, true)));
-  const mine = ownAuto.filter((c) => isOwnBrand(c.domain, p.domain));
+  const [own, brands] = await Promise.all([orgDomains(p.orgId), catalogBrands(projectId)]);
+  const notRival = new Set(notRivals(ownAuto.map((c) => c.domain), { ownDomains: [p.domain, ...own], brands }));
+  // Tot din greșeală: alt magazin al clientului, un producător (bosch-professional.com) sau un site care nu vinde (platform.openai.com).
+  const mine = ownAuto.filter((c) => isOwnBrand(c.domain, p.domain) || notRival.has(c.domain));
   for (const c of mine) await db.delete(schema.competitors).where(eq(schema.competitors.id, c.id));
   if (mine.length) invalidateWorld();
 
@@ -39,7 +45,7 @@ export async function detectRivals(projectId: string) {
   }
   for (const r of rows) r.run.mentions = fresh.get(r.run.id)!;
 
-  const report = rankRivals(rows, p.domain);
+  const report = rankRivals(rows, p.domain, notRivals(rows.flatMap((r) => (r.run.mentions as Mention[]).map((m) => m.domain)), { ownDomains: [p.domain, ...own], brands }));
   const [all, dismissed] = await Promise.all([
     db.select().from(schema.competitors).where(eq(schema.competitors.projectId, projectId)),
     db.select({ domain: schema.competitorDismissals.domain }).from(schema.competitorDismissals).where(eq(schema.competitorDismissals.projectId, projectId)),
@@ -55,6 +61,8 @@ export async function detectRivals(projectId: string) {
     invalidateWorld();
   }
   await db.update(schema.projects).set({ rivalsCheckedAt: new Date() }).where(eq(schema.projects.id, projectId));
+  // Concurenții s-au putut schimba: recomandările (surse, produse numite) se recalculează din aceleași date.
+  await generateActions(projectId);
   if (picks.length) console.log(`Concurenți noi pentru ${p.domain}${p.pathPrefix}: ${picks.map((r) => r.domain).join(", ")}`);
   return { added: picks.map((r) => r.domain) };
 }
@@ -63,7 +71,7 @@ export async function detectRivals(projectId: string) {
  * Când s-au schimbat ultima dată regulile de citire a răspunsurilor (mențiuni, păreri). Magazinele citite
  * înainte se recitesc la următoarea programare, fără să aștepte 24 de ore. Se mută la fiecare schimbare de reguli.
  */
-export const EXTRACT_RULES_CHANGED_AT = new Date("2026-11-23T13:00:00Z");
+export const EXTRACT_RULES_CHANGED_AT = new Date("2026-11-23T13:15:00Z");
 
 /** Magazinele cu răspunsuri AI, necăutate de concurenți în ultimele 24 de ore (pentru programarea workerului). */
 export async function projectsDueForRivals() {

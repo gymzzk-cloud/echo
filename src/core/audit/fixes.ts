@@ -17,6 +17,8 @@ type Ctx = {
   /** Verificările din audit: „Rezolvă” cere doar ce lipsește cu adevărat. */
   checks?: Pick<Check, "id" | "status" | "missing">[];
   sitemapUrl?: string;
+  /** Sigla găsită pe site la scanare (Organization.logo, antet). Fără ea nu inventăm o adresă. */
+  logo?: string | null;
 };
 
 const failing = (ctx: Ctx, id: string) => ctx.checks?.find((c) => c.id === id && (c.status === "warn" || c.status === "fail"));
@@ -64,15 +66,31 @@ export function cloudflareFix(): Fix {
   };
 }
 
+/**
+ * Categoria pentru rezumat: primele două niveluri distincte, fără marcă la final
+ * („Scule de mână > Scule de mână > Chei … > CROMWELL” → „Scule de mână > Chei …”).
+ */
+export function categoryHead(category: string | null, brand: string | null): string | null {
+  if (!category) return null;
+  const segs = category.split(">").map((x) => x.trim()).filter(Boolean)
+    .filter((x, i, a) => i === 0 || x.toLowerCase() !== a[i - 1].toLowerCase())
+    .filter((x) => !brand || x.toLowerCase() !== brand.toLowerCase());
+  return segs.slice(0, 2).join(" > ") || null;
+}
+
 export function llmsFix(ctx: Ctx): Fix {
   const cats = new Map<string, number>();
-  for (const p of ctx.products ?? []) if (p.category) cats.set(p.category, (cats.get(p.category) ?? 0) + 1);
+  for (const p of ctx.products ?? []) {
+    const c = categoryHead(p.category, p.brand);
+    if (c) cats.set(c, (cats.get(c) ?? 0) + 1);
+  }
   const topCats = [...cats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
   const top = (ctx.products ?? []).filter((p) => p.inStock).slice(0, 15);
   const code = [
     `# ${ctx.storeName}`,
     "",
-    `> Magazin online din România (${ctx.domain}). Livrare în toată țara, plată cu cardul sau ramburs.`,
+    // Fără afirmații pe care nu le-am verificat (livrare, plată): magazinul le completează.
+    `> Magazin online (${ctx.domain}). [completează: unde livrezi și cum se poate plăti]`,
     "",
     "## Despre noi",
     `- Site: ${ctx.origin}`,
@@ -102,10 +120,10 @@ export function jsonLdFix(ctx: Ctx): Fix {
     "@type": "OnlineStore",
     name: ctx.storeName,
     url: ctx.origin,
-    logo: `${ctx.origin}/logo.png`,
+    logo: ctx.logo ?? "[completează: adresa siglei]",
     ...(ctx.facts?.cui ? { vatID: ctx.facts.cui, taxID: ctx.facts.cui } : {}),
     contactPoint: { "@type": "ContactPoint", telephone: ctx.facts?.organization?.telephone ?? "+40...", contactType: "customer service", areaServed: "RO", availableLanguage: ["ro"] },
-    hasMerchantReturnPolicy: { "@type": "MerchantReturnPolicy", applicableCountry: "RO", returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow", merchantReturnDays: 14, returnMethod: "https://schema.org/ReturnByMail" },
+    hasMerchantReturnPolicy: { "@type": "MerchantReturnPolicy", applicableCountry: "RO", returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow", merchantReturnDays: "[completează: câte zile are clientul pentru retur, ca în politica ta]", returnMethod: "https://schema.org/ReturnByMail" },
   };
   const product = p ? {
     "@context": "https://schema.org",

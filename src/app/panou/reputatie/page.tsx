@@ -3,7 +3,7 @@ import { loadBase } from "@/core/insights";
 import { reputation } from "@/core/reputation";
 import type { AuditResult } from "@/core/audit";
 import { providerLabel } from "@/core/ai/types";
-import { Badge, Card, Empty, Notice, PageHeader, Table, Td } from "@/components/ui";
+import { Badge, Card, Empty, Notice, PageHeader, Table, Td, TextLink } from "@/components/ui";
 import { TrendChart } from "@/components/client";
 import { CardHelp } from "@/components/card-help";
 
@@ -39,8 +39,10 @@ export default async function Reputation() {
             <li key={c.text} className="py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <span className="min-w-0 flex-1 text-sm">„{c.text}”</span>
-                <span className="flex flex-wrap gap-1"><Badge tone={c.tone === "pozitiv" ? "good" : c.tone === "negativ" ? "bad" : "muted"}>{c.tone === "pozitiv" ? "Pozitiv" : c.tone === "negativ" ? "Negativ" : "Neutru"}</Badge>{c.providers.map((p) => <Badge key={p}>{providerLabel(p)}</Badge>)}</span>
+                <span className="flex flex-wrap gap-1"><Badge tone={c.tone === "pozitiv" ? "good" : c.tone === "negativ" ? "bad" : c.tone === "mixt" ? "warn" : "muted"}>{c.tone === "pozitiv" ? "Pozitiv" : c.tone === "negativ" ? "Negativ" : c.tone === "mixt" ? "Mixt" : "Neutru"}</Badge>{c.providers.map((p) => <Badge key={p}>{providerLabel(p)}</Badge>)}</span>
               </div>
+              {/* Dovada: întrebarea, ziua și linkul spre răspunsul întreg al AI-ului. */}
+              <p className="mt-1 text-xs text-muted">{c.prompt ? <>La întrebarea „{c.prompt}”</> : "Din răspuns"}{c.runDate ? `, ${c.runDate.split("-").reverse().join(".")}` : ""} · <TextLink href={`/panou/vizibilitate?v=raspunsuri&ai=${c.providers[0]}`}>Vezi răspunsul întreg</TextLink></p>
               {c.contradicts && <div className="mt-2"><Notice tone="warn"><b className="font-semibold">Greșit, se poate corecta:</b> {c.contradicts}</Notice></div>}
             </li>
           ))}
