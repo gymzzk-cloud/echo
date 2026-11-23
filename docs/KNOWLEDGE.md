@@ -413,7 +413,8 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 **B41. Un buton din panou care recalculează tot catalogul în timp ce aștepți** *(23.11.2026, 19:42)*
 - Nu: „Adaugă” în Produse urmărite (și „Urmărește în AI”, „Adaugă căutare”) refăcea lista automată de întrebări citind toate cele ~28.000 de produse în cererea din panou: 10–16 s pe Render, iar ZoZo a apăsat de două ori. Produsul adăugat apărea apoi la întâmplare în listă.
 - În schimb: cererea doar salvează alegerea (câteva rânduri) și pune la coadă lucrarea „Actualizarea listei de întrebări” (job `prompts`), pe care o face workerul; pagina se actualizează singură când e gata. Produsele alese de tine apar primele, cele adăugate ultimele sus.
-- De ce: ZoZo: „merge extrem de încet panoul… de 2 ori am dat adaugă”, „le-a adăugat doar că aiurea în ordine și nu mi-am dat seama”.
+- De ce: ZoZo: „merge extrem de încet panoul… de 2 ori am dat adaugă”, „le-a adăugat doar că aiurea în ordine și nu mi-am dat seama”. Și: „în regulă trebuia să fie scrisă și asta… cum lucrăm și construim așa”.
+- Regula (scrisă și în CLAUDE.md, „Viteză”): nicio acțiune din panou nu face lucru pe tot catalogul în timpul cererii. Salvează doar alegerea și pune restul la coadă. La fiecare acțiune nouă verificăm, înainte de PR, ce citește și cât durează pe 15.000 de produse.
 
 ---
 
