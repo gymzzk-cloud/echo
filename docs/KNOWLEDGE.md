@@ -322,6 +322,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: lângă fiecare laudă și critică, sursa (întrebarea, AI-ul, ziua, linkurile citate, răspunsul întreg cu fraza evidențiată); o frază care numește alt vânzător nu e a magazinului de deasupra.
 - De ce: ZoZo: „aici ar trebui să afișezi și sursele… să ne putem asigura că sunt corecte și despre noi este”.
 
+**B29. „Adaugă schema.org” și „nu ai sitemap” la un magazin care le are de ani de zile** *(23.11.2026, 12:05)*
+- Nu: să citim doar JSON-LD, doar `/sitemap.xml` din rădăcină și doar paginile de produs cu „/produs/” în adresă, apoi să spunem „lipsesc datele structurate” sau „nu am găsit un sitemap” când de fapt nu am găsit noi locul. La ShopExpert RO produsele au JSON-LD Product complet (preț, monedă, stoc, brand, GTIN, MPN), iar sitemap-ul e la `/ro/sitemap.xml` (9.711 adrese); `/sitemap.xml` răspunde cu o pagină HTML și robots.txt nu are linia „Sitemap:”.
+- În schimb: citim JSON-LD, Microdata și RDFa; luăm pagina de produs din catalog, din pagina principală sau din sitemap; căutăm sitemap-ul în robots.txt, sub prefixul de limbă (`/ro/sitemap.xml`), în rădăcină și în variantele index/.gz; dacă firewall-ul ne refuză, încercăm o dată ca browser. Recomandăm doar ce lipsește cu adevărat, numind câmpurile (ex. „lipsește doar blocul Organization”, „Sitemap-ul nu e declarat în robots.txt”, „lipsesc brand, GTIN”), iar sub fiecare verificare arătăm „Ce am găsit și unde” (adresele verificate și ce era acolo). Recomandările vechi a căror verificare trece acum se închid singure.
+- De ce: ZoZo: „de ce zice să corectez să am schema.org, că avem făcut de 12 ani… la fel și sitemap scrie că nu avem deși este”. O recomandare greșită face clientul să nu mai creadă restul auditului.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

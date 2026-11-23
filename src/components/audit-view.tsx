@@ -47,6 +47,20 @@ export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fi
                 <li key={c.id} className="border-b border-border py-3 first:pt-0 last:border-0 last:pb-0">
                   <div className="flex items-start justify-between gap-3"><span className="min-w-0 font-medium">{c.title}</span><Badge tone={statusTone(c.status)}>{statusLabel(c.status)}</Badge></div>
                   <p className="mt-1 text-sm text-muted">{c.detail}</p>
+                  {c.evidence && c.evidence.length > 0 && (
+                    <details className="mt-2 text-sm">
+                      <summary className="cursor-pointer text-muted">Ce am găsit și unde</summary>
+                      <ul className="mt-2 space-y-1">
+                        {c.evidence.map((e, i) => (
+                          <li key={`${e.label}-${i}`} className="min-w-0 break-words">
+                            <span className={e.ok === undefined ? "text-muted" : e.ok ? "text-good" : "text-bad"} aria-hidden>{e.ok === undefined ? "·" : e.ok ? "✓" : "✗"} </span>
+                            {e.url ? <a href={e.url} target="_blank" rel="noopener noreferrer" className="font-medium underline">{e.label}</a> : <span className="font-medium">{e.label}</span>}
+                            <span className="text-muted">: {e.value}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </li>
               ))}
             </ul>
@@ -71,7 +85,7 @@ export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fi
         <section id="rezolva" className="space-y-6">
           <h2 className="text-xl font-semibold">Rezolvă</h2>
           {kinds.map((k) => {
-            const f = fixFor(k, fixCtx);
+            const f = fixFor(k, { ...fixCtx, checks: audit.checks, sitemapUrl: audit.sitemapUrl });
             if (!f) return null;
             return (
               <Card key={k} title={f.title} action={f.file && <Badge className="hidden sm:inline-flex">{f.file}</Badge>}>

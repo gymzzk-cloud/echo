@@ -292,8 +292,19 @@ async function alert(projectId: string, kind: string, severity: string, message:
 }
 
 // ── Acțiuni recomandate ────────────────────────────────────────────────────
-const IMPACT: Record<string, "mare" | "mediu" | "mic"> = { robots: "mare", firewall: "mare", "jsonld-product": "mare", "content-product": "mediu", "jsonld-org": "mediu", trust: "mediu", llms: "mic", sitemap: "mediu", meta: "mic", speed: "mediu" };
-const EFFORT: Record<string, "mic" | "mediu" | "mare"> = { robots: "mic", firewall: "mic", "jsonld-product": "mediu", "content-product": "mare", "jsonld-org": "mic", trust: "mic", llms: "mic", sitemap: "mic", meta: "mic", speed: "mare" };
+const IMPACT: Record<string, "mare" | "mediu" | "mic"> = { robots: "mare", firewall: "mare", "jsonld-product": "mare", "content-product": "mediu", "jsonld-org": "mediu", trust: "mediu", llms: "mic", sitemap: "mediu", "sitemap-robots": "mic", meta: "mic", speed: "mediu" };
+const EFFORT: Record<string, "mic" | "mediu" | "mare"> = { robots: "mic", firewall: "mic", "jsonld-product": "mediu", "content-product": "mare", "jsonld-org": "mic", trust: "mic", llms: "mic", sitemap: "mic", "sitemap-robots": "mic", meta: "mic", speed: "mare" };
+
+/**
+ * Cheile acțiunilor din audit care nu mai sunt probleme: doar verificările care au trecut acum
+ * (o verificare care nu a putut rula, „info”, nu închide nimic).
+ */
+export function staleAuditKeys(checks: { id: string; status: string }[]): string[] {
+  const passed = new Set(checks.filter((c) => c.status === "pass").map((c) => c.id));
+  // Sitemap găsit și declarat: verificarea „declarat în robots.txt” nici nu mai apare, deci e rezolvată.
+  if (passed.has("sitemap") && !checks.some((c) => c.id === "sitemap-robots")) passed.add("sitemap-robots");
+  return [...passed].map((id) => `audit:${id}`);
+}
 
 async function upsertAction(projectId: string, a: { key: string; title: string; why: string; howTo?: string; fixKind?: string; impact: string; effort: string }, baseline: number | null) {
   // Idempotent: rulat de două ori dă același rând; titlul și detaliul se actualizează (ex. timpul de răspuns măsurat acum).
@@ -308,9 +319,17 @@ export async function generateActions(projectId: string) {
   const baseline = stat?.visibility ?? null;
 
   if (audit?.result) {
-    for (const c of (audit.result as AuditResult).checks) {
+    const checks = (audit.result as AuditResult).checks;
+    for (const c of checks) {
       if (c.status === "pass" || c.status === "info") continue;
       await upsertAction(projectId, { key: `audit:${c.id}`, title: PROBLEM_TITLES[c.id] ?? c.title, why: c.detail, fixKind: c.fixKind, impact: IMPACT[c.id] ?? "mediu", effort: EFFORT[c.id] ?? "mediu" }, baseline);
+    }
+    // O recomandare din audit a cărei verificare trece acum nu mai rămâne deschisă (ex. sitemap găsit după corectarea detectorului).
+    const passing = staleAuditKeys(checks);
+    if (passing.length) {
+      await db.delete(schema.actions).where(and(eq(schema.actions.projectId, projectId), inArray(schema.actions.key, passing), eq(schema.actions.status, "noua")));
+      await db.update(schema.actions).set({ status: "rezolvata", resolvedAt: new Date() })
+        .where(and(eq(schema.actions.projectId, projectId), inArray(schema.actions.key, passing), eq(schema.actions.status, "in_lucru")));
     }
   }
   // Surse unde apar concurenții, dar nu tu
@@ -362,13 +381,20 @@ export async function measureActionEffects(projectId: string) {
 export async function auditProject(projectId: string) {
   const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
   const [a] = await db.insert(schema.audits).values({ projectId, url: projectBase(p), domain: p.domain }).returning();
-  return runAuditRow(a.id);
+  const r = await runAuditRow(a.id);
+  // Recomandările urmează imediat auditul: cele rezolvate (sau găsite greșit înainte) se închid.
+  await generateActions(projectId);
+  return r;
 }
 
 export async function runAuditRow(auditId: string) {
   const [a] = await db.select().from(schema.audits).where(eq(schema.audits.id, auditId));
   try {
-    const r = await runAudit(a.url);
+    // Paginile de produs din catalogul conectat sunt cele mai sigure pentru verificarea datelor structurate.
+    const productUrls = a.projectId
+      ? (await db.select({ url: schema.products.url }).from(schema.products).where(and(eq(schema.products.projectId, a.projectId), eq(schema.products.inStock, true))).limit(2)).map((x) => x.url).filter(Boolean)
+      : [];
+    const r = await runAudit(a.url, { productUrls });
     // Site inaccesibil: nu salvăm un scor 0 înșelător, marcăm auditul ca eșuat.
     if (r.error && !r.checks.some((c) => c.status === "pass")) throw new Error(r.error);
     // Datele stabile ale firmei lipsă acum, dar găsite la o verificare anterioară, se refolosesc

@@ -1,6 +1,8 @@
 import * as cheerio from "cheerio";
 import { parseStoreUrl } from "@/lib/util";
 import { extractHomeCatalog, type HomeCatalog } from "../onboarding/home";
+import { describeProductFields, isType, jsonLdNodes, missingProductFields, ORG_TYPES, productFields, sdSummary, structuredData, type SdEntity } from "./structured";
+import { findSitemap, productLikeUrls } from "./sitemap";
 
 /**
  * Auditul tehnic: verifică dacă AI-urile pot citi și înțelege magazinul.
@@ -34,7 +36,12 @@ export type Check = {
   detail: string;
   fixKind?: "robots" | "llms" | "jsonld" | "content" | "cloudflare" | "sitemap";
   weight: number;
+  /** Ce am găsit și unde, ca magazinul să poată verifica singur (adresa, ce era acolo). */
+  evidence?: Evidence[];
+  /** Câmpurile care lipsesc, pentru „Rezolvă” (ex. pentru jsonld: ["Organization"] sau câmpurile Product). */
+  missing?: string[];
 };
+export type Evidence = { label: string; value: string; url?: string; ok?: boolean };
 export type AuditResult = {
   url: string;
   domain: string;
@@ -44,6 +51,7 @@ export type AuditResult = {
   bots: { ua: string; vendor: string; purpose: string; important: boolean; robots: "allowed" | "blocked" | "partial"; http?: number }[];
   facts: StoreFacts;
   productUrl?: string;
+  sitemapUrl?: string; // sitemap-ul găsit (din robots.txt sau din locurile obișnuite)
   platform?: string;
   error?: string;
   reusedFacts?: string[]; // date stabile luate din verificarea anterioară (site-ul nu le-a mai arătat acum)
@@ -79,6 +87,31 @@ async function get(url: string, ua = OUR_UA, timeoutMs = 12000) {
   } catch (e) {
     return { ok: false, status: 0, headers: new Headers(), body: "", ms: Date.now() - t0, finalUrl: url, error: String(e) };
   }
+}
+
+const isChallenge = (r: { status: number; headers: Headers; body: string }) =>
+  r.status === 403 || r.status === 503 || r.headers.get("cf-mitigated") === "challenge" || /cf-chl|just a moment|challenge-platform|captcha/i.test(r.body.slice(0, 20000));
+
+/**
+ * Fișierele tehnice (robots.txt, sitemap) le cerem întâi ca EchoAuditBot. Dacă firewall-ul ne refuză,
+ * mai încercăm o dată ca browser, ca să nu raportăm „lipsește” un fișier care există (îl raportăm la firewall).
+ */
+async function getFile(url: string, timeoutMs = 12000) {
+  const r = await get(url, OUR_UA, timeoutMs);
+  if (!isChallenge(r)) return { ...r, botBlocked: false };
+  const b = await get(url, BROWSER_UA, timeoutMs);
+  return { ...b, botBlocked: true };
+}
+
+async function getBytes(url: string, timeoutMs = 10000): Promise<{ status: number; body: Uint8Array }> {
+  const once = async (ua: string) => {
+    const res = await fetch(url, { headers: { "user-agent": ua, accept: "application/xml,text/xml,*/*" }, redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
+    const buf = new Uint8Array(await res.arrayBuffer());
+    return { status: res.status, body: buf.slice(0, 20_000_000) };
+  };
+  const r = await once(OUR_UA);
+  if (r.status !== 403 && r.status !== 503) return r;
+  return once(BROWSER_UA);
 }
 
 // ── robots.txt ─────────────────────────────────────────────────────────────
@@ -126,25 +159,6 @@ export function robotsAllows(parsed: { groups: Group[] }, ua: string, path: stri
   return best ? best.allow : true;
 }
 
-// ── JSON-LD ────────────────────────────────────────────────────────────────
-function jsonLdNodes($: cheerio.CheerioAPI): Record<string, unknown>[] {
-  const out: Record<string, unknown>[] = [];
-  $('script[type="application/ld+json"]').each((_, el) => {
-    try {
-      const data = JSON.parse($(el).contents().text().trim());
-      const push = (n: unknown) => {
-        if (Array.isArray(n)) n.forEach(push);
-        else if (n && typeof n === "object") {
-          const o = n as Record<string, unknown>;
-          if (Array.isArray(o["@graph"])) (o["@graph"] as unknown[]).forEach(push);
-          out.push(o);
-        }
-      };
-      push(data);
-    } catch { /* JSON invalid: îl raportăm separat */ }
-  });
-  return out;
-}
 const hasType = (n: Record<string, unknown>, t: string) => {
   const ty = n["@type"];
   return Array.isArray(ty) ? ty.includes(t) : ty === t;
@@ -175,7 +189,11 @@ function findProductUrl($: cheerio.CheerioAPI, origin: string, prefix: string) {
     if (abs.origin !== new URL(origin).origin || seen.has(abs.pathname)) return;
     seen.add(abs.pathname);
     if (prefix && !abs.pathname.startsWith(prefix)) return;
-    if (patterns.some((p) => p.test(abs.pathname)) && !/categor|cart|cos|account|cont|blog|login/i.test(abs.pathname)) found = abs.toString();
+    if (/categor|cart|cos|account|cont|blog|login|info\//i.test(abs.pathname)) return;
+    // Și adresele fără „/produs/”, de forma /marca/categorie/subcategorie/cod-nume-produs (ex. ShopExpert)
+    const segs = abs.pathname.slice(prefix.length).split("/").filter(Boolean);
+    const slugLike = segs.length >= 3 && /\d/.test(segs[segs.length - 1]) && segs[segs.length - 1].includes("-");
+    if (patterns.some((p) => p.test(abs.pathname)) || slugLike) found = abs.toString();
   });
   return found;
 }
@@ -207,7 +225,9 @@ function extractFacts($: cheerio.CheerioAPI, html: string, nodes: Record<string,
 }
 
 // ── Auditul complet ────────────────────────────────────────────────────────
-export async function runAudit(inputUrl: string): Promise<AuditResult> {
+export type AuditOptions = { /** Pagini de produs din catalogul conectat, verificate înaintea celor ghicite din site. */ productUrls?: string[] };
+
+export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promise<AuditResult> {
   const { domain, origin, pathPrefix } = parseStoreUrl(inputUrl);
   const home = origin + (pathPrefix || "/");
   const checks: Check[] = [];
@@ -218,8 +238,8 @@ export async function runAudit(inputUrl: string): Promise<AuditResult> {
 
   const [page, robots, llms, asGpt] = await Promise.all([
     get(home, BROWSER_UA),
-    get(origin + "/robots.txt"),
-    get(origin + "/llms.txt"),
+    getFile(origin + "/robots.txt"),
+    getFile(origin + "/llms.txt"),
     get(home, "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)"),
   ]);
 
@@ -248,8 +268,7 @@ export async function runAudit(inputUrl: string): Promise<AuditResult> {
   });
 
   // 2. Acces: Cloudflare / firewall față de roboții AI
-  const challenge = (r: typeof page) =>
-    r.status === 403 || r.status === 503 || r.headers.get("cf-mitigated") === "challenge" || /cf-chl|just a moment|challenge-platform|captcha/i.test(r.body.slice(0, 20000));
+  const challenge = isChallenge;
   const browserOk = page.ok && !challenge(page);
   const botBlocked = challenge(asGpt) || (!asGpt.ok && asGpt.status !== 0);
   const cf = !!page.headers.get("cf-ray") || !!asGpt.headers.get("cf-ray");
@@ -266,47 +285,64 @@ export async function runAudit(inputUrl: string): Promise<AuditResult> {
 
   const $ = cheerio.load(page.body);
   const nodes = jsonLdNodes($);
+  const homeSd = structuredData($);
   result.platform = detectPlatform(page.body, page.headers);
-  result.facts = extractFacts($, page.body, nodes);
+  result.facts = extractFacts($, page.body, homeSd.map((e) => ({ ...e.props, "@type": e.types })));
   result.home = extractHomeCatalog($, nodes, home);
   // Un rând scurt pentru diagnoză (doar numărători, fără conținut de pe site).
-  console.log(`Scanare ${domain}: ${result.home.categories.length} categorii, ${result.home.brands.length} mărci, ${result.home.products.length} produse, ${result.home.logos?.length ?? 0} sigle, nume ${result.home.siteName ? "declarat" : "din titlu/adresă"}`);
+  console.log(`Scanare ${domain}: ${result.home.categories.length} categorii, ${result.home.brands.length} mărci, ${result.home.products.length} produse, ${result.home.logos?.length ?? 0} sigle, nume ${result.home.siteName ? "declarat" : "din titlu/adresă"}, schema.org ${sdSummary(homeSd)}`);
 
-  // 3. Date: Organization / WebSite
-  const hasOrg = nodes.some((n) => hasType(n, "Organization") || hasType(n, "OnlineStore") || hasType(n, "Store") || hasType(n, "LocalBusiness"));
+  // Sitemap întâi: ne dă și adrese de produs, dacă pagina principală nu are linkuri clare spre produse.
+  const sm = await findSitemap(origin, pathPrefix, parsedRobots.sitemaps, (u) => getBytes(u));
+  result.sitemapUrl = sm.found?.url;
+
+  // 4. Date: pagina de produs (din catalog, din pagina principală sau din sitemap), în oricare formă schema.org
+  const candidates = [...new Set([...(opts.productUrls ?? []).slice(0, 2), findProductUrl($, origin, pathPrefix), ...productLikeUrls(sm.sampleUrls, pathPrefix, 2)].filter(Boolean) as string[])].slice(0, 2);
+  let productPage: { url: string; sd: SdEntity[]; body: string } | undefined;
+  for (const u of candidates) {
+    const pp = await get(u, BROWSER_UA);
+    if (!pp.ok || challenge(pp)) continue;
+    const sd = structuredData(cheerio.load(pp.body));
+    productPage = { url: pp.finalUrl || u, sd, body: pp.body };
+    if (sd.some((e) => isType(e, ["Product", "ProductGroup"]))) break;
+  }
+  result.productUrl = productPage?.url;
+
+  // 3. Date: Organization / OnlineStore (pe pagina principală sau, măcar, pe pagina de produs)
+  const orgHome = homeSd.find((e) => isType(e, ORG_TYPES));
+  const orgAny = orgHome ?? productPage?.sd.find((e) => isType(e, ORG_TYPES));
+  const productSd = productPage?.sd.find((e) => isType(e, ["Product", "ProductGroup"]));
+  const orgEvidence: Evidence[] = [
+    { label: "Pagina principală", url: home, value: `schema.org găsit: ${sdSummary(homeSd)}`, ok: !!orgHome },
+    ...(productPage && !orgHome ? [{ label: "Pagina de produs", url: productPage.url, value: `schema.org găsit: ${sdSummary(productPage.sd)}`, ok: !!orgAny }] : []),
+  ];
   checks.push({
     id: "jsonld-org", group: "date", title: "Datele firmei sunt marcate pentru AI (Organization)",
-    status: hasOrg ? "pass" : "warn",
-    detail: hasOrg ? "Pagina principală are date structurate despre firmă." : "Lipsesc datele structurate despre firmă (nume, logo, contact, rețele sociale). AI-urile te recunosc mai greu ca brand.",
-    fixKind: hasOrg ? undefined : "jsonld", weight: 8,
+    status: orgAny ? "pass" : "warn",
+    detail: orgAny
+      ? `Datele firmei sunt marcate (${orgAny.types.join(", ")}, ${orgAny.source}).`
+      : productSd
+        ? `Produsele au schema.org Product (${productSd.source}), dar niciun bloc Organization / OnlineStore cu numele firmei, logo, contact și rețele sociale. Lipsește doar acest bloc.`
+        : "Nu am găsit niciun bloc Organization / OnlineStore (nume, logo, contact, rețele sociale), în nicio formă (JSON-LD, Microdata, RDFa). AI-urile te recunosc mai greu ca brand.",
+    fixKind: orgAny ? undefined : "jsonld", weight: 8, evidence: orgEvidence, missing: orgAny ? undefined : ["Organization"],
   });
 
-  // 4. Date: pagina de produs
-  const productUrl = findProductUrl($, origin, pathPrefix);
-  result.productUrl = productUrl;
-  if (productUrl) {
-    const pp = await get(productUrl, BROWSER_UA);
-    const $p = cheerio.load(pp.body);
-    const pn = jsonLdNodes($p).find((n) => hasType(n, "Product") || hasType(n, "ProductGroup"));
-    const offers = pn ? (Array.isArray(pn.offers) ? pn.offers[0] : pn.offers) as Record<string, unknown> | undefined : undefined;
-    const missing: string[] = [];
-    if (pn) {
-      if (!offers?.price && !(offers as Record<string, unknown> | undefined)?.lowPrice) missing.push("preț");
-      if (!offers?.availability) missing.push("stoc");
-      if (!offers?.priceCurrency) missing.push("monedă");
-      if (!pn.brand) missing.push("brand");
-      if (!pn.gtin && !pn.gtin13 && !pn.gtin8 && !pn.mpn && !pn.sku) missing.push("cod (GTIN/SKU)");
-      if (!pn.image) missing.push("imagine");
-      if (!pn.aggregateRating) missing.push("recenzii (rating)");
-    }
+  if (productPage) {
+    const f = productSd ? productFields(productSd) : null;
+    const missing = f ? missingProductFields(f) : [];
     checks.push({
       id: "jsonld-product", group: "date", title: "Produsele au date structurate complete (Product)",
-      status: !pn ? "fail" : missing.length === 0 ? "pass" : missing.length <= 2 ? "warn" : "fail",
-      detail: !pn
-        ? "Pagina de produs nu are date structurate de tip Product. AI-urile nu pot citi sigur prețul, stocul și brandul."
-        : missing.length ? `Date structurate prezente, dar lipsesc: ${missing.join(", ")}.` : "Preț, stoc, brand, cod, imagine și rating sunt toate marcate.",
-      fixKind: !pn || missing.length ? "jsonld" : undefined, weight: 18,
+      status: !productSd ? "fail" : missing.length === 0 ? "pass" : missing.length <= 2 ? "warn" : "fail",
+      detail: !productSd
+        ? "Pagina de produs verificată nu are date structurate de tip Product în nicio formă (JSON-LD, Microdata, RDFa). AI-urile nu pot citi sigur prețul, stocul și brandul."
+        : missing.length
+          ? `Produsele au schema.org Product (${productSd.source}), dar lipsesc: ${missing.join(", ")}.`
+          : `Produsele au schema.org Product complet (${productSd.source}): ${describeProductFields(f!)}.${f!.rating ? "" : " Rating-ul (aggregateRating) se adaugă doar dacă ai recenzii reale pe site."}`,
+      fixKind: !productSd || missing.length ? "jsonld" : undefined, weight: 18,
+      evidence: [{ label: "Pagina de produs verificată", url: productPage.url, value: productSd ? `${sdSummary(productPage.sd)}. Câmpuri: ${describeProductFields(f!) || "niciunul"}` : `schema.org găsit: ${sdSummary(productPage.sd)}`, ok: !!productSd && missing.length === 0 }],
+      missing: !productSd ? ["Product"] : missing.length ? missing : undefined,
     });
+    const $p = cheerio.load(productPage.body);
     const desc = $p('[itemprop="description"], .product-description, #description, .woocommerce-Tabs-panel--description, .product__description').text().trim();
     const words = desc.split(/\s+/).filter(Boolean).length;
     checks.push({
@@ -314,9 +350,10 @@ export async function runAudit(inputUrl: string): Promise<AuditResult> {
       status: words >= 120 ? "pass" : words >= 40 ? "warn" : "fail",
       detail: words ? `Descrierea are ~${words} cuvinte. AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.` : "Nu am găsit o descriere de produs vizibilă în pagină.",
       fixKind: words >= 120 ? undefined : "content", weight: 8,
+      evidence: [{ label: "Pagina de produs verificată", url: productPage.url, value: words ? `~${words} cuvinte în descriere` : "nicio descriere găsită" }],
     });
   } else {
-    checks.push({ id: "jsonld-product", group: "date", title: "Produsele au date structurate complete (Product)", status: "info", detail: "Nu am găsit automat o pagină de produs din pagina principală. Conectează catalogul pentru o verificare completă.", weight: 0 });
+    checks.push({ id: "jsonld-product", group: "date", title: "Produsele au date structurate complete (Product)", status: "info", detail: "Nu am putut deschide automat o pagină de produs (din catalog, din pagina principală sau din sitemap). Conectează catalogul pentru o verificare completă.", weight: 0 });
   }
 
   // 5. llms.txt
@@ -326,20 +363,32 @@ export async function runAudit(inputUrl: string): Promise<AuditResult> {
     status: hasLlms ? "pass" : "warn",
     detail: hasLlms ? "Fișierul llms.txt există." : "Lipsește /llms.txt, un rezumat al magazinului scris pentru asistenții AI. E nou, dar ieftin de adăugat.",
     fixKind: hasLlms ? undefined : "llms", weight: 4,
+    evidence: [{ label: "/llms.txt", url: origin + "/llms.txt", value: hasLlms ? "există" : `răspuns ${llms.status}${/<html/i.test(llms.body.slice(0, 200)) ? ", o pagină HTML, nu fișierul" : ""}`, ok: hasLlms }],
   });
 
-  // 6. Sitemap
-  let sitemapOk = false;
-  for (const s of parsedRobots.sitemaps.length ? parsedRobots.sitemaps.slice(0, 2) : [origin + "/sitemap.xml"]) {
-    const r = await get(s, OUR_UA, 8000);
-    if (r.ok && /<(urlset|sitemapindex)/i.test(r.body)) { sitemapOk = true; break; }
-  }
+  // 6. Sitemap: există? E declarat în robots.txt?
+  const probeText = (k: string, st: number, locs: number) =>
+    k === "urlset" ? `sitemap valid cu ${locs} adrese` : k === "sitemapindex" ? `index de sitemap-uri (${locs} fișiere)` : k === "html" ? `răspuns ${st}, dar e o pagină HTML, nu un sitemap` : k === "blocked" ? `răspuns ${st}, blocat de firewall` : k === "error" ? "fără răspuns" : `răspuns ${st}`;
+  const smEvidence: Evidence[] = [
+    { label: "robots.txt", url: origin + "/robots.txt", value: robots.ok ? (parsedRobots.sitemaps.length ? `declară: ${parsedRobots.sitemaps.join(", ")}` : "nu are nicio linie „Sitemap:”") : `răspuns ${robots.status}`, ok: parsedRobots.sitemaps.length > 0 },
+    ...sm.probes.map((p) => ({ label: new URL(p.url).pathname, url: p.url, value: probeText(p.kind, p.status, p.locs), ok: p.kind === "urlset" || p.kind === "sitemapindex" })),
+  ];
   checks.push({
     id: "sitemap", group: "acces", title: "Sitemap disponibil",
-    status: sitemapOk ? "pass" : "warn",
-    detail: sitemapOk ? "Sitemap-ul e accesibil și declarat." : "Nu am găsit un sitemap valid. Roboții descoperă produsele mai greu.",
-    fixKind: sitemapOk ? undefined : "sitemap", weight: 5,
+    status: sm.found ? "pass" : "warn",
+    detail: sm.found
+      ? `Sitemap găsit la ${sm.found.url} (${sm.found.kind === "urlset" ? `${sm.found.locs} adrese` : `index cu ${sm.found.locs} fișiere`}).`
+      : `Nu am găsit un sitemap valid în ${sm.probes.length} locuri verificate (${sm.probes.map((p) => new URL(p.url).pathname).join(", ")}). Roboții descoperă produsele mai greu.`,
+    fixKind: sm.found ? undefined : "sitemap", weight: 5, evidence: smEvidence,
   });
+  if (sm.found && !sm.found.declared && robots.ok) {
+    checks.push({
+      id: "sitemap-robots", group: "acces", title: "Sitemap-ul e declarat în robots.txt",
+      status: "warn",
+      detail: `Sitemap-ul există (${sm.found.url}), dar robots.txt nu are linia „Sitemap: ${sm.found.url}”. Google îl știe dacă l-ai trimis în Search Console, dar Bing (Copilot, ChatGPT), Perplexity și ceilalți roboți îl caută în robots.txt.`,
+      fixKind: "sitemap", weight: 2, evidence: smEvidence, missing: [sm.found.url],
+    });
+  }
 
   // 7. Conținut de bază
   const f = result.facts;
