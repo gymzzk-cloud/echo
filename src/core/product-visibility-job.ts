@@ -22,7 +22,7 @@ export async function computeProductVisibility(projectId: string) {
     const e = runs.get(r.run.id);
     if (e) { e.promptIds.push(r.promptId); continue; }
     runs.set(r.run.id, {
-      id: r.run.id, provider: r.run.provider, runDate: r.run.runDate, query: r.run.query, answer: r.run.answer, promptIds: [r.promptId],
+      id: r.run.id, provider: r.run.provider, runDate: r.run.runDate, at: r.run.createdAt.toISOString(), query: r.run.query, answer: r.run.answer, promptIds: [r.promptId],
       storeNamed: (r.run.mentions as Mention[]).some((m) => m.domain === p.domain),
       sourceUrls: (r.run.sources as { url: string }[]).map((s) => s.url),
     });

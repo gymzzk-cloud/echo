@@ -120,6 +120,13 @@
       "when": 1795383005190,
       "tag": "0016_product_ai",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795434299646,
+      "tag": "0017_product_ai_proof",
+      "breakpoints": true
     }
   ]
 }

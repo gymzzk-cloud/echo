@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { currentProject } from "@/lib/project";
-import { productAiDetail } from "@/core/product-ai-read";
+import { productAiDetail, proofAnswers } from "@/core/product-ai-read";
+import type { ProductExample } from "@/core/product-visibility";
 import { PRODUCT_AI_WINDOW_DAYS } from "@/core/product-visibility-job";
 import { providerLabel } from "@/core/ai/types";
-import { Badge, Card, Empty, PageHeader, Stat, Table, Td, TextLink } from "@/components/ui";
-import { dateShort, money, num } from "@/lib/format";
+import { Badge, Card, Empty, PageHeader, Stat, SubCard, TextLink } from "@/components/ui";
+import { dateShort, dateTime, money, num, pct } from "@/lib/format";
+import { PRICE_TOLERANCE } from "@/core/product-visibility";
 
 /** Un produs în AI: cifrele salvate și răspunsurile în care a apărut (cel mult 20, cele mai noi primele). */
 export default async function ProductInAi({ params }: { params: Promise<{ id: string }> }) {
@@ -15,8 +17,9 @@ export default async function ProductInAi({ params }: { params: Promise<{ id: st
   const row = await productAiDetail(project.id, id);
   if (!row) notFound();
   const s = row.stat;
+  const answers = s ? await proofAnswers(project.id, s.examples.map((e) => e.runId)) : new Map<string, string>();
   const back = <TextLink href="/panou/produse-ai">Toate produsele</TextLink>;
-  const header = <PageHeader eyebrow="Produse în AI" title={row.title} subtitle={[row.brand, money(row.price, row.currency), !row.inStock && "fără stoc"].filter(Boolean).join(" · ")} action={back} />;
+  const header = <PageHeader eyebrow="Produse în AI" title={row.title} subtitle={<><span className="num break-all">{[`Cod ${row.externalId}`, row.mpn && row.mpn !== row.externalId && `Cod producător ${row.mpn}`, row.gtin && `EAN ${row.gtin}`, row.brand, money(row.price, row.currency), !row.inStock && "fără stoc"].filter(Boolean).join(" · ")}</span> · <TextLink href={row.url} external>Pagina produsului</TextLink></>} action={back} />;
   if (!s) return <>{header}<Empty title="AI-urile nu au numit acest produs">În ultimele {PRODUCT_AI_WINDOW_DAYS} de zile, produsul nu apare în niciun răspuns la întrebările urmărite. Îl poți urmări din pagina Produse, ca să întrebăm AI-urile direct despre el.</Empty></>;
 
   return (
@@ -36,20 +39,53 @@ export default async function ProductInAi({ params }: { params: Promise<{ id: st
         </div>
       </Card>
 
-      <Card title="Răspunsurile în care apare" description="Cele mai noi primele. Rândul din răspunsul AI-ului, așa cum l-a scris.">
-        <Table head={["Data", "AI", "Întrebarea", "Loc", "Preț spus", "Ce a scris AI-ul"]}>
-          {s.examples.map((e) => (
-            <tr key={e.runId}>
-              <Td className="num whitespace-nowrap">{dateShort(e.runDate)}</Td>
-              <Td className="whitespace-nowrap">{providerLabel(e.provider)}</Td>
-              <Td className="min-w-48">{e.query}{!e.withStore && <span className="mt-1 block"><Badge tone="warn">Fără magazinul tău</Badge></span>}</Td>
-              <Td className="num text-right">{e.position}</Td>
-              <Td className="num whitespace-nowrap text-right">{money(e.statedPrice, row.currency)}</Td>
-              <Td className="min-w-64 text-muted">{e.snippet}</Td>
-            </tr>
-          ))}
-        </Table>
+      <Card title="Dovezi: unde și cum apare" description="Fiecare apariție, cele mai noi primele: AI-ul, data și ora, întrebarea, rândul exact din răspuns și după ce am recunoscut produsul. Deschide tot răspunsul ca să verifici.">
+        <div id="dovezi" className="scroll-mt-6 space-y-4">
+          {s.examples.map((e) => <Proof key={`${e.runId}-${e.provider}`} e={e} real={row.price ? parseFloat(row.price) : null} currency={row.currency} answer={answers.get(e.runId)} />)}
+        </div>
       </Card>
     </div>
+  );
+}
+
+const MATCH_LABEL = { cod: "după cod", link: "după linkul produsului", nume: "după numele complet" } as const;
+
+/** O apariție, cu tot ce trebuie ca să o verifici: unde, când, ce a scris AI-ul și de ce e acest produs. */
+function Proof({ e, real, currency, answer }: { e: ProductExample; real: number | null; currency: string; answer?: string }) {
+  const diff = real && e.statedPrice ? (e.statedPrice - real) / real : null;
+  const wrong = diff !== null && Math.abs(diff) > PRICE_TOLERANCE;
+  // Prețul evidențiat în rândul citat, exact cum l-a scris AI-ul.
+  const quote = (text: string) => {
+    const i = e.priceText ? text.indexOf(e.priceText) : -1;
+    if (i < 0) return <>„{text}”</>;
+    return <>„{text.slice(0, i)}<strong className={wrong ? "text-bad" : "text-fg"}>{e.priceText}</strong>{text.slice(i + e.priceText!.length)}”</>;
+  };
+  return (
+    <SubCard className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-semibold">{providerLabel(e.provider)}</span>
+        <span className="num text-muted">{e.at ? dateTime(e.at) : dateShort(e.runDate)}</span>
+        <Badge>Locul {e.position}</Badge>
+        {!e.withStore && <Badge tone="warn">Fără magazinul tău</Badge>}
+      </div>
+      <p className="text-sm"><span className="text-muted">Întrebarea: </span>{e.query}</p>
+      <p className="text-sm text-muted">{e.priceLine ? <>„{e.snippet}”</> : quote(e.snippet)}</p>
+      {e.priceLine && <p className="text-sm text-muted"><span>Prețul, pe rândul de sub produs: </span>{quote(e.priceLine)}</p>}
+      <p className="text-sm"><span className="text-muted">Recunoscut </span>{e.match
+        ? <>{MATCH_LABEL[e.match.kind]}: <span className="break-all font-medium">{e.match.value}</span></>
+        : "după nume (calcul vechi, se reface automat în câteva minute)"}</p>
+      <div className="flex flex-wrap gap-2">
+        {e.statedPrice !== null && (wrong
+          ? <Badge tone="bad">Spune {money(e.statedPrice, currency)}, în catalog {money(real, currency)} ({diff! > 0 ? "+" : ""}{pct(diff! * 100)})</Badge>
+          : <Badge tone="good">Preț corect: {money(e.statedPrice, currency)}</Badge>)}
+        {e.statedPrice === null && <Badge>Nu spune prețul</Badge>}
+      </div>
+      {answer && (
+        <details className="text-sm">
+          <summary className="cursor-pointer font-medium text-primary">Tot răspunsul AI-ului</summary>
+          <p className="mt-2 whitespace-pre-wrap break-words text-muted">{answer}</p>
+        </details>
+      )}
+    </SubCard>
   );
 }
