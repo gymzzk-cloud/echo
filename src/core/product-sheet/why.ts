@@ -136,10 +136,11 @@ export function whyNotRecommended(input: WhyInput): WhyItem[] {
   }
 
   // 5. Fiecare AI care a răspuns și n-a numit deloc produsul.
-  const byProvider = new Map<string, { runs: number; named: number }>();
+  const byProvider = new Map<string, { runs: number; named: number; queries: Set<string> }>();
   for (const r of runs) {
-    const e = byProvider.get(r.run.provider) ?? { runs: 0, named: 0 };
+    const e = byProvider.get(r.run.provider) ?? { runs: 0, named: 0, queries: new Set<string>() };
     e.runs++;
+    e.queries.add(r.run.query);
     if (r.productNamed) e.named++;
     byProvider.set(r.run.provider, e);
   }
@@ -149,7 +150,7 @@ export function whyNotRecommended(input: WhyInput): WhyItem[] {
     out.push({
       key: `silent:${provider}`,
       title: `${input.providerLabel(provider)} nu numește produsul`,
-      evidence: `A răspuns de ${s.runs} ${s.runs === 1 ? "dată" : "ori"} la aceleași întrebări și n-a numit produsul.${isGpt && input.openaiActive ? " Feed-ul tău ChatGPT e pornit, dar răspunsurile pe care le măsurăm vin din căutarea pe web a ChatGPT (prin API); OpenAI nu spune că acestea folosesc feed-ul de produse, care servește cumpărăturilor din aplicația ChatGPT." : ""}`,
+      evidence: `A răspuns de ${s.runs} ${s.runs === 1 ? "dată" : "ori"} la ${[...s.queries].slice(0, 3).map((q) => `„${q}”`).join(", ")} și n-a numit produsul. E răspunsul la aceste întrebări, nu la orice căutare: un cumpărător care scrie exact codul produsului poate vedea altceva.${isGpt ? ` Întrebăm ChatGPT prin API, cu căutare pe web din România; aplicația ChatGPT poate arăta altceva (carduri de produs, oferte din comparatoare${input.openaiActive ? ", feed-ul de produse" : ""}).` : ""}`,
       action: isGpt
         ? "ChatGPT recomandă din paginile pe care le găsește căutând pe web: aceleași surse de mai sus (comparatoare, articole). Pentru feed, verifică în ChatGPT Merchants (Business Hub) că ai ales România și RON la țări și monede."
         : "Acest AI caută pe web: apari dacă apari în paginile pe care le citește (vezi punctele de mai sus).",

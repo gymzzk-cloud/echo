@@ -1,5 +1,5 @@
 {
-  "id": "da88c035-7f7c-4b12-9628-96eededf278f",
+  "id": "41dd88a6-9a24-4e70-ae3d-17e895e2548d",
   "prevId": "50a9adee-431d-46a4-b448-8e1627e68e84",
   "version": "7",
   "dialect": "postgresql",
@@ -2853,6 +2853,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "focus": {
+          "name": "focus",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -2909,6 +2916,27 @@
             },
             {
               "expression": "popularity_rank",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "products_project_focus_idx": {
+          "name": "products_project_focus_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "focus",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3108,6 +3136,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "focus_config": {
+          "name": "focus_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3299,12 +3333,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
-        },
-        "retired_at": {
-          "name": "retired_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",

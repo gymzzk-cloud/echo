@@ -1,6 +1,6 @@
 import type { AuditResult } from "@/core/audit";
 import { fixFor } from "@/core/audit/fixes";
-import { Badge, Card, SubCard, statusLabel, statusTone } from "./ui";
+import { Badge, Card, SubCard, TextLink, statusLabel, statusTone } from "./ui";
 import { CopyButton } from "./client";
 import { CardHelp } from "@/components/card-help";
 import type { CardHelpId } from "@/lib/card-help";
@@ -22,6 +22,20 @@ export function ScoreRing({ score, size = 120 }: { score: number; size?: number 
 
 type FixCtx = Parameters<typeof fixFor>[1];
 
+/** Un scor cu eticheta setului și numărul de produse pe care e socotit. */
+function ScoreBlock({ score, label, products, href, muted }: { score: number; label: string; products?: number; href?: string; muted?: boolean }) {
+  return (
+    <div className={`flex items-center gap-3 ${muted ? "opacity-80" : ""}`}>
+      <ScoreRing score={score} size={muted ? 96 : 120} />
+      <div className="text-sm">
+        <div className="font-semibold">{label}</div>
+        {products !== undefined && <div className="num text-muted">{products.toLocaleString("ro-RO")} produse în stoc</div>}
+        {href && <TextLink href={href}>Alege categoriile</TextLink>}
+      </div>
+    </div>
+  );
+}
+
 export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fixCtx: FixCtx; showFixes: boolean }) {
   const groups = Object.keys(GROUPS).map((g) => ({ g, checks: audit.checks.filter((c) => c.group === g) })).filter((x) => x.checks.length);
   const problems = audit.checks.filter((c) => c.status === "fail" || c.status === "warn");
@@ -31,12 +45,19 @@ export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fi
     <div className="space-y-6">
       <Card>
         <div className="flex flex-wrap items-center gap-6">
-          <ScoreRing score={audit.score} />
+          {audit.focus ? (
+            <div className="flex flex-wrap gap-6">
+              {/* „Produse focus” întâi: e scorul care contează (ZoZo, 23.11.2026); „Tot magazinul” alături, separat. */}
+              <ScoreBlock score={audit.focus.score} label="Produse focus" products={audit.focus.products} href="/panou/setari#focus" />
+              <ScoreBlock score={audit.score} label="Tot magazinul" products={audit.catalogProducts} muted />
+            </div>
+          ) : <ScoreRing score={audit.score} />}
           <div className="min-w-0 flex-1">
             <div className="text-lg font-semibold">
-              {audit.score >= 75 ? "AI-urile îți pot citi bine magazinul." : audit.score >= 50 ? "AI-urile te citesc parțial. Câteva reparații fac diferența." : "AI-urile au probleme serioase să-ți citească magazinul."}
+              {(audit.focus?.score ?? audit.score) >= 75 ? "AI-urile îți pot citi bine magazinul." : (audit.focus?.score ?? audit.score) >= 50 ? "AI-urile te citesc parțial. Câteva reparații fac diferența." : "AI-urile au probleme serioase să-ți citească magazinul."}
             </div>
             <p className="mt-1 text-sm text-muted">{problems.length ? `${problems.length} lucruri de reparat` : "Nicio problemă găsită"}{unsure ? ` · ${unsure} ${unsure === 1 ? "verificare nu a putut fi făcută" : "verificări nu au putut fi făcute"} (nu intră în scor)` : ""} · platformă: {audit.platform ?? "necunoscută"} · {audit.url}</p>
+            {audit.focus && <p className="mt-1 text-sm text-muted">Verificările de site (roboți, sitemap, date firmă) sunt aceleași pentru ambele scoruri; diferă cele pe produse, socotite o dată pe produsele focus și o dată pe tot catalogul.</p>}
             {audit.error && <p className="mt-2 text-sm text-bad">{audit.error}</p>}
           </div>
         </div>
@@ -46,9 +67,12 @@ export function AuditView({ audit, fixCtx, showFixes }: { audit: AuditResult; fi
         {groups.map(({ g, checks }) => (
           <Card key={g} title={GROUPS[g]} description={<CardHelp id={`audit.group.${g}` as CardHelpId} />}>
             <ul>
-              {checks.map((c) => (
-                <li key={c.id} className="border-b border-border py-3 first:pt-0 last:border-0 last:pb-0">
-                  <div className="flex items-start justify-between gap-3"><span className="min-w-0 font-medium">{c.title}</span><Badge tone={statusTone(c.status)}>{statusLabel(c.status)}</Badge></div>
+              {checks.flatMap((c) => {
+                const f = audit.focus?.checks.find((x) => x.id === c.id);
+                return f ? [{ ...f, key: `${c.id}-focus`, scope: "Produse focus" }, { ...c, key: c.id, scope: "Tot magazinul" }] : [{ ...c, key: c.id, scope: null as string | null }];
+              }).map((c) => (
+                <li key={c.key} className="border-b border-border py-3 first:pt-0 last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3"><span className="min-w-0 font-medium">{c.title}{c.scope && <span className="block text-xs font-normal text-muted">{c.scope}</span>}</span><Badge tone={statusTone(c.status)}>{statusLabel(c.status)}</Badge></div>
                   <p className="mt-1 text-sm text-muted">{c.detail}</p>
                   {c.evidence && c.evidence.length > 0 && (
                     <details className="mt-2 text-sm">

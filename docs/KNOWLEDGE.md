@@ -43,6 +43,13 @@
    - Spunem mereu câte arătăm și câte am găsit („Arătăm 50 din 63”), cu paginare sau cu un sfat de restrângere. Nicio listă nu se taie în tăcere.
    - Când nu e clar ce ordine sau câte rânduri vrea ZoZo, **întrebăm înainte** de a construi, cu o propunere recomandată.
 
+0c. **Scorul se arată separat pe „Produse focus” (prioritar) și pe „Tot magazinul”, fiecare cu numărul de produse.** *(ZoZo, 23.11.2026: „Produse focus – analiza 80/100 – x produse, separat analiza întreg magazin 70/100 – y produse … să afișăm focus prioritar”)*
+   De ce: într-un catalog mare, produsele mărunte și irelevante (șaibe, benzi) trag scorul în jos, iar un scor dintr-un singur produs ales la întâmplare sărea între 83 și 88.
+   Cum:
+   - Setul focus, din date reale, pentru orice magazin (`src/core/focus.ts`, calculat în worker): produsele alese de magazin, cele mai vândute (când platforma ne dă topul), cele numite deja de AI-uri și cele din categoriile de focus (propuse automat, alese în Setări, opțional filtrate pe mărci).
+   - Orice cifră spune pe ce set e socotită. Verificările pe produse (descrieri) se fac pe tot catalogul în SQL, nu pe o pagină aleasă la întâmplare.
+   - Înainte de feed: doar ce vedem pe site (meniu, prima pagină, sitemap), spus exact („~9.700 de pagini în sitemap”, nu „produse”); fără sitemap spunem asta, fără cifre ghicite.
+
 ### A1. Mod de lucru și publicare
 
 1. **Nimic nu rămâne nepublicat.** *(ZoZo, 20.11.2026)*

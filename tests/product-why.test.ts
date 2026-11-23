@@ -48,7 +48,8 @@ describe("de ce nu ești recomandat", () => {
     expect(items[1].title).toBe("AI-ul a citit comparatorul compari.ro");
     expect(items[2].evidence).not.toContain("compari");
     expect(items[3].title).toContain("Gemini");
-    expect(items[4].evidence).toContain("Feed-ul tău ChatGPT e pornit");
+    expect(items[4].evidence).toContain("„polizoare unghiulare mici cel mai bun preț”");
+    expect(items[4].evidence).toContain("aplicația ChatGPT poate arăta altceva");
   });
 
   it("fără răspunsuri sau când AI-ul te numește peste tot: nimic inventat", () => {
