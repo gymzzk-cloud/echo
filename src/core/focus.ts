@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, sql as dsql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { FocusConfig } from "@/db/schema";
 import { categoryHead } from "./audit/fixes";
@@ -80,7 +80,7 @@ export function pickFocus(products: FocusProduct[], sig: FocusSignals, cfg: Pick
 /** Jobul „focus”: recalculează setul și îl salvează. Idempotent. */
 export async function computeFocus(projectId: string) {
   const [p] = await db.select({ cfg: schema.projects.focusConfig }).from(schema.projects).where(eq(schema.projects.id, projectId));
-  if (!p) return { focus: 0 };
+  if (!p) return { focus: 0, changed: false };
   const P = schema.products, Q = schema.prompts, S = schema.productAiStats;
   const [products, chosenRows, namedRows] = await Promise.all([
     db.select({ id: P.id, category: P.category, brand: P.brand, inStock: P.inStock, rank: P.popularityRank }).from(P).where(eq(P.projectId, projectId)).limit(200_000),
@@ -90,6 +90,9 @@ export async function computeFocus(projectId: string) {
   const cfg = p.cfg ?? {};
   const r = pickFocus(products, { chosen: new Set(chosenRows.map((x) => x.id!)), aiNamed: new Set(namedRows.map((x) => x.id)) }, cfg);
   const ids = [...r.focus];
+  // Setul s-a schimbat? Atunci și întrebările propuse se refac (se aleg din produsele focus).
+  const before = await db.select({ id: P.id }).from(P).where(and(eq(P.projectId, projectId), eq(P.focus, true)));
+  const changed = before.length !== ids.length || before.some((b) => !r.focus.has(b.id));
   await db.transaction(async (tx) => {
     await tx.update(P).set({ focus: false }).where(and(eq(P.projectId, projectId), eq(P.focus, true)));
     for (let i = 0; i < ids.length; i += 1000) await tx.update(P).set({ focus: true }).where(and(eq(P.projectId, projectId), inArray(P.id, ids.slice(i, i + 1000))));
@@ -97,7 +100,7 @@ export async function computeFocus(projectId: string) {
     await tx.update(schema.projects).set({ focusConfig: next }).where(eq(schema.projects.id, projectId));
   });
   console.log(`focus ${projectId}: ${r.counts.focus} din ${r.counts.inStock} produse în stoc (alese ${r.counts.chosen}, vândute ${r.counts.bestsellers}, numite de AI ${r.counts.aiNamed}, din categorii ${r.counts.fromCategories})`);
-  return r.counts;
+  return { ...r.counts, changed };
 }
 
 /** Ce a ales magazinul (null = automat). Salvează doar alegerea; setul îl recalculează workerul. */
@@ -105,4 +108,27 @@ export async function saveFocusChoice(projectId: string, categories: string[] | 
   const [p] = await db.select({ cfg: schema.projects.focusConfig }).from(schema.projects).where(eq(schema.projects.id, projectId));
   const next: FocusConfig = { ...(p?.cfg ?? {}), categories, brands };
   await db.update(schema.projects).set({ focusConfig: next }).where(eq(schema.projects.id, projectId));
+}
+
+/** Câte întrebări active sunt despre produsele focus (pentru textul „pe ce măsurăm” din Vizibilitate). Un singur count în SQL. */
+export async function focusPromptCounts(projectId: string) {
+  const Q = schema.prompts, P = schema.products;
+  const [r] = await db.select({
+    active: dsql<number>`count(*)::int`,
+    focus: dsql<number>`count(*) filter (where ${P.focus})::int`,
+  }).from(Q).leftJoin(P, eq(P.id, Q.productId)).where(and(eq(Q.projectId, projectId), eq(Q.active, true)));
+  return { active: r?.active ?? 0, focus: r?.focus ?? 0 };
+}
+
+/**
+ * Înainte de feed: categoriile din meniul site-ului și câte pagini are fiecare în sitemap, din ultimul audit.
+ * Citim doar cele două câmpuri din JSON, nu tot rezultatul auditului.
+ */
+export async function siteCategoryEstimate(projectId: string) {
+  const A = schema.audits;
+  const [r] = await db.select({
+    categories: dsql<{ name: string; pages: number | null }[] | null>`${A.result}->'siteCategories'`,
+    sitemapUrl: dsql<string | null>`${A.result}->>'sitemapUrl'`,
+  }).from(A).where(and(eq(A.projectId, projectId), eq(A.status, "done"))).orderBy(desc(A.createdAt)).limit(1);
+  return r ? { categories: r.categories ?? [], sitemapUrl: r.sitemapUrl } : null;
 }

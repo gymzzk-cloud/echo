@@ -84,18 +84,27 @@ export async function productCounts(projectId: string) {
     recommended: dsql<number>`count(*) filter (where ${S.appearances} > 0)::int`,
     wrongPrice: dsql<number>`count(*) filter (where ${S.priceWrong})::int`,
     incomplete: dsql<number>`count(*) filter (where ${incompleteSql()})::int`,
+    // Aceleași cifre doar pe „Produse focus”, arătate primele (ZoZo, 23.11.2026).
+    focusTotal: dsql<number>`count(*) filter (where ${P.focus})::int`,
+    focusRecommended: dsql<number>`count(*) filter (where ${P.focus} and ${S.appearances} > 0)::int`,
+    focusWrongPrice: dsql<number>`count(*) filter (where ${P.focus} and ${S.priceWrong})::int`,
+    focusIncomplete: dsql<number>`count(*) filter (where ${P.focus} and ${incompleteSql()})::int`,
   }).from(P).leftJoin(S, eq(S.productId, P.id)).where(eq(P.projectId, projectId));
-  return { total: counts?.total ?? 0, recommended: counts?.recommended ?? 0, wrongPriceCount: counts?.wrongPrice ?? 0, incompleteCount: counts?.incomplete ?? 0 };
+  return {
+    total: counts?.total ?? 0, recommended: counts?.recommended ?? 0, wrongPriceCount: counts?.wrongPrice ?? 0, incompleteCount: counts?.incomplete ?? 0,
+    focus: { total: counts?.focusTotal ?? 0, recommended: counts?.focusRecommended ?? 0, wrongPrice: counts?.focusWrongPrice ?? 0, incomplete: counts?.focusIncomplete ?? 0 },
+  };
 }
 
 /**
  * Lista din pagina Produse: cel mult 100 de rânduri. Întâi produsele numite de AI (puține, din index), apoi restul
  * în ordinea indexului (în stoc, cele mai vândute): fără sortare pe tot catalogul la fiecare deschidere.
  */
-export async function productInsights(project: Project, opts: { f?: string; q?: string; tracked?: string[] } = {}) {
+export async function productInsights(project: Project, opts: { f?: string; q?: string; tracked?: string[]; focus?: boolean } = {}) {
   const P = schema.products, S = schema.productAiStats;
   const f = opts.f as ProductFilter | undefined;
   const conds: SQL[] = [eq(P.projectId, project.id)];
+  if (opts.focus) conds.push(eq(P.focus, true));
   if (f === "recomandate") conds.push(dsql`${S.appearances} > 0`);
   if (f === "pret") conds.push(dsql`${S.priceWrong}`);
   if (f === "stoc") conds.push(eq(P.inStock, false));

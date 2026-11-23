@@ -11,7 +11,7 @@ import { money } from "@/lib/format";
 import { trackedProducts } from "@/core/tracked-prompts";
 import { trackProduct } from "@/app/actions";
 
-type Sp = { f?: string; q?: string };
+type Sp = { f?: string; q?: string; set?: string };
 
 // Antetul apare imediat; tabelul (calcul pe tot catalogul) vine în Suspense, ca pagina să nu pară blocată.
 export default async function Products({ searchParams }: { searchParams: Promise<Sp> }) {
@@ -20,7 +20,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Vizibilitate" title="Produse" subtitle="Ce produse recomandă AI-urile, la ce preț și ce date le lipsesc." />
-      <Suspense key={`${sp.f ?? ""}|${sp.q ?? ""}`} fallback={<Card><p className="animate-pulse text-sm text-muted">Calculăm pentru tot catalogul…</p></Card>}>
+      <Suspense key={`${sp.f ?? ""}|${sp.q ?? ""}|${sp.set ?? ""}`} fallback={<Card><p className="animate-pulse text-sm text-muted">Calculăm pentru tot catalogul…</p></Card>}>
         <ProductsBody project={project} sp={sp} />
       </Suspense>
     </div>
@@ -31,27 +31,52 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
   const q = (sp.q ?? "").trim();
   // Lista vine din SQL (cu limită); „Unde trimit AI-urile” vine din calculul salvat de worker, nu din toate rulările.
   const [tracked, snap] = await Promise.all([trackedProducts(project.id), readSnapshot(project, "products")]);
-  const pi = await productInsights(project, { f: sp.f, q, tracked: [...tracked.keys()] });
+  // „Produse focus” întâi (ZoZo, 23.11.2026); „Tot catalogul” e o alegere separată, cu cifrele lui.
+  const hasFocus = (project.focusConfig?.counts?.focus ?? 0) > 0;
+  const focus = hasFocus && sp.set !== "tot";
+  const pi = await productInsights(project, { f: sp.f, q, tracked: [...tracked.keys()], focus });
   const dest = snap.data.topDestinations;
   const counts = snap.data;
+  // Calculul salvat înainte de „Produse focus” nu are cifrele focus: până la recalcul arătăm doar ce știm.
+  const fc = counts.focus ?? null;
   if (!counts.total && !pi.list.length) return <><Empty title="Nu avem încă produsele tale" action={<ButtonLink href="/panou/setari">Conectează catalogul</ButtonLink>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
   const list = pi.list;
   const missing = (p: (typeof list)[number]) => [!p.gtin && "GTIN", !p.brand && "brand", !p.hasDescription && "descriere", !p.hasImage && "imagine"].filter(Boolean) as string[];
+  const n = (x: number) => x.toLocaleString("ro-RO");
+  const link = (o: Partial<Sp>) => {
+    const v = { set: focus ? "" : hasFocus ? "tot" : "", f: sp.f ?? "", q, ...o };
+    const u = new URLSearchParams(Object.entries(v).filter(([, x]) => x) as [string, string][]).toString();
+    return u ? `?${u}` : "?";
+  };
+  const showFocus = focus && !!fc;
+  const scope = hasFocus ? (showFocus ? " · focus" : " · tot magazinul") : "";
+  const stat = (f: number | undefined, all: number) => (showFocus ? n(f ?? 0) : n(all));
+  const other = (f: number | undefined, all: number) => (hasFocus && fc ? (showFocus ? `tot magazinul: ${n(all)}` : `produse focus: ${n(f ?? 0)}`) : null);
   const filters = [["", "Toate"], ["urmarite", "Urmărite în AI"], ["populare", "Cele mai vândute"], ["recomandate", "Numite de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
 
   return (
     <>
+      {hasFocus && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Chips items={[
+            { href: link({ set: "" }), label: `Produse focus (${n(project.focusConfig?.counts?.focus ?? 0)})`, active: focus },
+            { href: link({ set: "tot" }), label: `Tot catalogul (${n(counts.total)})`, active: !focus },
+          ]} />
+          <TextLink href="/panou/setari#focus" className="text-sm">Alege categoriile</TextLink>
+        </div>
+      )}
       <div className="grid gap-6 sm:grid-cols-3">
-        <Stat label="Produse numite de AI" value={counts.recommended.toLocaleString("ro-RO")} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
-        <Stat label="Prețuri greșite spuse de AI" value={counts.wrongPriceCount} hint={counts.wrongPriceCount ? <TextLink href="/panou/produse-ai?f=pret" className="text-xs">Vezi dovezile</TextLink> : "totul corect"} />
-        <Stat label="Produse cu date incomplete" value={counts.incompleteCount} hint="GTIN, brand, descriere, imagine" />
+        <Stat label={`Produse numite de AI${scope}`} value={stat(fc?.recommended, counts.recommended)} hint={<><TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>{other(fc?.recommended, counts.recommended) && <span className="block text-xs text-muted">{other(fc?.recommended, counts.recommended)}</span>}</>} />
+        <Stat label={`Prețuri greșite spuse de AI${scope}`} value={stat(fc?.wrongPrice, counts.wrongPriceCount)} hint={<>{(showFocus ? fc!.wrongPrice : counts.wrongPriceCount) ? <TextLink href="/panou/produse-ai?f=pret" className="text-xs">Vezi dovezile</TextLink> : "totul corect"}{other(fc?.wrongPrice, counts.wrongPriceCount) && <span className="block text-xs text-muted">{other(fc?.wrongPrice, counts.wrongPriceCount)}</span>}</>} />
+        <Stat label={`Produse cu date incomplete${scope}`} value={stat(fc?.incomplete, counts.incompleteCount)} hint={<>GTIN, brand, descriere, imagine{other(fc?.incomplete, counts.incompleteCount) && <span className="block text-xs text-muted">{other(fc?.incomplete, counts.incompleteCount)}</span>}</>} />
       </div>
 
       <Card>
         <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <Chips items={filters.map(([k, l]) => ({ href: `?f=${k}${q ? `&q=${encodeURIComponent(q)}` : ""}`, label: l, active: (sp.f ?? "") === k }))} />
+          <Chips items={filters.map(([k, l]) => ({ href: link({ f: k }), label: l, active: (sp.f ?? "") === k }))} />
           <Form action="/panou/produse" prefetch={false} role="search" className="w-full lg:w-64">
             <input type="hidden" name="f" value={sp.f ?? ""} />
+            {hasFocus && !focus && <input type="hidden" name="set" value="tot" />}
             <label htmlFor="q" className="sr-only">Caută produs</label>
             <Input id="q" name="q" defaultValue={sp.q} placeholder="Caută produs…" />
           </Form>
@@ -85,7 +110,7 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
             </tr>
           ))}
         </Table>
-        {list.length === 100 && <p className="mt-4 text-xs text-muted">Afișăm primele 100 din {counts.total} produse. Folosește căutarea sau filtrele.</p>}
+        {list.length === 100 && <p className="mt-4 text-xs text-muted">Afișăm primele 100 din {n(focus ? project.focusConfig?.counts?.focus ?? 0 : counts.total)} {focus ? "produse focus" : "produse"}. Folosește căutarea sau filtrele.</p>}
         {list.length === 0 && <p className="mt-4 text-sm text-muted">Niciun produs pentru acest filtru.</p>}
       </Card>
 

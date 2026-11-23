@@ -11,6 +11,8 @@ export type SitemapResult = {
   found?: { url: string; kind: "urlset" | "sitemapindex"; locs: number; declared: boolean };
   probes: SitemapProbe[];
   sampleUrls: string[]; // câteva adrese din sitemap (pentru găsirea unei pagini de produs)
+  /** Toate adresele (până la 50.000, cât permite un sitemap), pentru numărarea paginilor pe categorie. Doar la urlset. */
+  allUrls?: string[];
 };
 
 export function sitemapCandidates(origin: string, pathPrefix: string, robotsSitemaps: string[]): string[] {
@@ -72,7 +74,8 @@ export async function findSitemap(origin: string, pathPrefix: string, robotsSite
     const c = classifySitemap(status, text);
     probes.push({ url, status, ...c });
     if (c.kind === "urlset" || c.kind === "sitemapindex") {
-      return { found: { url, kind: c.kind, locs: c.locs, declared: declared.has(url) }, probes, sampleUrls: c.kind === "urlset" ? sitemapLocs(text) : [] };
+      const all = c.kind === "urlset" ? sitemapLocs(text, 50_000) : [];
+      return { found: { url, kind: c.kind, locs: c.locs, declared: declared.has(url) }, probes, sampleUrls: all.slice(0, 3000), allUrls: c.kind === "urlset" ? all : undefined };
     }
   }
   return { probes, sampleUrls: [] };

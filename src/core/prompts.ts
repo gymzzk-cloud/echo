@@ -156,6 +156,15 @@ export function pickProducts(products: CatalogProduct[], language: "ro" | "hu", 
   return { picked: out, categories: cats.map((c) => ({ category: c.category, topBrand: c.topBrand })) };
 }
 
+/** Sub atâtea produse focus în stoc, întrebările se aleg din tot catalogul (un set prea mic ar da întrebări repetate). */
+export const MIN_FOCUS_POOL = 20;
+
+/** Din ce produse propunem întrebările: produsele focus, dacă sunt destule; altfel tot catalogul în stoc. */
+export function promptPool<T extends { focus?: boolean | null }>(products: T[]): T[] {
+  const focus = products.filter((p) => p.focus);
+  return focus.length >= MIN_FOCUS_POOL ? focus : products;
+}
+
 const STORE_Q = {
   ro: [(s: string) => `${s} păreri clienți`, (s: string) => `${s} livrare și retur`],
   hu: [(s: string) => `${s} vélemények`, (s: string) => `${s} szállítás és visszaküldés`],

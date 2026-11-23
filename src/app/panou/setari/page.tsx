@@ -12,6 +12,7 @@ import { FEED_HINTS } from "@/core/connectors/platforms";
 import { dateShort } from "@/lib/format";
 import { busyKinds, syncingConnections } from "@/core/jobs";
 import { FocusCard } from "@/components/focus-card";
+import { siteCategoryEstimate } from "@/core/focus";
 import { promptLimit } from "@/core/prompts";
 import { CardHelp } from "@/components/card-help";
 
@@ -103,7 +104,7 @@ export default async function Settings() {
         <details className="mt-4 text-xs text-muted"><summary className="cursor-pointer font-medium text-primary">Unde găsesc feed-ul sau cheia pe platforma mea?</summary><ul className="mt-2 space-y-1">{Object.values(FEED_HINTS).map((h) => <li key={h}>{h}</li>)}</ul></details>
       </Card>
 
-      <FocusCard projectId={project.id} cfg={project.focusConfig ?? null} busy={busy.has("focus")} />
+      <FocusCard projectId={project.id} cfg={project.focusConfig ?? null} busy={busy.has("focus")} site={project.focusConfig?.counts?.inStock ? null : await siteCategoryEstimate(project.id)} />
 
       <Card title={`Concurenți (${comps.length})`} description="Îi comparăm cu tine în fiecare zi. Adăugăm automat magazinele pe care AI-urile le recomandă în locul tău sau înaintea ta. Dacă scoți unul, nu-l mai adăugăm.">
         <ul className="mb-4 flex flex-wrap gap-2">
@@ -122,7 +123,7 @@ export default async function Settings() {
         </ActionForm>
       </Card>
 
-      <Card title={`Căutări urmărite (${active} active din ${limit})`} description={<>Căutările pe care le punem fiecărui AI, scrise cum caută un client: numele produsului, codul sau EAN-ul, tipul de produs. Le alegem din catalogul tău real (produse în stoc, din categoriile mari, cu mărci diferite) și le reîmprospătăm după fiecare sincronizare. Poți opri oricare sau adăuga căutarea ta.</>}>
+      <Card title={`Căutări urmărite (${active} active din ${limit})`} description={<>Căutările pe care le punem fiecărui AI, scrise cum caută un client: numele produsului, codul sau EAN-ul, tipul de produs. Le alegem din catalogul tău real: întâi din produsele focus de mai sus (în stoc, cu mărci diferite), din tot catalogul doar dacă setul focus e prea mic. Le reîmprospătăm după fiecare sincronizare și când se schimbă produsele focus. Poți opri oricare sau adăuga căutarea ta.</>}>
         {!prompts.some((p) => p.suggested && p.intent !== "brand") && <div className="mb-4"><Notice tone="muted">Conectează catalogul real (mai sus) ca să propunem căutări pe produsele tale.</Notice></div>}
         <ActionForm action={addPrompt} className="mb-4 grid items-start gap-4 md:grid-cols-[1fr_200px_auto]">
           {hidden}
