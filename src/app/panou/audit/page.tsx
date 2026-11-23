@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/client";
 import { runNow } from "@/app/actions";
 import { dateShort } from "@/lib/format";
 import { busyKinds } from "@/core/jobs";
+import { catalogCategories } from "@/core/store-context";
 
 export default async function AuditPage() {
   const { project } = await currentProject();
@@ -26,7 +27,7 @@ export default async function AuditPage() {
       <PageHeader eyebrow="Reparații" title="Audit tehnic" subtitle={`Ce văd AI-urile când îți vizitează magazinul. Verificat pe ${dateShort(audit.createdAt)}, automat în fiecare săptămână.`} action={run} />
       {failNotice}
       <AuditView audit={result} showFixes fixCtx={{
-        domain: project.domain, origin: projectBase(project), platform: result.platform, storeName: project.name, facts: result.facts, currency: project.currency, logo: result.home?.logo ?? null,
+        domain: project.domain, origin: result.url ? result.url.replace(/\/$/, "") : projectBase(project), categories: await catalogCategories(project.id), platform: result.platform, storeName: project.name, facts: result.facts, currency: project.currency, logo: result.home?.logo ?? null,
         products: prods.map((p) => ({ title: p.title, url: p.url, price: p.price, currency: p.currency, category: p.category, brand: p.brand, inStock: p.inStock, imageUrl: p.imageUrl, gtin: p.gtin, description: p.description })),
       }} />
     </div>

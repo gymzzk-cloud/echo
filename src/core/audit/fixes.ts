@@ -12,6 +12,8 @@ type Ctx = {
   platform?: string | null;
   storeName: string;
   facts?: { cui?: string; organization?: { telephone?: string; email?: string } };
+  /** Categoriile din tot catalogul cu numărul de produse în stoc (din SQL); fără ele numărăm din `products`. */
+  categories?: { category: string; brand: string | null; n: number }[];
   products?: { title: string; url: string; price: string | null; currency: string; category: string | null; brand: string | null; inStock: boolean; imageUrl: string | null; gtin: string | null; description: string | null }[];
   currency?: string;
   /** Verificările din audit: „Rezolvă” cere doar ce lipsește cu adevărat. */
@@ -80,9 +82,10 @@ export function categoryHead(category: string | null, brand: string | null): str
 
 export function llmsFix(ctx: Ctx): Fix {
   const cats = new Map<string, number>();
-  for (const p of ctx.products ?? []) {
-    const c = categoryHead(p.category, p.brand);
-    if (c) cats.set(c, (cats.get(c) ?? 0) + 1);
+  const rows = ctx.categories?.length ? ctx.categories : (ctx.products ?? []).filter((p) => p.inStock).map((p) => ({ category: p.category ?? "", brand: p.brand, n: 1 }));
+  for (const r of rows) {
+    const c = categoryHead(r.category, r.brand);
+    if (c) cats.set(c, (cats.get(c) ?? 0) + r.n);
   }
   const topCats = [...cats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
   const top = (ctx.products ?? []).filter((p) => p.inStock).slice(0, 15);

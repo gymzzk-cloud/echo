@@ -235,7 +235,14 @@ function extractFacts($: cheerio.CheerioAPI, html: string, nodes: Record<string,
 export type AuditOptions = { /** Pagini de produs din catalogul conectat, verificate înaintea celor ghicite din site. */ productUrls?: string[] };
 
 export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promise<AuditResult> {
-  const { domain, origin, pathPrefix } = parseStoreUrl(inputUrl);
+  const parsed = parseStoreUrl(inputUrl);
+  const { domain, pathPrefix } = parsed;
+  let origin = parsed.origin;
+  // Gazda reală a site-ului: shopexpert.com → www.shopexpert.com. Linia „Sitemap:” și linkurile propuse folosesc adresa la care ajunge vizitatorul.
+  const first = await get(origin + (pathPrefix || "/"), BROWSER_UA);
+  const finalOrigin = (() => { try { return new URL(first.finalUrl).origin; } catch { return null; } })();
+  const bare = (o: string) => new URL(o).host.replace(/^www\./, "");
+  if (first.ok && finalOrigin && finalOrigin !== origin && bare(finalOrigin) === bare(origin)) origin = finalOrigin;
   const home = origin + (pathPrefix || "/");
   const checks: Check[] = [];
   const result: AuditResult = {
@@ -244,7 +251,7 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
   };
 
   const [page, robots, llms, asGpt] = await Promise.all([
-    get(home, BROWSER_UA),
+    finalOrigin === origin || (first.ok && !finalOrigin) ? first : get(home, BROWSER_UA),
     getFile(origin + "/robots.txt"),
     getFile(origin + "/llms.txt"),
     get(home, "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)"),
