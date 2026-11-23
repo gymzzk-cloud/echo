@@ -6,7 +6,7 @@ import { gunzipSync } from "node:zlib";
  * Ne oprim la primul găsit, ca să nu încărcăm site-ul: cel mult 6 cereri.
  */
 
-export type SitemapProbe = { url: string; status: number; kind: "urlset" | "sitemapindex" | "html" | "blocked" | "other" | "error"; locs: number };
+export type SitemapProbe = { url: string; status: number; kind: "urlset" | "sitemapindex" | "html" | "blocked" | "other" | "error" | "timeout"; locs: number };
 export type SitemapResult = {
   found?: { url: string; kind: "urlset" | "sitemapindex"; locs: number; declared: boolean };
   probes: SitemapProbe[];
@@ -64,8 +64,9 @@ export async function findSitemap(origin: string, pathPrefix: string, robotsSite
       const r = await fetcher(url);
       status = r.status;
       text = decodeSitemapBody(r.body);
-    } catch {
-      probes.push({ url, status: 0, kind: "error", locs: 0 });
+    } catch (e) {
+      const timeout = /timeout|abort/i.test(String((e as Error)?.name ?? "") + String(e));
+      probes.push({ url, status: 0, kind: timeout ? "timeout" : "error", locs: 0 });
       continue;
     }
     const c = classifySitemap(status, text);
