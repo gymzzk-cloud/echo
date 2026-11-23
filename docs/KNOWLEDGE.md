@@ -455,6 +455,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 
 ---
 
+**B48. Acasă, Produse, Surse și Reputație recalculau toate răspunsurile la fiecare deschidere** *(23.11.2026, 20:15)*
+- Nu: la fiecare deschidere, pagina citea toate rulările din 30 de zile (mii de răspunsuri cu mențiuni și surse) și făcea calculele în cerere. Pagina Produse număra în plus tot catalogul și sorta 28.000 de produse ca să arate 100. Pe Render gratuit, Acasă avea 0,4–1,4 s, Produse 1,4 s, iar căutarea din Produse în AI 1,7 s, peste regula de 1 s.
+- În schimb: workerul calculează cifrele acestor pagini (job `panel`, `src/core/panel-snapshot.ts`) după fiecare rulare AI, audit, calcul pe produs, feed și sincronizare, plus o dată pe zi. Le salvează în `panel_snapshots`, iar pagina citește un singur rând. Un `stamp` mic (rulări, concurenți, audit, produse numite de AI, ziua) arată dacă au apărut date noi. Atunci pagina arată cifrele salvate, cu ora calculului, și cere un calcul nou, iar `JobWatcher` o reîncarcă la final. Lista din Produse citește primele 100 de rânduri direct din index (`products_project_stock_rank_idx`). O pagină nouă care calculează pe toate rulările primește o cheie în `panel_snapshots`, nu un calcul în cerere.
+- De ce: ZoZo a cerut ca fiecare pagină să răspundă sub 1 s (regula „Viteză”). Local, cu procesorul limitat ca pe Render: Acasă a scăzut de la 2 s la 0,2 s, Produse de la 1,3 s la 0,3 s, iar Surse și Reputație au ajuns la 0,1 s.
+
 ## C. Regula de întreținere (permanentă)
 
 1. **De fiecare dată când ZoZo spune că ceva e greșit**, punctul se adaugă imediat, în aceeași tură, în **partea B**, în forma „Nu / În schimb / De ce”, cu data.

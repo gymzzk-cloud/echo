@@ -1,7 +1,9 @@
 import Form from "next/form";
 import { Suspense } from "react";
 import { currentProject } from "@/lib/project";
-import { loadBase, productInsights } from "@/core/insights";
+import { productInsights } from "@/core/insights";
+import { readSnapshot } from "@/core/panel-snapshot";
+import { SnapshotNote } from "@/components/snapshot-note";
 import { providerLabel } from "@/core/ai/types";
 import { SubmitButton } from "@/components/client";
 import { Badge, ButtonLink, Card, Chips, Empty, Input, PageHeader, Stat, Table, Td, TextLink } from "@/components/ui";
@@ -26,11 +28,13 @@ export default async function Products({ searchParams }: { searchParams: Promise
 }
 
 async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeof currentProject>>["project"]; sp: Sp }) {
-  const { rows } = await loadBase(project, 30);
-  const tracked = await trackedProducts(project.id);
   const q = (sp.q ?? "").trim();
-  const pi = await productInsights(project, rows, { f: sp.f, q, tracked: [...tracked.keys()] });
-  if (!pi.total) return <><Empty title="Nu avem încă produsele tale" action={<ButtonLink href="/panou/setari">Conectează catalogul</ButtonLink>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
+  // Lista vine din SQL (cu limită); „Unde trimit AI-urile” vine din calculul salvat de worker, nu din toate rulările.
+  const [tracked, snap] = await Promise.all([trackedProducts(project.id), readSnapshot(project, "products")]);
+  const pi = await productInsights(project, { f: sp.f, q, tracked: [...tracked.keys()] });
+  const dest = snap.data.topDestinations;
+  const counts = snap.data;
+  if (!counts.total && !pi.list.length) return <><Empty title="Nu avem încă produsele tale" action={<ButtonLink href="/panou/setari">Conectează catalogul</ButtonLink>}>Conectează magazinul (Shopify, WooCommerce) sau adaugă feed-ul de produse ca să vedem ce produse recomandă AI-urile.</Empty></>;
   const list = pi.list;
   const missing = (p: (typeof list)[number]) => [!p.gtin && "GTIN", !p.brand && "brand", !p.hasDescription && "descriere", !p.hasImage && "imagine"].filter(Boolean) as string[];
   const filters = [["", "Toate"], ["urmarite", "Urmărite în AI"], ["populare", "Cele mai vândute"], ["recomandate", "Numite de AI"], ["pret", "Preț greșit în AI"], ["incomplete", "Date incomplete"], ["stoc", "Fără stoc"]];
@@ -38,9 +42,9 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
   return (
     <>
       <div className="grid gap-6 sm:grid-cols-3">
-        <Stat label="Produse numite de AI" value={pi.recommended.toLocaleString("ro-RO")} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
-        <Stat label="Prețuri greșite spuse de AI" value={pi.wrongPriceCount} hint={pi.wrongPriceCount ? <TextLink href="/panou/produse-ai?f=pret" className="text-xs">Vezi dovezile</TextLink> : "totul corect"} />
-        <Stat label="Produse cu date incomplete" value={pi.incompleteCount} hint="GTIN, brand, descriere, imagine" />
+        <Stat label="Produse numite de AI" value={counts.recommended.toLocaleString("ro-RO")} hint={<TextLink href="/panou/produse-ai" className="text-xs">Detalii pe fiecare produs</TextLink>} />
+        <Stat label="Prețuri greșite spuse de AI" value={counts.wrongPriceCount} hint={counts.wrongPriceCount ? <TextLink href="/panou/produse-ai?f=pret" className="text-xs">Vezi dovezile</TextLink> : "totul corect"} />
+        <Stat label="Produse cu date incomplete" value={counts.incompleteCount} hint="GTIN, brand, descriere, imagine" />
       </div>
 
       <Card>
@@ -81,14 +85,15 @@ async function ProductsBody({ project, sp }: { project: Awaited<ReturnType<typeo
             </tr>
           ))}
         </Table>
-        {list.length === 100 && <p className="mt-4 text-xs text-muted">Afișăm primele 100 din {pi.total} produse. Folosește căutarea sau filtrele.</p>}
+        {list.length === 100 && <p className="mt-4 text-xs text-muted">Afișăm primele 100 din {counts.total} produse. Folosește căutarea sau filtrele.</p>}
         {list.length === 0 && <p className="mt-4 text-sm text-muted">Niciun produs pentru acest filtru.</p>}
       </Card>
 
       <Card title="Unde trimit AI-urile cumpărătorii" description="Magazinele menționate cel mai des în răspunsurile la întrebările tale.">
+        <SnapshotNote computedAt={snap.computedAt} stale={snap.stale} />
         <ul className="space-y-2 text-sm">
-          {pi.topDestinations.map(([d, n]) => {
-            const max = pi.topDestinations[0][1];
+          {dest.map(([d, n]) => {
+            const max = dest[0][1];
             return <li key={d} className="flex items-center gap-3"><span className={`w-32 shrink-0 truncate sm:w-48 ${d === project.domain ? "font-semibold text-primary" : ""}`}>{d}</span><div className="h-2 min-w-0 flex-1 rounded-full bg-surface"><div className="h-2 rounded-full bg-primary" style={{ width: `${(n / max) * 100}%` }} /></div><span className="num w-10 text-right text-muted">{n}</span></li>;
           })}
         </ul>
