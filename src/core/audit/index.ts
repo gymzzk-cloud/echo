@@ -3,7 +3,7 @@ import { parseStoreUrl } from "@/lib/util";
 import { extractHomeCatalog, type HomeCatalog } from "../onboarding/home";
 import { describeProductFields, isType, jsonLdNodes, missingProductFields, ORG_TYPES, productFields, sdSummary, structuredData, type SdEntity } from "./structured";
 import { findSitemap, productLikeUrls } from "./sitemap";
-import { legalSignals, productDescriptionWords, sitemapUnsure, trustPages, UNSURE_PROBES } from "./signals";
+import { catalogDescriptionVerdict, legalSignals, productDescriptionWords, sitemapUnsure, trustPages, UNSURE_PROBES, type DescriptionStats } from "./signals";
 
 /**
  * Auditul tehnic: verifică dacă AI-urile pot citi și înțelege magazinul.
@@ -232,7 +232,10 @@ function extractFacts($: cheerio.CheerioAPI, html: string, nodes: Record<string,
 }
 
 // ── Auditul complet ────────────────────────────────────────────────────────
-export type AuditOptions = { /** Pagini de produs din catalogul conectat, verificate înaintea celor ghicite din site. */ productUrls?: string[] };
+export type AuditOptions = {
+  /** Pagini de produs din catalogul conectat, verificate înaintea celor ghicite din site. */ productUrls?: string[];
+  /** Descrierile pe tot catalogul (din SQL); cu ele verificarea descrierilor nu mai depinde de o singură pagină. */ descriptions?: DescriptionStats;
+};
 
 export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promise<AuditResult> {
   const parsed = parseStoreUrl(inputUrl);
@@ -358,15 +361,23 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
     });
     const $p = cheerio.load(productPage.body);
     const words = productDescriptionWords(cheerio.load(productPage.body));
-    checks.push({
+    const pageEvidence = { label: "Pagina de produs verificată", url: productPage.url, value: words ? `~${words} cuvinte în descriere și specificații${f?.name ? ` („${f.name}”)` : ""}` : "descrierea nu e într-un câmp standard (itemprop=description, #description etc.)" };
+    const cat = catalogDescriptionVerdict(opts.descriptions);
+    checks.push(cat ? {
+      id: "content-product", group: "continut", title: "Descrierile de produs răspund la întrebări",
+      status: cat.status,
+      detail: `${cat.detail} AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.`,
+      fixKind: cat.status === "pass" ? undefined : "content", weight: 8,
+      evidence: [{ label: "Catalogul conectat", value: `${cat.pct}% din ${cat.checked.toLocaleString("ro-RO")} produse au descriere bună` }, pageEvidence],
+    } : {
       id: "content-product", group: "continut", title: "Descrierile de produs răspund la întrebări",
       // Zero cuvinte găsite = nu am recunoscut unde stă descrierea pe această platformă, nu „nu ai descriere”.
       status: words === 0 ? "unknown" : words >= 120 ? "pass" : words >= 40 ? "warn" : "fail",
       detail: words === 0
         ? "Nu am putut verifica: nu am recunoscut automat unde e descrierea pe pagina de produs (nu e într-un câmp de descriere standard). Nu spunem că lipsește."
-        : `Pe produsul verificat${f?.name ? ` („${f.name}”)` : ""} descrierea are ~${words} cuvinte. Am verificat o singură pagină de produs (linkul de mai jos), nu tot catalogul. AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.`,
+        : `Pe produsul verificat${f?.name ? ` („${f.name}”)` : ""} descrierea are ~${words} cuvinte. Am verificat o singură pagină de produs (linkul de mai jos), nu tot catalogul: conectează catalogul pentru o verificare pe toate produsele. AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.`,
       fixKind: words === 0 || words >= 120 ? undefined : "content", weight: 8,
-      evidence: [{ label: "Pagina de produs verificată", url: productPage.url, value: words ? `~${words} cuvinte în descriere și specificații` : "descrierea nu e într-un câmp standard (itemprop=description, #description etc.)" }],
+      evidence: [pageEvidence],
     });
   } else {
     checks.push({ id: "jsonld-product", group: "date", title: "Produsele au date structurate complete (Product)", status: "info", detail: "Nu am putut deschide automat o pagină de produs (din catalog, din pagina principală sau din sitemap). Conectează catalogul pentru o verificare completă.", weight: 0 });

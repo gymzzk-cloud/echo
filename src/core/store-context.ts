@@ -1,5 +1,6 @@
 import { sql as dsql } from "drizzle-orm";
 import { db } from "@/db";
+import { GOOD_DESCRIPTION_WORDS, type DescriptionStats } from "./audit/signals";
 
 /**
  * Datele mici despre magazin de care au nevoie mai multe pagini: mărcile din catalog și magazinele aceluiași client.
@@ -35,4 +36,29 @@ export async function catalogCategories(projectId: string) {
   const r = await db.execute(dsql`select category, brand, count(*)::int as n from products
     where project_id = ${projectId} and in_stock and coalesce(category, '') <> '' group by category, brand order by n desc limit 3000`);
   return r as unknown as { category: string; brand: string | null; n: number }[];
+}
+
+/**
+ * Descrierile din catalog (ce primesc AI-urile în feed), pe tot catalogul în stoc, numărate în SQL (în worker, la audit).
+ * „bună” = cel puțin 40 de cuvinte; „lipsă” = goală sau doar titlul repetat; „necitite” = încă nu am citit-o din API (product_details).
+ */
+export async function catalogDescriptionStats(projectId: string): Promise<DescriptionStats> {
+  const r = await db.execute(dsql`
+    with p as (
+      select p.title, coalesce(p.description, '') as d,
+        exists (select 1 from product_details d where d.project_id = p.project_id and d.external_id = p.external_id and d.fetched_at is null) as pending
+      from products p where p.project_id = ${projectId} and p.in_stock
+    ), w as (
+      select pending, case when btrim(regexp_replace(d, '<[^>]+>', ' ', 'g')) = '' or lower(btrim(d)) = lower(btrim(title)) then 0
+        else coalesce(array_length(regexp_split_to_array(btrim(regexp_replace(d, '<[^>]+>', ' ', 'g')), '\\s+'), 1), 0) end as words
+      from p
+    )
+    select count(*)::int as total,
+      count(*) filter (where pending and words < ${GOOD_DESCRIPTION_WORDS})::int as pending,
+      count(*) filter (where words >= ${GOOD_DESCRIPTION_WORDS})::int as good,
+      count(*) filter (where not pending and words between 1 and ${GOOD_DESCRIPTION_WORDS - 1})::int as short,
+      count(*) filter (where not pending and words = 0)::int as none
+    from w`);
+  const row = (r as unknown as DescriptionStats[])[0];
+  return row ?? { total: 0, pending: 0, good: 0, short: 0, none: 0 };
 }

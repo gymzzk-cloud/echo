@@ -8,7 +8,7 @@ export const PROBLEM_TITLES: Record<string, string> = {
   firewall: "Firewall-ul blochează asistenții AI",
   "jsonld-org": "Lipsesc datele firmei pentru AI (Organization)",
   "jsonld-product": "Produsele nu au date structurate complete (Product)",
-  "content-product": "Descrierea produsului verificat e prea scurtă",
+  "content-product": "Descrieri de produs scurte sau lipsă",
   llms: "Lipsește llms.txt (rezumatul pentru AI)",
   sitemap: "Nu am găsit un sitemap valid",
   "sitemap-robots": "Sitemap-ul nu e declarat în robots.txt",
