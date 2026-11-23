@@ -30,7 +30,7 @@ export async function AnswersCard(props: {
 
   return (
     <>
-      <Card title={runs.length ? (view.withoutStore ? `În ${view.withoutStore} din ${runs.length} răspunsuri AI-ul nu te numește` : `Te numește în toate cele ${runs.length} răspunsuri`) : "Încă nu avem răspunsuri AI despre acest produs"}
+      <Card title={answersTitle(runs.length, view.withoutStore, view.clarified)}
         description={`Răspunsurile AI-urilor din ultimele ${SHEET_WINDOW_DAYS} de zile la întrebările despre acest produs sau în care apare${runs.length ? ` (cele mai noi ${runs.length})` : ""}. Din răspunsuri deja primite, fără întrebări noi.`}>
         {!runs.length && <p className="text-sm text-muted">{props.tracked
           ? "Produsul e urmărit: îl întrebăm la următoarea analiză AI. Pagina se completează singură după aceea."
@@ -48,11 +48,11 @@ export async function AnswersCard(props: {
             <ul className="space-y-4">
               {view.runs.map((v) => (
                 <li key={v.run.id}>
-                  <SubCard className="space-y-2">
+                  <SubCard id={`raspuns-${v.run.id}`} className="scroll-mt-6 space-y-2 target:ring-2 target:ring-primary">
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-semibold">{providerLabel(v.run.provider)}</span>
                       <span className="num text-muted">{dateTime(v.run.at)}</span>
-                      {v.storeNamed || v.productPageCited ? <Badge tone="good">Te numește</Badge> : <Badge tone="warn">Fără tine</Badge>}
+                      {v.storeNamed || v.productPageCited ? <Badge tone="good">Te numește</Badge> : v.clarified ? <Badge>A cerut clarificare</Badge> : <Badge tone="warn">Fără tine</Badge>}
                       {v.productNamed && <Badge>Numește produsul</Badge>}
                     </div>
                     <p className="text-sm"><span className="text-muted">Întrebarea: </span>{v.run.query}</p>
@@ -96,4 +96,16 @@ export async function AnswersCard(props: {
       )}
     </>
   );
+}
+
+/** Titlul cardului cu răspunsuri: „a cerut clarificare” nu se numără ca „nu te numește” (AI-ul n-a numit pe nimeni). */
+function answersTitle(total: number, without: number, clarified: number) {
+  if (!total) return "Încă nu avem răspunsuri AI despre acest produs";
+  const missed = without - clarified;
+  const ask = clarified ? `${clarified} ${clarified === 1 ? "răspuns a" : "răspunsuri au"} cerut clarificare` : "";
+  if (!missed) {
+    if (!clarified) return `Te numește în toate cele ${total} răspunsuri`;
+    return total > clarified ? `Din ${total} răspunsuri, ${ask}, restul te numesc` : `AI-ul n-a recomandat magazine: ${ask}`;
+  }
+  return `În ${missed} din ${total} răspunsuri AI-ul nu te numește${ask ? `; ${ask}` : ""}`;
 }

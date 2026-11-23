@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { endpointFromOpenApi, mapRecord, type CatalogItem } from "../src/core/connectors";
 import { differentOrder, rankFromItems } from "../src/core/connectors/popularity";
-import { humanName, modelLike, suggestPrompts, type CatalogProduct } from "../src/core/prompts";
+import { humanName, isPlainName, modelLike, suggestPrompts, type CatalogProduct } from "../src/core/prompts";
 
 const item = (id: string, extra: Partial<CatalogItem> = {}): CatalogItem => ({ externalId: id, title: `P ${id}`, url: `https://x/${id}`, price: 10, currency: "RON", inStock: true, ...extra });
 
@@ -40,11 +40,18 @@ describe("întrebările urmărite cu top de vânzări", () => {
   for (let i = 0; i < 500; i++) cat.push({ id: String(i), externalId: String(i), title: `BRAND${i % 9} Model ${i}`, brand: `BRAND${i % 9}`, category: `Raft > Tip ${i % 15}`, price: "100", gtin: String(5900000000000 + i), rank: i >= 400 ? 500 - i : null });
   it("produsele cu nume sunt cele mai vândute, iar tipurile lor au întâietate", () => {
     const ps = suggestPrompts(cat, "Magazin", "ro", 30);
-    // Cele mai vândute, scrise cum caută un om: cumpăr, preț, cod, cel mai ieftin, nume, de unde cumpăr.
+    // Cele mai vândute, scrise cum caută un cumpărător: cumpăr, preț, cod + preț, cel mai ieftin, de unde cumpăr (B53).
     expect(ps.slice(0, 6).map((p) => p.text)).toEqual([
-      "vreau să cumpăr Brand4 Model 499", "Brand3 Model 498 preț", "5900000000497",
-      "Brand1 Model 496 cel mai ieftin", "Brand0 Model 495", "de unde cumpăr Brand8 Model 494",
+      "vreau să cumpăr Brand4 Model 499", "Brand3 Model 498 preț", "5900000000497 preț",
+      "Brand1 Model 496 cel mai ieftin", "de unde cumpăr Brand0 Model 495", "vreau să cumpăr Brand8 Model 494",
     ]);
+    // Nicio căutare pe produs nu e doar numele sau codul: fiecare are intenție de cumpărare.
+    const names = new Map(cat.map((c) => [c.id, c]));
+    for (const q of ps.filter((x) => x.productId)) {
+      const c = names.get(q.productId!)!;
+      expect(isPlainName(q.text, c), q.text).toBe(false);
+      expect(q.text).not.toBe(c.gtin);
+    }
     expect(ps.slice(0, 10).every((p) => Number(p.productId) >= 490)).toBe(true); // ~80% din produse vin din top
     // tipul celui mai vândut produs (499 % 15 = 4) are prima întrebare de cumpărător
     expect(ps.find((p) => p.intent === "cumparare")!.text).toBe("tip 4 cel mai bun preț");

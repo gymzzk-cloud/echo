@@ -147,20 +147,36 @@ export function whyNotRecommended(input: WhyInput): WhyItem[] {
     if (namesProduct(r)) e.named++;
     byProvider.set(r.run.provider, e);
   }
-  // 5b. AI-ul a vorbit despre produs, dar n-a recomandat niciun magazin (de obicei întreabă ce vrei: specificații, preț).
-  const noShop = without.filter((r) => namesProduct(r) && !r.others.length);
+  // 5b. AI-ul a răspuns doar cu o întrebare („Vrei specificații sau prețuri?”): a cerut clarificare, n-a recomandat pe nimeni.
+  // Nu e „nu te numește”: n-a numit niciun magazin (KNOWLEDGE B53).
+  const buyQuery = code ? `${code} preț` : "numele produsului + preț";
+  const clarified = without.filter((r) => r.clarified);
+  for (const provider of new Set(clarified.map((r) => r.run.provider))) {
+    const r = clarified.find((x) => x.run.provider === provider)!;
+    out.push({
+      key: `clarify:${provider}`,
+      title: `${input.providerLabel(provider)} a cerut clarificare, n-a recomandat niciun magazin`,
+      evidence: `La „${r.run.query}” a răspuns cu o întrebare, fără să numească vreun magazin, nici pe tine, nici pe alții. Echo pune o singură întrebare; în aplicație, după un al doilea mesaj (de ex. „cumpărare”), ${input.providerLabel(provider)} poate arăta oferte.`,
+      action: `Aici nu pierzi în fața altui magazin. Întrebările automate pentru produse au de acum intenție de cumpărare (de ex. „${buyQuery}”), ca un cumpărător real; răspunsul la ele apare aici după următoarea analiză.`,
+      links: [{ href: `#raspuns-${r.run.id}`, label: "Vezi răspunsul" }],
+    });
+  }
+  // 5c. AI-ul a vorbit despre produs, dar n-a recomandat niciun magazin (fără să întrebe ceva înapoi).
+  const noShop = without.filter((r) => !r.clarified && namesProduct(r) && !r.others.length);
   for (const provider of new Set(noShop.map((r) => r.run.provider))) {
     const r = noShop.find((x) => x.run.provider === provider)!;
     out.push({
       key: `noshop:${provider}`,
       title: `${input.providerLabel(provider)} a descris produsul, dar n-a recomandat niciun magazin`,
-      evidence: `La „${r.run.query}” a răspuns despre produs fără să numească vreun magazin, nici pe tine, nici pe alții. Echo pune o singură întrebare; în aplicație, după un al doilea mesaj (de ex. „cumpărare”), ${input.providerLabel(provider)} poate arăta oferte.`,
-      action: "Aici nu pierzi în fața altui magazin. Ca să măsurăm și intenția de cumpărare, adaugă în Setări o căutare cu prețul, de ex. „" + (code ? `${code} preț` : "numele produsului + preț") + "”.",
+      evidence: `La „${r.run.query}” a răspuns despre produs fără să numească vreun magazin, nici pe tine, nici pe alții.`,
+      action: `Aici nu pierzi în fața altui magazin. Ca să măsurăm și intenția de cumpărare, adaugă în Setări o căutare cu prețul, de ex. „${buyQuery}”.`,
       links: [{ href: "/panou/setari", label: "Adaugă căutarea în Setări" }],
     });
   }
+  // Un AI care doar a cerut clarificare nu „ignoră” produsul: nu intră la „nu numește produsul”.
+  const onlyAsked = new Set([...byProvider.keys()].filter((pr) => runs.filter((r) => r.run.provider === pr).every((r) => r.clarified)));
   for (const [provider, s] of byProvider) {
-    if (s.named) continue;
+    if (s.named || onlyAsked.has(provider)) continue;
     const isGpt = provider === "chatgpt";
     out.push({
       key: `silent:${provider}`,

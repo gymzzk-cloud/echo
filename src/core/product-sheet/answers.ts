@@ -11,10 +11,14 @@ import type { ChannelReport } from "./channels";
 export type SheetRun = { id: string; provider: string; runDate: string; at: string; query: string; answer: string; mentions: Mention[]; sources: { url: string; title?: string }[] };
 export type RunView = {
   run: SheetRun; storeNamed: boolean; productPageCited: boolean; productNamed: boolean;
+  /** AI-ul n-a numit niciun magazin și a răspuns cu o întrebare („Vrei specificații sau prețuri?”): a cerut clarificare. */
+  clarified: boolean;
   others: { domain: string; name: string; position: number; marketplace: boolean }[]; comparators: string[];
 };
 export type CompetitorView = {
   runs: RunView[]; withStore: number; withoutStore: number;
+  /** Din `withoutStore`: răspunsuri care doar au cerut clarificare (nu e „nu te numește”, n-a numit pe nimeni). */
+  clarified: number;
   others: { domain: string; name: string; count: number; marketplace: boolean }[]; comparators: { domain: string; count: number }[];
 };
 
@@ -23,6 +27,18 @@ export const isComparator = (domain: string) => COMPARATOR.test(`.${domain}.`);
 const hostOf = (u: string) => { try { return new URL(u).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } };
 const pathOf = (u: string) => u.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
 
+/**
+ * Răspunsul e doar o întrebare de clarificare? Răspuns scurt care întreabă ceva
+ * (sub 600 de caractere) sau sub 1500 de caractere cu ultimul rând terminat în „?”. Un răspuns lung e un răspuns, nu o clarificare.
+ * Se folosește doar pe răspunsuri care n-au numit niciun magazin.
+ */
+export function asksClarification(answer: string) {
+  const text = answer.trim();
+  if (!text.includes("?")) return false;
+  const last = text.split("\n").map((l) => l.trim()).filter(Boolean).at(-1) ?? "";
+  return text.length < 600 || (text.length < 1500 && /\?[\s*_)»”"]*$/.test(last));
+}
+
 export function competitorView(runs: SheetRun[], opts: { ownDomain: string; ownDomains: string[]; productUrl: string; namedRunIds: Set<string> }): CompetitorView {
   // Magazinul acesta (și același brand pe alt domeniu) vs. celelalte magazine ale clientului: nici unele nu sunt concurenți.
   const self = (d: string) => isOwnBrand(d, opts.ownDomain);
@@ -30,7 +46,7 @@ export function competitorView(runs: SheetRun[], opts: { ownDomain: string; ownD
   const productPath = pathOf(opts.productUrl);
   const others = new Map<string, { domain: string; name: string; count: number; marketplace: boolean }>();
   const comps = new Map<string, number>();
-  let withStore = 0;
+  let withStore = 0, clarified = 0;
   const views = runs.map((run) => {
     const hosts = run.sources.map((s) => hostOf(s.url)).filter(Boolean);
     const storeNamed = run.mentions.some((m) => self(m.domain)) || hosts.some(self);
@@ -40,16 +56,18 @@ export function competitorView(runs: SheetRun[], opts: { ownDomain: string; ownD
       .sort((a, b) => a.position - b.position);
     const comparators = [...new Set([...hosts, ...run.mentions.map((m) => m.domain)].filter(isComparator))];
     if (storeNamed || productPageCited) withStore++;
+    const askedBack = !storeNamed && !productPageCited && !rivals.length && asksClarification(run.answer);
+    if (askedBack) clarified++;
     for (const r of rivals) {
       const e = others.get(r.domain) ?? { domain: r.domain, name: r.name, count: 0, marketplace: r.marketplace };
       e.count++;
       others.set(r.domain, e);
     }
     for (const c of comparators) comps.set(c, (comps.get(c) ?? 0) + 1);
-    return { run, storeNamed, productPageCited, productNamed: opts.namedRunIds.has(run.id), others: rivals, comparators };
+    return { run, storeNamed, productPageCited, productNamed: opts.namedRunIds.has(run.id), clarified: askedBack, others: rivals, comparators };
   });
   return {
-    runs: views, withStore, withoutStore: runs.length - withStore,
+    runs: views, withStore, withoutStore: runs.length - withStore, clarified,
     others: [...others.values()].sort((a, b) => b.count - a.count).slice(0, 10),
     comparators: [...comps.entries()].map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count),
   };

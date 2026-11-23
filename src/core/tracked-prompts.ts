@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { humanName, promptLimit, promptPool, suggestPrompts, type SuggestedPrompt } from "./prompts";
+import { buyerQuery, isPlainName, promptLimit, promptPool, suggestPrompts, type SuggestedPrompt } from "./prompts";
 import { enqueue } from "./jobs";
 
 type Existing = { id: string; text: string; active: boolean; suggested: boolean; retiredAt?: Date | null };
@@ -32,6 +32,19 @@ export function planPromptChanges(existing: Existing[], desired: SuggestedPrompt
   return { remove, add, revive };
 }
 
+/**
+ * Căutările pe produs alese de magazin, scrise încă doar cu numele produsului (forma veche), primesc intenție de
+ * cumpărare: „<nume> preț” (KNOWLEDGE B53). Doar cele active; cele oprite de magazin rămân cum sunt.
+ * Funcție pură: întoarce ce căutare devine ce text.
+ */
+export function planBuyerUpgrade(
+  manual: { id: string; text: string; active: boolean; retiredAt?: Date | null; product: { title: string; brand: string | null } | null }[],
+  language: "ro" | "hu",
+) {
+  return manual.filter((m) => m.active && !m.retiredAt && m.product && isPlainName(m.text, m.product))
+    .map((m) => ({ id: m.id, text: buyerQuery(m.product!, language) }));
+}
+
 /** Catalogul are doar produsele de test (din fixtures), nu pe cele reale ale magazinului. */
 async function onlyTestCatalog(projectId: string) {
   const conns = await db.select({ url: schema.connections.url }).from(schema.connections).where(eq(schema.connections.projectId, projectId));
@@ -51,6 +64,7 @@ export async function refreshPrompts(projectId: string) {
     .select({ id: schema.products.id, externalId: schema.products.externalId, title: schema.products.title, category: schema.products.category, brand: schema.products.brand, price: schema.products.price, gtin: schema.products.gtin, mpn: schema.products.mpn, rank: schema.products.popularityRank, focus: schema.products.focus })
     .from(schema.products).where(and(eq(schema.products.projectId, projectId), eq(schema.products.inStock, true)));
   const lang = p.language as "ro" | "hu";
+  await upgradeManualProductPrompts(projectId, lang);
   // Întrebările propuse se aleg întâi din „Produse focus” (ZoZo, 23.11.2026); catalogul întreg doar dacă setul e prea mic.
   const desired = suggestPrompts(promptPool(products), p.name, lang, limit);
   const existing = await db.select({ id: schema.prompts.id, text: schema.prompts.text, active: schema.prompts.active, suggested: schema.prompts.suggested, retiredAt: schema.prompts.retiredAt })
@@ -79,6 +93,31 @@ export async function refreshPrompts(projectId: string) {
 }
 
 /**
+ * Aplică `planBuyerUpgrade`: o căutare cu răspunsuri se retrage (istoricul rămâne legat de întrebarea pusă atunci)
+ * și se adaugă una nouă cu textul de cumpărare; una fără răspunsuri își schimbă doar textul. Idempotentă.
+ */
+async function upgradeManualProductPrompts(projectId: string, language: "ro" | "hu") {
+  const Q = schema.prompts;
+  const rows = await db.select({ id: Q.id, text: Q.text, active: Q.active, retiredAt: Q.retiredAt, productId: Q.productId, category: Q.category, title: schema.products.title, brand: schema.products.brand })
+    .from(Q).leftJoin(schema.products, eq(schema.products.id, Q.productId))
+    .where(and(eq(Q.projectId, projectId), eq(Q.suggested, false), eq(Q.intent, "produs"), eq(Q.active, true)));
+  const plan = planBuyerUpgrade(rows.map((r) => ({ ...r, product: r.title ? { title: r.title, brand: r.brand } : null })), language);
+  if (!plan.length) return;
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const answered = new Set((await db.selectDistinct({ id: schema.promptRuns.promptId }).from(schema.promptRuns).where(inArray(schema.promptRuns.promptId, plan.map((x) => x.id)))).map((r) => r.id));
+  for (const x of plan) {
+    if (answered.has(x.id)) {
+      const old = byId.get(x.id)!;
+      await db.update(Q).set({ active: false, retiredAt: new Date() }).where(and(eq(Q.projectId, projectId), eq(Q.id, x.id)));
+      await db.insert(Q).values({ projectId, text: x.text, category: old.category, intent: "produs", productId: old.productId, language, suggested: false });
+    } else {
+      await db.update(Q).set({ text: x.text }).where(and(eq(Q.projectId, projectId), eq(Q.id, x.id)));
+    }
+  }
+  console.log(`căutări pe produs cu intenție de cumpărare: ${plan.length} (${projectId})`);
+}
+
+/**
  * „Urmărește în AI” pe un produs: căutarea lui (marcă + model) devine aleasă de client, deci nu mai e
  * înlocuită automat. Dacă era deja propusă automat, o păstrăm (cu istoricul) și doar o marcăm ca aleasă.
  * „Nu mai urmări”: o dăm înapoi listei automate, care o păstrează sau o scoate după regulile obișnuite.
@@ -88,7 +127,7 @@ export async function setProductTracked(projectId: string, productId: string, on
     .from(schema.products).where(and(eq(schema.products.id, productId), eq(schema.products.projectId, projectId)));
   if (!prod) throw new Error("Produs inexistent.");
   const [p] = await db.select({ language: schema.projects.language }).from(schema.projects).where(eq(schema.projects.id, projectId));
-  const mine = await db.select({ id: schema.prompts.id, suggested: schema.prompts.suggested, intent: schema.prompts.intent })
+  const mine = await db.select({ id: schema.prompts.id, suggested: schema.prompts.suggested, intent: schema.prompts.intent, text: schema.prompts.text })
     .from(schema.prompts).where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.productId, productId)));
   if (!on) {
     const manual = mine.filter((x) => !x.suggested).map((x) => x.id);
@@ -98,9 +137,10 @@ export async function setProductTracked(projectId: string, productId: string, on
       .where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.suggested, false), eq(schema.prompts.active, true)));
     const limit = promptLimit(plan);
     if (manualActive.length >= limit) throw new Error(`Planul tău urmărește cel mult ${limit} căutări alese de tine. Scoate una ca să adaugi alta.`);
-    const byName = mine.find((x) => x.intent === "produs");
+    // Doar o căutare cu intenție de cumpărare se refolosește; numele singur nu măsoară recomandarea (B53).
+    const byName = mine.find((x) => x.intent === "produs" && !isPlainName(x.text, prod));
     if (byName) await db.update(schema.prompts).set({ suggested: false, active: true, retiredAt: null }).where(eq(schema.prompts.id, byName.id));
-    else await db.insert(schema.prompts).values({ projectId, text: humanName(prod), category: null, intent: "produs", productId, language: p?.language ?? "ro", suggested: false });
+    else await db.insert(schema.prompts).values({ projectId, text: buyerQuery(prod, (p?.language ?? "ro") as "ro" | "hu"), category: null, intent: "produs", productId, language: p?.language ?? "ro", suggested: false });
   }
   // Lista automată se reface în worker, nu în cererea din panou.
   await enqueue("prompts", { projectId });
