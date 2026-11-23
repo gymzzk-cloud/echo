@@ -28,15 +28,19 @@ const hostOf = (u: string) => { try { return new URL(u).hostname.toLowerCase().r
 const pathOf = (u: string) => u.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
 
 /**
- * Răspunsul e doar o întrebare de clarificare? Răspuns scurt care întreabă ceva
- * (sub 600 de caractere) sau sub 1500 de caractere cu ultimul rând terminat în „?”. Un răspuns lung e un răspuns, nu o clarificare.
+ * Răspunsul e doar o întrebare de clarificare? Un răspuns scurt (sub 1500 de caractere) care întreabă ceva înapoi:
+ * primul paragraf conține o întrebare („Vrei informații despre acest model…? Spune-mi ce anume te interesează”)
+ * sau ultimul rând se termină cu „?”. Sub 600 de caractere ajunge orice „?”. Un răspuns lung e un răspuns, nu o clarificare.
  * Se folosește doar pe răspunsuri care n-au numit niciun magazin.
  */
 export function asksClarification(answer: string) {
   const text = answer.trim();
   if (!text.includes("?")) return false;
+  if (text.length < 600) return true;
+  if (text.length >= 1500) return false;
+  const paras = text.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
   const last = text.split("\n").map((l) => l.trim()).filter(Boolean).at(-1) ?? "";
-  return text.length < 600 || (text.length < 1500 && /\?[\s*_)»”"]*$/.test(last));
+  return (paras[0] ?? "").includes("?") || /\?[\s*_)»”"]*$/.test(last);
 }
 
 export function competitorView(runs: SheetRun[], opts: { ownDomain: string; ownDomains: string[]; productUrl: string; namedRunIds: Set<string> }): CompetitorView {

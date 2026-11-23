@@ -99,6 +99,12 @@ describe("de ce nu ești recomandat", () => {
     expect(asksClarification("Pot să te ajut.\n\nCe buget ai? **")).toBe(true);
     expect(asksClarification("Makita GA5030R are 720 W.")).toBe(false);
     expect(asksClarification(`${"Text lung. ".repeat(200)}\nVrei și alte modele?`)).toBe(false);
+    // Răspunsul real ChatGPT (API) din 23.11.2026, 20:48, la „Makita GA5030R Polizor unghiular 720 W”: întreabă întâi, apoi un rezumat.
+    const gpt = "Vrei informații despre acest model (specificații tehnice), prețuri și unde îl găsești în România, manual de utilizare, accesorii compatibile sau o comparație cu alte polizoare? Spune-mi ce anume te interesează și îți pregătesc detaliile.\n\nPentru a începe, iată un rezumat scurt (dacă vrei, îl confirm cu surse):\n- Model: Makita GA5030R\n- Putere: 720 W\n- Disc: 125 mm\n- Turație: 11.000 rpm\n- Greutate: aprox. 1,8 kg\n- Destinație: compact, ușor de manevrat (model pentru uz casnic/ocazional)\n- Caracteristici comune: protecţie contra pornirii accidentale, carcasă compactă, posibil mâner lateral pe două poziții.\n\nDacă vrei să caut oferte curente, manual în română, fișa tehnică completă sau recenzii, îmi spui și caut imediat.";
+    expect(gpt.length).toBeGreaterThan(600);
+    expect(asksClarification(gpt)).toBe(true);
+    // O descriere de 1200 de caractere care doar se încheie politicos nu e clarificare.
+    expect(asksClarification(`Polizorul are 720 W.\n\n${"Specificații. ".repeat(80)}\n\nDacă doriți, pot căuta alternative.`)).toBe(false);
   });
 
   it("un răspuns care numește alt magazin nu e clarificare, chiar dacă se termină cu o întrebare", () => {
