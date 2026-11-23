@@ -378,6 +378,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: pentru produsele cu preț spus de AI citim pagina produsului (schema.org, o cerere pe produs, cel mult o dată pe zi, maxim 40 după fiecare calcul) și comparăm cu prețul de pe site; afișăm „pe site X, în catalog Y, citit la HH:MM”. Până o citim, comparăm cu catalogul (actualizat la fiecare preluare, apoi recalculăm) și spunem asta.
 - De ce: ZoZo: „în catalog apare mai scump, în catalog nu actualizăm prețurile”, „altfel oricând pot fi diferențe de preț”.
 
+**B36. Codul intern al magazinului ca prim cod al produsului în panou** *(23.11.2026, 17:54)*
+- Nu: „Cod 1221852” (id-ul intern din catalog) în fața fiecărui produs, ca și cum ar fi codul după care îl caută cineva.
+- În schimb: codul producătorului și EAN-ul (`productCodes()` din `src/lib/product-codes.ts`); codul intern apare doar când produsul nu are niciunul, marcat „Cod intern”. Căutarea după codul intern merge în continuare.
+- De ce: ZoZo: „codurile interne de unde sunt? nu ne ajută, cod producător și EAN să apară în panou”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

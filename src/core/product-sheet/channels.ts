@@ -60,11 +60,13 @@ function idCheck(field: string, gtinSent: string, gtinRaw: string | null, mpn: s
 /** Ce primește ChatGPT pentru produs: rândul exact din feed-ul OpenAI, cu scor și reparații. */
 export function openAiReport(p: FeedProduct, r: { row: OpenAiRow } | { skip: string } | null): ChannelReport {
   if (!r) return { included: false, reason: "O regulă de feed exclude produsul din canalul ChatGPT.", score: 0, checks: [] };
-  if ("skip" in r) return { included: false, reason: `Produsul nu intră în feed-ul ChatGPT: ${r.skip}. OpenAI cere titlu, link, imagine și preț.`, score: 0, checks: [] };
+  if ("skip" in r) return { included: false, reason: r.skip === "fără imagine"
+    ? "Produsul nu intră în feed-ul ChatGPT pentru că nu are imagine: catalogul magazinului trimite câmpul de imagine gol. OpenAI cere titlu, link, imagine și preț. Adaugă imaginea în platforma magazinului; Echo o preia la următoarea sincronizare și produsul intră singur în feed."
+    : `Produsul nu intră în feed-ul ChatGPT: ${r.skip}. OpenAI cere titlu, link, imagine și preț.`, score: 0, checks: [] };
   const row = r.row;
   const policies = [row.return_policy, row.seller_privacy_policy, row.seller_tos].filter(Boolean).length;
   const checks: FieldCheck[] = [
-    info("id", "Cod (id)", row.id),
+    info("id", "Cod intern (id)", row.id),
     titleCheck("title", row.title, row.brand),
     descriptionCheck("description", row.description, row.title),
     info("link", "Link", row.link),
@@ -90,11 +92,11 @@ export function googleFeedReport(p: FeedProduct, item: [string, string][] | null
   const get = (k: string) => f.get(k) ?? "";
   if (!get("g:price").trim() || !(p.price && p.price > 0)) return { included: false, reason: "Produsul nu are preț: Google respinge produsele fără preț.", score: 0, checks: [] };
   const checks: FieldCheck[] = [
-    info("g:id", "Cod (id)", get("g:id")),
+    info("g:id", "Cod intern (id)", get("g:id")),
     titleCheck("title", get("title"), cleanBrand(p.brand)),
     descriptionCheck("description", get("description"), get("title")),
     info("link", "Link", get("link")),
-    check("g:image_link", "Imagine", get("g:image_link") || "(lipsește)", get("g:image_link") ? 10 : 0, 10, "Produsul nu are imagine: Google respinge produsele fără imagine."),
+    check("g:image_link", "Imagine", get("g:image_link") || "(lipsește)", get("g:image_link") ? 10 : 0, 10, "Catalogul magazinului nu trimite nicio imagine pentru acest produs (câmpul de imagine e gol). Google respinge produsele fără imagine: adaug-o în platforma magazinului, iar Echo o preia la următoarea sincronizare."),
     info("g:price", "Preț", get("g:price")),
     check("g:availability", "Stoc", get("g:availability"), get("g:availability") === "in_stock" ? 10 : 0, 10, "Produsul e trimis fără stoc: Google Shopping și Gemini nu îl arată ca ofertă disponibilă."),
     brandCheck("g:brand", get("g:brand"), p.brand),
