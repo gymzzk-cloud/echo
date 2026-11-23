@@ -174,7 +174,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
       {alerts.length > 0 && (
         <Card title="Alerte noi" description={<CardHelp id="home.alerts" />} action={<form action={markAlertsRead}><input type="hidden" name="projectId" value={project.id} /><SubmitButton variant="ghost" size="sm" pendingText="Marchez…">Marchează citite</SubmitButton></form>}>
           <ul className="text-sm">
-            {alerts.map((a) => <ListRow key={a.id} end={<span className="text-xs text-muted">{dateShort(a.createdAt)}</span>}>{a.message}</ListRow>)}
+            {alerts.map((a) => {
+              // Alerta de preț duce la dovadă: rândul exact din răspunsul AI, pe fișa produsului.
+              const productId = a.kind.startsWith("price:") ? a.kind.split(":")[1] : null;
+              return <ListRow key={a.id} end={<span className="text-xs text-muted">{dateShort(a.createdAt)}</span>}>{a.message}{productId && <> <TextLink href={`/panou/produse-ai/${productId}#dovezi`}>Vezi dovada</TextLink></>}</ListRow>;
+            })}
           </ul>
         </Card>
       )}

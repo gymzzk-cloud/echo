@@ -18,11 +18,12 @@ import { ERROR_MODEL, invalidateWorld, isDemo, loadWorld, projectUsageThisMonth,
 import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
 import { isStoreLike } from "./ai/domains";
+import { canAct, SOURCE_ADVICE, sourceKind, type SourceCtx } from "./source-kind";
+import { catalogBrands, orgDomains } from "./store-context";
 import { refreshPrompts } from "./tracked-prompts";
 import { TRIAL_PROVIDERS } from "./onboarding/types";
 
 type Project = typeof schema.projects.$inferSelect;
-const MARKETPLACES = new Set(["emag.ro", "emag.hu", "altex.ro", "flanco.ro", "arukereso.hu", "compari.ro"]);
 export { projectRuns };
 
 export const projectBase = (p: Project) => `https://${p.domain}${p.pathPrefix}`;
@@ -269,16 +270,9 @@ export async function computeStats(projectId: string) {
       else if (x.visibility - old.visibility <= -20) await alert(projectId, "drop", "warn", `Vizibilitatea la ${providerLabel(x.provider)} a scăzut de la ${old.visibility}% la ${x.visibility}%.`);
     }
   }
-  // Preț greșit spus de AI
-  const prods = await db.select().from(schema.products).where(eq(schema.products.projectId, projectId)).limit(20000);
-  for (const { run } of rows) for (const m of run.mentions as Mention[]) {
-    if (m.domain !== p.domain || !m.statedPrice || !m.productTitle) continue;
-    const prod = prods.find((x) => x.title === m.productTitle);
-    const real = prod?.price ? parseFloat(prod.price) : null;
-    if (real && Math.abs(real - m.statedPrice) / real > 0.05) {
-      await alert(projectId, `price:${prod!.id}:${run.provider}`, "warn", `${providerLabel(run.provider)} spune ${m.statedPrice} lei pentru „${prod!.title}”, dar prețul real e ${real} lei.`, true);
-    }
-  }
+  // Preț greșit spus de AI: din calculul salvat pe produs (aceeași sursă și aceeași dovadă ca pagina „Produse în AI”),
+  // nu din titlurile din mențiuni (KNOWLEDGE B26). Doar prețurile spuse în rulările de azi; alerta duce la dovadă.
+  await priceAlerts(projectId, new Set(rows.map((r) => r.run.id)));
 }
 
 async function alert(projectId: string, kind: string, severity: string, message: string, dedupeToday = false) {
@@ -290,6 +284,31 @@ async function alert(projectId: string, kind: string, severity: string, message:
   await db.insert(schema.alerts).values({ projectId, kind, severity, message });
   await emitEvent(projectId, "alert.created", { kind, severity, message });
 }
+
+/** Cheia unei alerte de preț: „price:<productId>:<provider>”; pagina Acasă face din ea linkul spre dovadă. */
+export const priceAlertKind = (productId: string, provider: string) => `price:${productId}:${provider}`;
+
+async function priceAlerts(projectId: string, todayRunIds: Set<string>) {
+  const S = schema.productAiStats, P = schema.products;
+  const stats = await db.select({ productId: S.productId, wrongPrices: S.wrongPrices, title: P.title, price: P.price })
+    .from(S).innerJoin(P, eq(P.id, S.productId))
+    .where(and(eq(S.projectId, projectId), dsql`jsonb_array_length(${S.wrongPrices}) > 0`)).limit(200);
+  const current = new Set<string>();
+  for (const s of stats) for (const w of s.wrongPrices) {
+    const kind = priceAlertKind(s.productId, w.provider);
+    current.add(kind);
+    if (!w.runId || !todayRunIds.has(w.runId) || !s.price) continue;
+    const real = parseFloat(s.price);
+    await alert(projectId, kind, "warn", `${providerLabel(w.provider)} spune ${fmtLei(w.price)} pentru „${s.title}”, dar prețul din catalog e ${fmtLei(real)}.`, true);
+  }
+  // Alertele de preț necitite care nu mai sunt susținute de calcul (ex. din potrivirea veche după cuvinte) dispar.
+  const open = await db.select({ id: schema.alerts.id, kind: schema.alerts.kind }).from(schema.alerts)
+    .where(and(eq(schema.alerts.projectId, projectId), eq(schema.alerts.read, false), dsql`${schema.alerts.kind} like 'price:%'`));
+  const gone = open.filter((x) => !current.has(x.kind)).map((x) => x.id);
+  if (gone.length) await db.delete(schema.alerts).where(inArray(schema.alerts.id, gone));
+}
+
+const fmtLei = (n: number) => `${n.toLocaleString("ro-RO", { maximumFractionDigits: 2 })} lei`;
 
 // ── Acțiuni recomandate ────────────────────────────────────────────────────
 const IMPACT: Record<string, "mare" | "mediu" | "mic"> = { robots: "mare", firewall: "mare", "jsonld-product": "mare", "content-product": "mediu", "jsonld-org": "mediu", trust: "mediu", llms: "mic", sitemap: "mediu", "sitemap-robots": "mic", meta: "mic", speed: "mediu" };
@@ -321,44 +340,64 @@ export async function generateActions(projectId: string) {
   if (audit?.result) {
     const checks = (audit.result as AuditResult).checks;
     for (const c of checks) {
-      if (c.status === "pass" || c.status === "info") continue;
+      // „Nu am putut verifica” nu devine niciodată o acțiune „lipsește X”.
+      if (c.status === "pass" || c.status === "info" || c.status === "unknown") continue;
       await upsertAction(projectId, { key: `audit:${c.id}`, title: PROBLEM_TITLES[c.id] ?? c.title, why: c.detail, fixKind: c.fixKind, impact: IMPACT[c.id] ?? "mediu", effort: EFFORT[c.id] ?? "mediu" }, baseline);
     }
     // O recomandare din audit a cărei verificare trece acum nu mai rămâne deschisă (ex. sitemap găsit după corectarea detectorului).
     const passing = staleAuditKeys(checks);
+    // O recomandare nouă (neîncepută) a cărei verificare nu a putut fi făcută acum dispare: nu afirmăm ce nu știm sigur.
+    const unsure = checks.filter((c) => c.status === "unknown").map((c) => `audit:${c.id}`);
+    if (unsure.length) await db.delete(schema.actions).where(and(eq(schema.actions.projectId, projectId), inArray(schema.actions.key, unsure), eq(schema.actions.status, "noua")));
     if (passing.length) {
       await db.delete(schema.actions).where(and(eq(schema.actions.projectId, projectId), inArray(schema.actions.key, passing), eq(schema.actions.status, "noua")));
       await db.update(schema.actions).set({ status: "rezolvata", resolvedAt: new Date() })
         .where(and(eq(schema.actions.projectId, projectId), inArray(schema.actions.key, passing), eq(schema.actions.status, "in_lucru")));
     }
   }
-  // Surse unde apar concurenții, dar nu tu
+  // Surse unde apar concurenții, dar tu nu: doar locuri unde magazinul chiar poate apărea (comparatoare, recenzii,
+  // directoare, presă, forumuri, marketplace-uri). Nu alte magazine, site-uri de producător sau propriile magazine.
   const rows = await projectRuns(projectId, daysAgo(14));
   const comps = (await db.select().from(schema.competitors).where(eq(schema.competitors.projectId, projectId))).map((c) => c.domain);
+  const [own, brands] = await Promise.all([orgDomains(p.orgId), catalogBrands(projectId)]);
+  const srcCtx: SourceCtx = { ownDomains: [p.domain, ...own], competitorDomains: comps, brands };
   const gap = new Map<string, number>();
   for (const { run } of rows) {
     const ms = run.mentions as Mention[];
     const meIn = ms.some((m) => m.domain === p.domain);
     const compIn = ms.some((m) => comps.includes(m.domain));
     if (meIn || !compIn) continue;
+    const seen = new Set<string>();
     for (const s of run.sources as { url: string }[]) {
       const d = domainOf(s.url);
-      if (!d || d === p.domain || comps.includes(d)) continue;
+      if (!d || seen.has(d) || !canAct(sourceKind(d, srcCtx))) continue;
+      seen.add(d);
       gap.set(d, (gap.get(d) ?? 0) + 1);
     }
   }
-  for (const [d, n] of [...gap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+  const picked = [...gap.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  // Recomandările vechi spre surse care nu mai trec regula (alt magazin, producător, propriul site) se șterg, dacă nu au fost începute.
+  const oldSources = await db.select({ key: schema.actions.key }).from(schema.actions)
+    .where(and(eq(schema.actions.projectId, projectId), eq(schema.actions.status, "noua"), dsql`${schema.actions.key} like 'source:%'`));
+  const keep = new Set(picked.map(([d]) => `source:${d}`));
+  const drop = oldSources.map((x) => x.key).filter((k) => !keep.has(k));
+  if (drop.length) await db.delete(schema.actions).where(and(eq(schema.actions.projectId, projectId), inArray(schema.actions.key, drop), eq(schema.actions.status, "noua")));
+  for (const [d, n] of picked) {
+    const kind = sourceKind(d, srcCtx);
     await upsertAction(projectId, {
-      key: `source:${d}`, title: `Fă-te prezent pe ${d}`,
-      why: `AI-urile au citat ${d} de ${n} ori în răspunsuri unde au apărut concurenții tăi, dar tu nu.`,
-      howTo: MARKETPLACES.has(d) ? `Listează produsele principale pe ${d}, cu titluri și specificații complete.` : `Contactează ${d} pentru o recenzie, un articol sau o listare. Oferă un produs de test sau un cod de reducere pentru cititori.`,
+      key: `source:${d}`, title: kind === "marketplace" ? `Listează produsele pe ${d}` : `Fă-te prezent pe ${d}`,
+      why: `AI-urile au citat ${d} (${kind}) în ${n} răspunsuri din ultimele 14 zile unde au apărut concurenții tăi, dar tu nu. Le vezi în Vizibilitate → Răspunsuri (dovezi).`,
+      howTo: SOURCE_ADVICE[kind],
       fixKind: "source", impact: n >= 5 ? "mare" : "mediu", effort: "mediu",
     }, baseline);
   }
-  // Produse care nu apar niciodată, deși sunt în categoriile întrebate
-  const mentionedTitles = new Set(rows.flatMap(({ run }) => (run.mentions as Mention[]).filter((m) => m.domain === p.domain && m.productTitle).map((m) => m.productTitle!)));
-  const totalProducts = await db.select({ n: dsql<number>`count(*)::int` }).from(schema.products).where(eq(schema.products.projectId, projectId));
-  if ((totalProducts[0]?.n ?? 0) > 0 && mentionedTitles.size === 0 && rows.length > 0) {
+  // Niciun produs numit: din calculul salvat pe produs (aceeași sursă ca pagina Produse), nu din titlurile vechi din mențiuni.
+  const [named] = await db.select({ n: dsql<number>`count(*)::int` }).from(schema.productAiStats)
+    .where(and(eq(schema.productAiStats.projectId, projectId), dsql`${schema.productAiStats.appearances} > 0`));
+  const [totalProducts] = await db.select({ n: dsql<number>`count(*)::int` }).from(schema.products).where(eq(schema.products.projectId, projectId));
+  if ((named?.n ?? 0) > 0) {
+    await db.delete(schema.actions).where(and(eq(schema.actions.projectId, projectId), eq(schema.actions.key, "products:none"), eq(schema.actions.status, "noua")));
+  } else if ((totalProducts?.n ?? 0) > 0 && rows.length > 0) {
     await upsertAction(projectId, {
       key: "products:none", title: "Niciun produs nu e recomandat pe nume",
       why: "AI-urile pot menționa magazinul, dar nu recomandă produse anume. Descrierile și datele structurate complete schimbă asta.",

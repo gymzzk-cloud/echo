@@ -1,4 +1,6 @@
-import { and, desc, eq, gte, sql as dsql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, sql as dsql, type SQL } from "drizzle-orm";
+import { canAct, isBrandSite, sourceKind, type SourceCtx } from "./source-kind";
+import { catalogBrands as catalogBrandsFn } from "./store-context";
 import { db, schema } from "@/db";
 import type { Mention } from "@/db/schema";
 import { daysAgo, domainOf } from "@/lib/util";
@@ -7,7 +9,6 @@ import { ERROR_MODEL, PROVIDERS } from "./ai/types";
 import { failureReason } from "./ai/errors";
 import { isStoreLike } from "./ai/domains";
 import { cleanAnswer } from "./ai/extract";
-import { savedProductStats } from "./product-ai-read";
 
 type Project = typeof schema.projects.$inferSelect;
 export type Rows = Awaited<ReturnType<typeof projectRuns>>;
@@ -66,29 +67,54 @@ export function perPrompt(rows: Rows, domain: string, failed: Rows = []) {
   return [...map.entries()].map(([id, v]) => ({ id, ...v }));
 }
 
-/** Produse: de câte ori e recomandat fiecare, de ce AI-uri, ce prețuri spun. */
-export async function productInsights(project: Project, rows: Rows) {
-  // Doar coloanele afișate: fără textul descrierilor (mult) pentru mii de produse.
-  const P = schema.products;
-  const prods = await db.select({
+export type ProductFilter = "" | "recomandate" | "pret" | "stoc" | "urmarite" | "populare" | "incomplete";
+
+/**
+ * Produse: de câte ori e recomandat fiecare, de ce AI-uri, ce prețuri spun.
+ * Totul în SQL, pe tot catalogul (nu doar pe primele 20.000 de rânduri): numărătorile cu count, lista cu filtru și limită 100.
+ * „Preț greșit” = aceeași definiție ca în Vizibilitate (price_wrong din calculul salvat), ca cifrele să se lege între pagini.
+ */
+export async function productInsights(project: Project, rows: Rows, opts: { f?: string; q?: string; tracked?: string[] } = {}) {
+  const P = schema.products, S = schema.productAiStats;
+  const incomplete = dsql`(coalesce(${P.gtin}, '') = '' or coalesce(${P.brand}, '') = '' or coalesce(${P.description}, '') = '' or coalesce(${P.imageUrl}, '') = '')`;
+  const [counts] = await db.select({
+    total: dsql<number>`count(*)::int`,
+    recommended: dsql<number>`count(*) filter (where ${S.appearances} > 0)::int`,
+    wrongPrice: dsql<number>`count(*) filter (where ${S.priceWrong})::int`,
+    incomplete: dsql<number>`count(*) filter (where ${incomplete})::int`,
+  }).from(P).leftJoin(S, eq(S.productId, P.id)).where(eq(P.projectId, project.id));
+  const f = opts.f as ProductFilter | undefined;
+  const conds: SQL[] = [eq(P.projectId, project.id)];
+  if (f === "recomandate") conds.push(dsql`${S.appearances} > 0`);
+  if (f === "pret") conds.push(dsql`${S.priceWrong}`);
+  if (f === "stoc") conds.push(dsql`not ${P.inStock}`);
+  if (f === "urmarite") conds.push(opts.tracked?.length ? inArray(P.id, opts.tracked) : dsql`false`);
+  if (f === "populare") conds.push(dsql`${P.popularityRank} is not null`);
+  if (f === "incomplete") conds.push(incomplete);
+  if (opts.q) conds.push(ilike(P.title, `%${opts.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`));
+  const list = await db.select({
     id: P.id, title: P.title, url: P.url, popularityRank: P.popularityRank, brand: P.brand, category: P.category, price: P.price, currency: P.currency, inStock: P.inStock, gtin: P.gtin,
     hasDescription: dsql<boolean>`coalesce(${P.description}, '') <> ''`, hasImage: dsql<boolean>`coalesce(${P.imageUrl}, '') <> ''`,
-  }).from(P).where(eq(P.projectId, project.id)).limit(20000);
-  // Cifrele pe produs vin din calculul salvat de worker (aceleași ca în „Produse în AI”); aici doar destinațiile.
-  const saved = new Map((await savedProductStats(project.id)).map((s) => [s.productId, s]));
+    mentions: dsql<number>`coalesce(${S.appearances}, 0)::int`, providersMap: S.providers, avgPositionRaw: S.avgPosition, wrongPricesRaw: S.wrongPrices,
+  }).from(P).leftJoin(S, eq(S.productId, P.id)).where(and(...conds))
+    .orderBy(f === "populare" ? asc(P.popularityRank) : dsql`coalesce(${S.appearances}, 0) desc, ${P.inStock} desc, ${P.popularityRank} asc nulls last`).limit(100);
+  // „Unde trimit AI-urile cumpărătorii” = magazine: fără site-uri de producător (bosch-professional.com) sau care nu vând.
+  const brands = await catalogBrandsFn(project.id);
   const where = new Map<string, number>();
-  for (const { run } of rows) for (const m of run.mentions as Mention[]) where.set(m.domain, (where.get(m.domain) ?? 0) + 1);
-  const list = prods.map((p) => {
-    const s = saved.get(p.id);
-    return { ...p, mentions: s?.appearances ?? 0, providers: s ? Object.keys(s.providers) : [], avgPosition: s ? parseFloat(s.avgPosition) : null, wrongPrices: s?.wrongPrices ?? [] };
-  });
-  list.sort((a, b) => b.mentions - a.mentions || (b.inStock ? 1 : 0) - (a.inStock ? 1 : 0));
-  const topDest = [...where.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-  return { list, recommended: list.filter((p) => p.mentions > 0).length, wrongPriceCount: list.filter((p) => p.wrongPrices.length).length, topDestinations: topDest };
+  for (const { run } of rows) for (const m of run.mentions as Mention[]) {
+    if (!isStoreLike(m.domain) || (m.domain !== project.domain && isBrandSite(m.domain, brands))) continue;
+    where.set(m.domain, (where.get(m.domain) ?? 0) + 1);
+  }
+  return {
+    list: list.map(({ providersMap, avgPositionRaw, wrongPricesRaw, ...p }) => ({ ...p, providers: providersMap ? Object.keys(providersMap) : [], avgPosition: avgPositionRaw ? parseFloat(avgPositionRaw) : null, wrongPrices: wrongPricesRaw ?? [] })),
+    total: counts?.total ?? 0, recommended: counts?.recommended ?? 0, wrongPriceCount: counts?.wrongPrice ?? 0, incompleteCount: counts?.incomplete ?? 0,
+    topDestinations: [...where.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
+  };
 }
 
 /** Surse: ce site-uri citesc AI-urile și unde apar concurenții, dar tu nu. */
-export function sourceInsights(rows: Rows, domain: string, competitorDomains: string[]) {
+export function sourceInsights(rows: Rows, domain: string, competitorDomains: string[], extra: { ownDomains?: string[]; brands?: string[] } = {}) {
+  const ctx: SourceCtx = { ownDomains: [domain, ...(extra.ownDomains ?? [])], competitorDomains, brands: extra.brands ?? [] };
   const all = new Map<string, { n: number; withMe: number; withComp: number; providers: Set<string> }>();
   for (const { run } of rows) {
     const ms = run.mentions as Mention[];
@@ -104,10 +130,10 @@ export function sourceInsights(rows: Rows, domain: string, competitorDomains: st
       all.set(d, e);
     }
   }
-  const kind = (d: string) => d === domain ? "site propriu" : competitorDomains.includes(d) ? "concurent" : /forum|reddit|softpedia/.test(d) ? "forum" : /youtube|tiktok/.test(d) ? "video" : /compari|pricy|arukereso|price/.test(d) ? "comparator" : /emag|altex|flanco|dedeman|leroy|hornbach/.test(d) ? "marketplace / retailer" : "editorial / blog";
-  const list = [...all.entries()].map(([d, e]) => ({ domain: d, kind: kind(d), citations: e.n, withMe: e.withMe, gap: e.withComp - e.withMe, providers: [...e.providers] }))
+  const list = [...all.entries()].map(([d, e]) => ({ domain: d, kind: sourceKind(d, ctx), citations: e.n, withMe: e.withMe, gap: e.withComp - e.withMe, providers: [...e.providers] }))
     .sort((a, b) => b.citations - a.citations);
-  return { list, gaps: list.filter((s) => s.gap > 0 && s.kind !== "concurent" && s.kind !== "site propriu").sort((a, b) => b.gap - a.gap) };
+  // Oportunități doar unde magazinul poate face ceva (nu alte magazine, producători sau propriul site).
+  return { list, gaps: list.filter((s) => s.gap > 0 && canAct(s.kind)).sort((a, b) => b.gap - a.gap) };
 }
 
 export async function overview(project: Project) {
@@ -191,9 +217,4 @@ export function brandMentions(rows: Rows, brands: string[], top = 8) {
     .sort((a, b) => b.visibility - a.visibility || a.avgPosition - b.avgPosition).slice(0, top);
 }
 
-/** Mărcile cu cele mai multe produse în stoc din catalog (o interogare SQL, nu tot catalogul în memorie). */
-export async function catalogBrands(projectId: string, limit = 30) {
-  const r = await db.execute(dsql`select brand from products where project_id = ${projectId} and in_stock and coalesce(brand, '') <> ''
-    group by brand order by count(*) desc limit ${limit}`);
-  return (r as unknown as { brand: string }[]).map((x) => x.brand).filter((b) => b.trim().length >= 2);
-}
+export { catalogBrands } from "./store-context";

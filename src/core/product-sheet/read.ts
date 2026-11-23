@@ -91,11 +91,7 @@ export async function productSheet(projectId: string, productId: string) {
   };
 }
 
-/** Domeniile tuturor magazinelor clientului (nu sunt concurenți unul altuia). */
-export async function orgDomains(orgId: string) {
-  const rows = await db.select({ domain: schema.projects.domain }).from(schema.projects).where(eq(schema.projects.orgId, orgId));
-  return rows.map((r) => r.domain);
-}
+export { orgDomains } from "../store-context";
 
 /**
  * Răspunsurile AI din ultimele 30 de zile despre acest produs: la întrebările urmărite pe el sau în care l-am găsit.

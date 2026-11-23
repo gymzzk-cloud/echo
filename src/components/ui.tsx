@@ -232,4 +232,4 @@ export function Logo({ name, dark }: { name: string; dark?: boolean }) {
 
 export const impactTone = (i: string): Tone => (i === "mare" ? "bad" : i === "mediu" ? "warn" : "muted");
 export const statusTone = (s: string): Tone => (s === "pass" ? "good" : s === "warn" ? "warn" : s === "fail" ? "bad" : "muted");
-export const statusLabel = (s: string) => ({ pass: "OK", warn: "Atenție", fail: "Problemă", info: "Info" }[s] ?? s);
+export const statusLabel = (s: string) => ({ pass: "OK", warn: "Atenție", fail: "Problemă", info: "Info", unknown: "Nu am putut verifica" }[s] ?? s);

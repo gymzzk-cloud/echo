@@ -1,0 +1,78 @@
+import { brandLabel } from "./ai/extract";
+import { isStoreLike } from "./ai/domains";
+import { MARKETPLACES } from "./rivals";
+
+/**
+ * Ce fel de site e o sursă citată de AI și ce poate face magazinul acolo.
+ * Regula (KNOWLEDGE A0, A20, B18, B19, B32): recomandăm doar locuri unde magazinul chiar poate apărea
+ * (comparatoare, recenzii, directoare, presă, forumuri, video, marketplace-uri). Nu îi spunem să „contacteze”
+ * un alt magazin, site-ul unui producător sau propriul magazin. Un site pe care nu-l recunoaștem sigur
+ * se arată ca „magazin sau alt site”, nu ca „editorial / blog”.
+ */
+export type SourceKind =
+  | "site propriu" | "concurent" | "magazin sau alt site" | "marketplace" | "producător"
+  | "comparator" | "recenzii" | "director de firme" | "forum" | "video" | "presă / blog";
+
+export type SourceCtx = {
+  /** Domeniul magazinului și ale celorlalte magazine ale aceluiași client. */
+  ownDomains: string[];
+  competitorDomains: string[];
+  /** Mărcile din catalog (Bosch, Makita …): bosch-professional.com e site de producător, nu loc de listare. */
+  brands: string[];
+};
+
+const has = (d: string, re: RegExp) => re.test(`.${d}.`);
+const COMPARATOR = /[.-](compari|pricy|price|shopmania|pricespy|pricerunner|idealo|geizhals|arukereso|e-catalog|kelkoo|skinflint|ceneo|heureka)[.-]/;
+const REVIEWS = /[.-](trustpilot|capterra|reviews|recenzii|parerimagazin|pareri|trusted|feefo|reviewcentre|sitejabber)[.-]/;
+const DIRECTORY = /[.-](cylex|firmadeaur|citymaps|listafirme|termene|risco|infocui|paginiaurii|firme|romanian-companies|companiesromania|opencorporates|totalfirme)[.-]/;
+const FORUM = /[.-](forum|reddit|softpedia|quora|dealabs|hotukdeals)[.-]/;
+const VIDEO = /[.-](youtube|youtu|tiktok|vimeo)[.-]/;
+const MEDIA = /[.-](wiki|wikipedia|medium|blog|news|stiri|digi24|hotnews|ziare|adevarul|libertatea|protv|mediafax|g4media|playtech|zf|wall-street|economica|go4it|start-up|coupert|cupoane)[.-]/;
+const MARKET_EXTRA = /[.-](ebay|amazon|okazii|olx|vatera|jofogas|allegro|aliexpress)[.-]/;
+
+const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+
+export function isOwnDomain(domain: string, ownDomains: string[]) {
+  return ownDomains.some((o) => domain === o || brandLabel(domain) === brandLabel(o));
+}
+
+/** bosch-professional.com, makitatools.com, makita.ca: eticheta domeniului începe cu o marcă din catalog. */
+export function isBrandSite(domain: string, brands: string[]) {
+  const label = brandLabel(domain);
+  return brands.map(norm).some((b) => b.length >= 4 && label.startsWith(b));
+}
+
+export function sourceKind(domain: string, ctx: SourceCtx): SourceKind {
+  if (isOwnDomain(domain, ctx.ownDomains)) return "site propriu";
+  if (ctx.competitorDomains.includes(domain)) return "concurent";
+  if (MARKETPLACES.has(domain) || has(domain, MARKET_EXTRA)) return "marketplace";
+  if (has(domain, COMPARATOR)) return "comparator";
+  if (has(domain, REVIEWS)) return "recenzii";
+  if (has(domain, DIRECTORY)) return "director de firme";
+  if (has(domain, FORUM)) return "forum";
+  if (has(domain, VIDEO)) return "video";
+  if (isBrandSite(domain, ctx.brands)) return "producător";
+  if (has(domain, MEDIA) || !isStoreLike(domain)) return "presă / blog";
+  return "magazin sau alt site";
+}
+
+/** Ce poate face magazinul la o sursă. null = nimic de recomandat (alt magazin, producător, propriul site). */
+export const SOURCE_ADVICE: Partial<Record<SourceKind, string>> = {
+  comparator: "Listează-ți produsele pe acest comparator, cu prețuri și stoc corecte.",
+  recenzii: "Cere clienților recenzii aici (după livrare) și răspunde la cele existente.",
+  "director de firme": "Verifică și completează fișa firmei: nume, adresă, telefon, site.",
+  forum: "Răspunde util la discuțiile despre categoria ta (fără reclamă agresivă).",
+  video: "Un video scurt de prezentare sau comparație, cu link spre produs.",
+  marketplace: "Dacă vinzi și aici, completează fișele de produs; recenziile contează.",
+  "presă / blog": "Propune un articol, un test de produs sau intră în topurile lor („cele mai bune …”).",
+};
+
+export const canAct = (k: SourceKind) => !!SOURCE_ADVICE[k];
+
+/**
+ * Domeniile din mențiuni care nu sunt concurenți: magazinele aceluiași client, site-urile producătorilor
+ * (Bosch Professional nu e un magazin care „apare în locul tău”) și site-urile care nu vând (platform.openai.com).
+ */
+export function notRivals(domains: Iterable<string>, ctx: Pick<SourceCtx, "ownDomains" | "brands">): string[] {
+  return [...new Set(domains)].filter((d) => isOwnDomain(d, ctx.ownDomains) || isBrandSite(d, ctx.brands) || !isStoreLike(d));
+}

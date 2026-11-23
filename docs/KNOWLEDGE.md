@@ -25,6 +25,17 @@
 
 ## A. Ce trebuie / ce urmărim
 
+### A0. Doar date reale, verificate (regula de bază)
+
+0. **Echo lucrează doar din realitate: ce e efectiv în feed-urile trimise AI-urilor, ce apare efectiv în răspunsurile AI și ce e pe site-ul live.** *(ZoZo, 23.11.2026: „este important ca echo să cumpere realitatea, ce este în feeduri ai, ce apare din răspunsurile ai, și fără să greșim… doar din date reale putem lucra”; „așa tot ce facem e inutil dacă nu oferim informații corecte”)*
+   De ce: o singură afirmație falsă face clientul să nu mai creadă nimic din panou.
+   Cum:
+   - Nicio afirmație din presupuneri. Fiecare cifră, problemă sau recomandare vine dintr-o sursă reală (feed, răspuns AI salvat, pagina live) și are lângă ea linkul spre dovadă.
+   - Când nu am putut verifica (timeout, firewall, pagină pe care nu o recunoaștem), scriem **„nu am putut verifica”**, nu „lipsește”. O verificare nesigură nu intră în scor și nu creează acțiuni (starea `unknown` din audit).
+   - Nu inventăm date nici în codul propus („Rezolvă”): siglă, zile de retur, livrare sau plată necitite de pe site rămân „[completează]”.
+   - **Nimic nu e raportat „gata” până nu e verificat pe producție pe ShopExpert RO**, magazinul etalon: deschidem paginile panoului pe https://echo-ai-9fnz.onrender.com și comparăm cu shopexpert.com/ro. După fiecare publicare, workerul rulează singur verificarea pe etalon (`src/core/golden.ts`, rezultatul în /admin/magazine); dacă găsește o afirmație falsă, nu raportăm gata.
+   - Adevărul despre etalon (verificat de mână, 23.11.2026): JSON-LD Product complet pe produse; sitemap la `/ro/sitemap.xml` (≈9.700 adrese, răspunde în ~11 s); CUI RO16766463 în Termeni; produsele au „Detalii tehnice / Avantaje / Conținut pachet”; fără bloc Organization; fără `lang` pe `<html>`; fără ANPC/SOL; shopexpert.ro și hardlineconstruct.ro sunt ale aceluiași client.
+
 ### A1. Mod de lucru și publicare
 
 1. **Nimic nu rămâne nepublicat.** *(ZoZo, 20.11.2026)*
@@ -343,6 +354,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - Nu: să socotim drept „preț spus de AI” orice preț de lângă produs (alt magazin, un comparator) sau dintr-un răspuns mai vechi, în timp ce dovada arată „Nu spune prețul”, iar „Vezi unde a spus-o” duce la alt răspuns.
 - În schimb: prețul spus de AI e doar cel de pe rândul care numește magazinul (sau are linkul lui), în partea de răspuns despre acel produs; se salvează rularea care l-a spus, iar linkul duce exact la dovada ei, cu rândul evidențiat. Lista și dovezile arată același preț.
 - De ce: ZoZo: „aici spune că Claude a zis greșit prețul, deși dacă dau pe vezi unde, apare corect” (BOSCH GBH 4-32 DFR, ShopExpert 2.635 lei în răspuns).
+
+**B32. Panou cu afirmații false la ShopExpert RO, prinse abia de client** *(23.11.2026, 12:31)*
+- Nu: să arătăm ca fapte lucruri neverificate: „nu ai sitemap” când sitemap-ul doar a răspuns greu; „nicio descriere de produs” când descrierea stă în tab-uri; „CUI 0/15” când CUI-ul e în Termeni; „Niciun produs nu e recomandat pe nume” lângă „38 produse numite”; „Fă-te prezent pe makitatools.com / bosch-professional.com / hardlineconstruct.ro” (producători și propriul magazin); „contactează evostore.ro pentru o recenzie” (alt magazin); orice site necunoscut etichetat „editorial / blog”; Bosch Professional și platform.openai.com drept concurenți; alerte de preț din potrivirea veche după titlu; „clienții apreciază…” etichetat Negativ și „să se evite magazinul” Pozitiv; „Livrare în toată țara, plată cu cardul sau ramburs” și `logo.png` inventate în codul propus; „47 / 20000 produse” când catalogul are 28.192.
+- În schimb: regula A0: doar date reale, „nu am putut verifica” când nu știm sigur, dovada lângă fiecare afirmație, aceleași cifre din aceeași sursă pe toate paginile, verificare automată pe magazinul etalon după fiecare publicare și verificare manuală pe producție înainte de „gata”.
+- De ce: ZoZo: „dar așa tot ce facem e inutil dacă nu oferim informații corecte”.
 
 ---
 

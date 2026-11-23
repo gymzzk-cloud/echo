@@ -13,6 +13,12 @@ AgentReady are două părți pe același motor:
 
 Toate funcțiile sunt în `docs/FUNCTII.md`, planul tehnic în `docs/PLAN-TEHNIC.md`, iar regulile vizuale în `docs/DESIGN.md`. **Toate trei sunt obligatorii.**
 
+## Doar date reale (regula de bază, KNOWLEDGE A0)
+
+- Orice afirmație din panou vine din feed-ul real, din răspunsurile AI salvate sau din pagina live, cu link spre dovadă. Nimic din presupuneri.
+- O verificare care n-a putut fi făcută (timeout, firewall, structură nerecunoscută) are starea `unknown` („nu am putut verifica”): nu spune „lipsește”, nu intră în scor, nu creează acțiuni.
+- Nimic nu e „gata” până nu e verificat pe producție pe ShopExpert RO (magazinul etalon). Workerul rulează `golden_check` (`src/core/golden.ts`) după fiecare publicare; rezultatul e în /admin/magazine.
+
 ## Priorități, în ordinea asta
 
 1. Securitate și separarea datelor între clienți
