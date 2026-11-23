@@ -44,7 +44,7 @@ export async function productAiList(projectId: string, opts: { filter?: ProductA
   const rows = await db.select({
     productId: S.productId, title: P.title, url: P.url, brand: P.brand, externalId: P.externalId, mpn: P.mpn, gtin: P.gtin, price: P.price, currency: P.currency, inStock: P.inStock,
     appearances: S.appearances, prompts: S.prompts, providers: S.providers, avgPosition: S.avgPosition, bestPosition: S.bestPosition,
-    withStore: S.withStore, statedPrice: S.statedPrice, statedProvider: S.statedProvider, statedRunId: S.statedRunId, priceWrong: S.priceWrong, wrongPrices: S.wrongPrices, lastSeen: S.lastSeen,
+    withStore: S.withStore, statedPrice: S.statedPrice, statedProvider: S.statedProvider, statedRunId: S.statedRunId, realPrice: S.realPrice, realSource: S.realSource, priceWrong: S.priceWrong, wrongPrices: S.wrongPrices, lastSeen: S.lastSeen,
     total: dsql<number>`count(*) over ()::int`,
   }).from(S).innerJoin(P, eq(P.id, S.productId)).where(and(...where))
     .orderBy(desc(S.appearances), asc(S.avgPosition), asc(P.title))

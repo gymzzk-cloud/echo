@@ -184,3 +184,17 @@ describe("aggregateProducts", () => {
     expect(aggregateProducts(runs, CATALOG)).toEqual(aggregateProducts(runs, CATALOG));
   });
 });
+
+describe("prețul de pe site bate catalogul (ZoZo, 23.11: „în catalog apare mai scump”)", () => {
+  const p = prod("gbh", "BOSCH GBH 4-32 DFR", 2848, { brand: "BOSCH", sitePrice: 2635, siteCheckedAt: "2026-11-23T12:00:00Z" });
+  const ans = "BOSCH GBH 4-32 DFR\n- ShopExpert: 2.635 lei [ShopExpert](https://www.shopexpert.com/ro/x)";
+  it("AI-ul spune prețul de pe site: corect, chiar dacă catalogul e mai scump", () => {
+    const s = aggregateProducts([run("r1", ans)], [p], { domain: "shopexpert.com" }).get("gbh")!;
+    expect(s).toMatchObject({ statedPrice: 2635, realPrice: 2635, realSource: "site", wrongPrices: [] });
+  });
+  it("fără pagina citită: comparăm cu catalogul și spunem asta", () => {
+    const s = aggregateProducts([run("r1", ans)], [{ ...p, sitePrice: null }], { domain: "shopexpert.com" }).get("gbh")!;
+    expect(s).toMatchObject({ realPrice: 2848, realSource: "catalog", siteCheckedAt: null });
+    expect(s.wrongPrices).toHaveLength(1);
+  });
+});

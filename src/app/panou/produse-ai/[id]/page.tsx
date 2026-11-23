@@ -102,12 +102,17 @@ export default async function ProductSheetPage({ params }: { params: Promise<{ i
 
       {s && (
         <Card title="Unde numesc AI-urile produsul" description="Fiecare apariție a produsului, cele mai noi primele: AI-ul, data și ora, întrebarea, rândul exact și după ce l-am recunoscut. Prețul e doar cel scris pe rândul cu magazinul tău.">
+          <p className="mb-3 text-sm text-muted">
+            Comparăm cu {s.realSource === "site" && s.realPrice
+              ? <>prețul de pe site, <span className="num font-medium text-fg">{money(s.realPrice, p.currency)}</span>{s.siteCheckedAt && <>, citit la <span className="num">{dateTime(s.siteCheckedAt)}</span></>} (în catalog: <span className="num">{money(p.price, p.currency)}</span>)</>
+              : <>prețul din catalog, <span className="num font-medium text-fg">{money(p.price, p.currency)}</span>{s.statedPrice ? " (pagina produsului se citește automat în câteva minute)" : ""}</>}. Diferență peste 5% = preț greșit.
+          </p>
           <div className="mb-4 flex flex-wrap gap-2">
             {Object.entries(s.providers).sort((a, b) => b[1] - a[1]).map(([x, n]) => <Badge key={x}>{providerLabel(x)}: {n}×</Badge>)}
             {s.wrongPrices.map((w) => <Badge key={`w${w.provider}`} tone="bad">{providerLabel(w.provider)} spune {money(w.price, p.currency)}</Badge>)}
           </div>
           <div id="dovezi" className="scroll-mt-6 space-y-4">
-            {s.examples.map((e) => <Proof key={`${e.runId}-${e.provider}`} e={e} real={p.price ? parseFloat(p.price) : null} currency={p.currency} answer={answers.get(e.runId)} />)}
+            {s.examples.map((e) => <Proof key={`${e.runId}-${e.provider}`} e={e} real={s.realPrice ? parseFloat(s.realPrice) : p.price ? parseFloat(p.price) : null} realLabel={s.realSource === "site" ? "pe site" : "în catalog"} currency={p.currency} answer={answers.get(e.runId)} />)}
           </div>
         </Card>
       )}

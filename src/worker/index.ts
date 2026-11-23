@@ -51,7 +51,12 @@ async function handle(kind: string, payload: Record<string, string>) {
       return r;
     }
     case "product_ai": return computeProductVisibility(payload.projectId);
-    case "product_page": return checkProductPage(payload.projectId, payload.productId);
+    case "product_page": {
+      const r = await checkProductPage(payload.projectId, payload.productId);
+      // Citită după un calcul pe produs (prețul de pe site): refacem calculul o singură dată, după ce trec toate paginile.
+      if (payload.then === "product_ai") await enqueue("product_ai", { projectId: payload.projectId }, new Date(Date.now() + 2 * 60e3));
+      return r;
+    }
     case "report": {
       const r = await buildWeeklyReport(payload.projectId);
       if (payload.email) await sendReport(r.id, payload.email);

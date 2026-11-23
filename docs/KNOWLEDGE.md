@@ -368,6 +368,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: arătăm doar câte produse sunt numite și din câte răspunsuri; o notă spune că restul catalogului nu a fost verificat („nu știm încă, nu înseamnă că lipsesc”) și duce la „Produse urmărite”, unde magazinul alege ce produse întrebăm.
 - De ce: ZoZo: „acum începe analiza la 28000 produse?”, „e derutant, așa cred că doar 57 de produse apar în AI din 28000”.
 
+**B34. Preț „greșit” comparat cu un catalog care nu are prețul de pe site** *(23.11.2026, 12:56)*
+- Nu: să marcăm prețul spus de AI ca greșit doar față de prețul din API-ul de catalog, care la ShopExpert poate fi mai mare decât cel de pe site (2.848 în catalog, 2.635 pe site).
+- În schimb: pentru produsele cu preț spus de AI citim pagina produsului (schema.org, o cerere pe produs, cel mult o dată pe zi, maxim 40 după fiecare calcul) și comparăm cu prețul de pe site; afișăm „pe site X, în catalog Y, citit la HH:MM”. Până o citim, comparăm cu catalogul (actualizat la fiecare preluare, apoi recalculăm) și spunem asta.
+- De ce: ZoZo: „în catalog apare mai scump, în catalog nu actualizăm prețurile”, „altfel oricând pot fi diferențe de preț”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

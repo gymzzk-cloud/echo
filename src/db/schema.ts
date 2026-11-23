@@ -167,6 +167,9 @@ export const productAiStats = pgTable("product_ai_stats", {
   statedPrice: numeric("stated_price", { precision: 12, scale: 2 }), // ultimul preț spus de un AI pentru acest magazin
   statedProvider: text("stated_provider"),
   statedRunId: text("stated_run_id"), // rularea în care AI-ul a spus acel preț: linkul „Vezi unde a spus-o” duce exact la ea
+  realPrice: numeric("real_price", { precision: 12, scale: 2 }), // prețul cu care am comparat: de pe site când l-am citit, altfel din catalog
+  realSource: text("real_source"), // site | catalog
+  siteCheckedAt: timestamp("site_checked_at", { withTimezone: true }), // când am citit prețul de pe pagina produsului
   priceWrong: boolean("price_wrong").notNull().default(false),
   wrongPrices: jsonb("wrong_prices").$type<{ provider: string; price: number; runId?: string }[]>().notNull(),
   examples: jsonb("examples").$type<ProductExample[]>().notNull(),

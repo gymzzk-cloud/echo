@@ -14,7 +14,11 @@ import { normalizeText } from "@/lib/util";
  * și are un preț, în partea de răspuns despre acel produs. Prețurile altor magazine din aceeași listă nu contează.
  */
 
-export type CatalogProduct = { id: string; title: string; brand: string | null; gtin: string | null; mpn: string | null; price: number | null; currency: string; url: string; inStock: boolean };
+export type CatalogProduct = {
+  id: string; title: string; brand: string | null; gtin: string | null; mpn: string | null; price: number | null; currency: string; url: string; inStock: boolean;
+  /** Prețul citit de pe pagina produsului (schema.org), dacă l-am verificat recent: e prețul pe care îl vede cumpărătorul. */
+  sitePrice?: number | null; siteCheckedAt?: string | null;
+};
 export type MatchKind = "cod" | "link" | "nume";
 export type ProductMatch = { kind: MatchKind; value: string };
 export type ProductHit = {
@@ -246,7 +250,9 @@ export type ProductExample = {
 };
 export type ProductStat = {
   productId: string; appearances: number; prompts: number; providers: Record<string, number>; avgPosition: number; bestPosition: number;
-  withStore: number; lastSeen: string; statedPrice: number | null; statedProvider: string | null; statedRunId: string | null; wrongPrices: { provider: string; price: number; runId: string }[]; examples: ProductExample[];
+  withStore: number; lastSeen: string; statedPrice: number | null; statedProvider: string | null; statedRunId: string | null;
+  /** Prețul cu care comparăm: de pe site (pagina produsului) când îl avem, altfel din catalog. */
+  realPrice: number | null; realSource: "site" | "catalog"; siteCheckedAt: string | null; wrongPrices: { provider: string; price: number; runId: string }[]; examples: ProductExample[];
 };
 
 /**
@@ -282,7 +288,9 @@ export function aggregateProducts(runs: AnswerRun[], products: CatalogProduct[],
   }
   const out = new Map<string, ProductStat>();
   for (const [id, a] of acc) {
-    const real = byId.get(id)!.price;
+    // Prețul de pe site bate catalogul: API-ul de catalog poate rămâne în urmă față de ce vede cumpărătorul.
+    const cp = byId.get(id)!;
+    const real = cp.sitePrice ?? cp.price;
     const wrong = real ? [...a.lastPrice.values()].filter((e) => Math.abs(e.statedPrice! - real) / real > PRICE_TOLERANCE).map((e) => ({ provider: e.provider, price: e.statedPrice!, runId: e.runId })) : [];
     // Ultimele 20, plus dovada fiecărui preț folosit în cifre (chiar dacă e mai veche).
     const kept = a.examples.slice(-MAX_EXAMPLES);
@@ -290,7 +298,7 @@ export function aggregateProducts(runs: AnswerRun[], products: CatalogProduct[],
     out.set(id, {
       productId: id, appearances: a.positions.length, prompts: a.prompts.size, providers: a.providers,
       avgPosition: +(a.positions.reduce((s, x) => s + x, 0) / a.positions.length).toFixed(1), bestPosition: Math.min(...a.positions),
-      withStore: a.withStore, lastSeen: a.lastSeen, statedPrice: a.latest?.statedPrice ?? null, statedProvider: a.latest?.provider ?? null, statedRunId: a.latest?.runId ?? null, wrongPrices: wrong,
+      withStore: a.withStore, lastSeen: a.lastSeen, statedPrice: a.latest?.statedPrice ?? null, statedProvider: a.latest?.provider ?? null, statedRunId: a.latest?.runId ?? null, realPrice: real ?? null, realSource: cp.sitePrice ? "site" : "catalog", siteCheckedAt: cp.sitePrice ? cp.siteCheckedAt ?? null : null, wrongPrices: wrong,
       examples: kept.sort((x, y) => (y.at ?? y.runDate).localeCompare(x.at ?? x.runDate)),
     });
   }
