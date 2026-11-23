@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { categoryType, productQuery, productType, promptLimit, suggestPrompts, type CatalogProduct } from "@/core/prompts";
-import { planPromptChanges } from "@/core/tracked-prompts";
+import { planBuyerUpgrade, planPromptChanges } from "@/core/tracked-prompts";
 import { parseFeed } from "@/core/connectors";
 import { parseRobots, robotsAllows } from "@/core/audit";
 import { parseStoreUrl } from "@/lib/util";
@@ -97,6 +97,19 @@ describe("căutări urmărite din catalog", () => {
     const back = [{ text: "polizoare unghiulare mici makita cel mai bun preț", category: "x", intent: "categorie" as const }];
     expect(planPromptChanges(existing, back, 5)).toEqual({ remove: [], add: [], revive: ["r"] });
     expect(planPromptChanges(existing, [], 5)).toEqual({ remove: [], add: [], revive: [] });
+  });
+  it("căutările pe produs alese de magazin, scrise doar cu numele, primesc „preț”; celelalte rămân (B53)", () => {
+    const product = { title: "MAKITA GA5030R Polizor unghiular", brand: "MAKITA" };
+    const manual = [
+      { id: "plain", text: "Makita GA5030R Polizor unghiular", active: true, product },
+      { id: "own", text: "polizor makita ieftin", active: true, product },
+      { id: "off", text: "Makita GA5030R Polizor unghiular", active: false, product },
+      { id: "nop", text: "ceva", active: true, product: null },
+    ];
+    const up = planBuyerUpgrade(manual, "ro");
+    expect(up).toEqual([{ id: "plain", text: "Makita GA5030R Polizor unghiular preț" }]);
+    expect(planBuyerUpgrade([{ ...manual[0], text: up[0].text }], "ro")).toEqual([]); // idempotentă
+    expect(planBuyerUpgrade([manual[0]], "hu")[0].text).toBe("Makita GA5030R Polizor unghiular ár");
   });
 });
 

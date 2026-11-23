@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { competitorView, type SheetRun } from "@/core/product-sheet/answers";
+import { asksClarification, competitorView, type SheetRun } from "@/core/product-sheet/answers";
 import { comparatorSearch, quotedPrices, whyNotRecommended, type WhyInput } from "@/core/product-sheet/why";
 import type { ProductExample } from "@/core/product-visibility";
 
@@ -70,14 +70,41 @@ describe("de ce nu ești recomandat", () => {
     expect(items[0].evidence).toContain("276 lei");
   });
 
-  it("întrebare directă: AI-ul descrie produsul (cod în răspuns) fără niciun magazin — nu spunem că nu-l numește", () => {
+  it("întrebare directă: ChatGPT doar cere clarificare — „a cerut clarificare”, nu „nu te numește”", () => {
     const direct = run("gpt2", "chatgpt", []);
     direct.query = "Makita GA5030R Polizor unghiular 720 W";
     direct.answer = "Vrei specificații sau prețuri? Model: Makita GA5030R, 720 W.";
     const v = competitorView([direct], { ownDomain: "shopexpert.com", ownDomains: [], productUrl: "", namedRunIds: new Set() });
+    expect(v.clarified).toBe(1);
+    expect(v.runs[0].clarified).toBe(true);
+    const items = whyNotRecommended({ ...base, view: v, examples: [] });
+    const keys = items.map((i) => i.key);
+    expect(keys).toContain("clarify:chatgpt");
+    expect(keys).not.toContain("noshop:chatgpt");
+    expect(keys).not.toContain("silent:chatgpt");
+    expect(items.find((i) => i.key === "clarify:chatgpt")!.links[0].href).toBe("#raspuns-gpt2");
+  });
+
+  it("descriere lungă fără magazine și fără întrebare: „a descris produsul”, nu clarificare", () => {
+    const direct = run("gpt3", "chatgpt", []);
+    direct.answer = `Makita GA5030R este un polizor unghiular de 720 W, disc de 125 mm. ${"Specificații detaliate. ".repeat(40)}`;
+    const v = competitorView([direct], { ownDomain: "shopexpert.com", ownDomains: [], productUrl: "", namedRunIds: new Set() });
+    expect(v.clarified).toBe(0);
     const keys = whyNotRecommended({ ...base, view: v, examples: [] }).map((i) => i.key);
     expect(keys).toContain("noshop:chatgpt");
-    expect(keys).not.toContain("silent:chatgpt");
+  });
+
+  it("clarificare: întrebarea scurtă sau ultimul rând cu „?”; răspunsul lung cu întrebare la final nu e clarificare", () => {
+    expect(asksClarification("Vrei specificații sau prețuri?")).toBe(true);
+    expect(asksClarification("Pot să te ajut.\n\nCe buget ai? **")).toBe(true);
+    expect(asksClarification("Makita GA5030R are 720 W.")).toBe(false);
+    expect(asksClarification(`${"Text lung. ".repeat(200)}\nVrei și alte modele?`)).toBe(false);
+  });
+
+  it("un răspuns care numește alt magazin nu e clarificare, chiar dacă se termină cu o întrebare", () => {
+    const r = run("c9", "claude", [{ domain: "dedeman.ro", position: 1 }]);
+    r.answer = "Găsești la Dedeman. Vrei și alte oferte?";
+    expect(competitorView([r], { ownDomain: "shopexpert.com", ownDomains: [], productUrl: "", namedRunIds: new Set() }).clarified).toBe(0);
   });
 
   it("căutarea pe comparator, pe piața magazinului", () => {

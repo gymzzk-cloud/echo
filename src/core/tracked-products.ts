@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNotNull, isNull, or, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { humanName, promptLimit } from "./prompts";
+import { buyerQuery, isPlainName, promptLimit } from "./prompts";
 import { enqueue } from "./jobs";
 
 /**
@@ -102,14 +102,16 @@ export async function addTrackedProducts(projectId: string, productIds: string[]
   if (add.length) {
     // Doar produsele acestui magazin (id-urile vin din formular).
     const prods = await db.select({ id: P.id, title: P.title, brand: P.brand }).from(P).where(and(eq(P.projectId, projectId), inArray(P.id, add)));
-    const existing = await db.select({ id: Q.id, productId: Q.productId }).from(Q)
+    const existing = await db.select({ id: Q.id, productId: Q.productId, text: Q.text }).from(Q)
       .where(and(eq(Q.projectId, projectId), eq(Q.intent, "produs"), inArray(Q.productId, prods.map((p) => p.id))));
-    const have = new Map(existing.map((e) => [e.productId!, e.id]));
+    // Se refolosește doar o căutare cu intenție de cumpărare; numele singur nu măsoară recomandarea (KNOWLEDGE B53).
+    const byId = new Map(prods.map((p) => [p.id, p]));
+    const have = new Map(existing.filter((e) => !isPlainName(e.text, byId.get(e.productId!)!)).map((e) => [e.productId!, e.id]));
     const reuse = prods.filter((p) => have.has(p.id)).map((p) => have.get(p.id)!);
     // createdAt = când l-a ales clientul, ca lista să-l arate primul.
     if (reuse.length) await db.update(Q).set({ suggested: false, active: true, retiredAt: null, createdAt: new Date() }).where(inArray(Q.id, reuse));
     const fresh = prods.filter((p) => !have.has(p.id));
-    if (fresh.length) await db.insert(Q).values(fresh.map((p) => ({ projectId, text: humanName(p), category: null, intent: "produs", productId: p.id, language, suggested: false })));
+    if (fresh.length) await db.insert(Q).values(fresh.map((p) => ({ projectId, text: buyerQuery(p, language as "ro" | "hu"), category: null, intent: "produs", productId: p.id, language, suggested: false })));
   }
   // Lista automată se reface în worker (citește tot catalogul): cererea din panou rămâne rapidă.
   if (add.length) await enqueue("prompts", { projectId });

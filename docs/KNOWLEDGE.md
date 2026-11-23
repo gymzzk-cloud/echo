@@ -481,6 +481,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: o etichetă de feed vine doar din date verificate. `recomandat_ai` = numit de AI în răspunsuri; `ai_nu_apare` = întrebat direct (răspuns valid în 30 de zile) și nu apare; un produs neîntrebat nu primește etichetă AI („nu știm”). Fără vânzări reale de la platformă nu există etichetă de vânzări. Cardul „Etichete automate” spune pe câte produse se sprijină fiecare cifră („X din Y încă neîntrebate”) și că nu avem date de vânzări.
 - De ce: ZoZo: „de ce apar 28 mii de produse fără AI și doar 45 recomandat de AI … nu este corect cum afișează”. Lipsa datelor nu e o performanță slabă (A0).
 
+**B53. Căutări pe produs fără intenție de cumpărare și „a cerut clarificare” numărat ca „nu te numește”** *(23.11.2026, 21:10)*
+- Nu: căutările automate pe un produs (și cele din „Urmărește în AI”) erau uneori doar numele („Makita GA5030R Polizor unghiular”) sau doar codul. La ele ChatGPT răspunde cu specificații sau cu o întrebare („Vrei specificații sau prețuri?”), fără niciun magazin, iar panoul număra răspunsul ca „AI-ul nu te numește”.
+- În schimb: regulă de sistem, pentru toate magazinele: orice căutare generată pentru un produs urmărit sau focus are intenție de cumpărare, ca un cumpărător real („<produs> preț”, „<cod> preț”, „vreau să cumpăr…”, „de unde cumpăr…”, „…cel mai ieftin”). Căutările vechi alese de magazin, scrise doar cu numele, primesc singure „preț” (cele cu răspunsuri se retrag, istoricul rămâne). Un răspuns care nu numește niciun magazin și doar întreabă ceva înapoi e „A cerut clarificare”, separat de „nu te numește”, și nu intră la „nu numește produsul”.
+- De ce: ZoZo a arătat că în aplicația ChatGPT, după „GA5030R” urmat de „cumpărare”, apare ShopExpert. Numele singur nu măsoară dacă ești recomandat, iar o întrebare înapoi nu e o recomandare a altui magazin (A0).
+
 ## C. Regula de întreținere (permanentă)
 
 1. **De fiecare dată când ZoZo spune că ceva e greșit**, punctul se adaugă imediat, în aceeași tură, în **partea B**, în forma „Nu / În schimb / De ce”, cu data.

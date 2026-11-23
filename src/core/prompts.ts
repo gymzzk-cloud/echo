@@ -276,14 +276,27 @@ export function humanName(p: Pick<CatalogProduct, "title" | "brand">) {
 }
 
 /**
- * Cum caută un om un produs anume, prin rotație ca lista să aibă de toate:
- * „vreau să cumpăr X”, „X preț”, codul singur, „X cel mai ieftin”, numele simplu, „de unde cumpăr X”.
+ * Cum caută un cumpărător un produs anume, prin rotație ca lista să aibă de toate. Fiecare formă are intenție de
+ * cumpărare (ZoZo, 23.11.2026, KNOWLEDGE B53): numele singur („Makita GA5030R”) primește de la AI specificații sau
+ * o întrebare înapoi („Vrei specificații sau prețuri?”), nu magazine, deci nu măsoară dacă ești recomandat.
+ * „vreau să cumpăr X”, „X preț”, „<cod> preț”, „X cel mai ieftin”, „de unde cumpăr X”.
  * Fără cod (EAN sau cod producător), locul codului îl ia „cel mai ieftin”.
  */
 const PRODUCT_Q: Record<"ro" | "hu", ((n: string) => string)[]> = {
-  ro: [(n) => `vreau să cumpăr ${n}`, (n) => `${n} preț`, () => "", (n) => `${n} cel mai ieftin`, (n) => n, (n) => `de unde cumpăr ${n}`],
-  hu: [(n) => `${n} vásárlás`, (n) => `${n} ár`, () => "", (n) => `${n} legolcsóbb`, (n) => n, (n) => `hol vehetek ${n}`],
+  ro: [(n) => `vreau să cumpăr ${n}`, (n) => `${n} preț`, (n) => `${n} preț`, (n) => `${n} cel mai ieftin`, (n) => `de unde cumpăr ${n}`],
+  hu: [(n) => `${n} vásárlás`, (n) => `${n} ár`, (n) => `${n} ár`, (n) => `${n} legolcsóbb`, (n) => `hol vehetek ${n}`],
 };
+
+/** Textul e doar numele produsului (fără intenție de cumpărare): forma veche a căutărilor pe produs, înainte de B53. */
+export function isPlainName(text: string, p: Pick<CatalogProduct, "title" | "brand">) {
+  return text.trim().toLowerCase() === humanName(p).trim().toLowerCase();
+}
+
+/** Căutarea unui produs ales de magazin („Urmărește în AI”, Produse urmărite): numele + preț, ca un cumpărător. */
+export function buyerQuery(p: Pick<CatalogProduct, "title" | "brand">, language: "ro" | "hu" = "ro") {
+  return PRODUCT_Q[language][1](humanName(p));
+}
+
 const CODE_SLOT = 2;
 
 export function productPrompts(picked: { product: CatalogProduct; category: string }[], language: "ro" | "hu"): SuggestedPrompt[] {
@@ -293,7 +306,7 @@ export function productPrompts(picked: { product: CatalogProduct; category: stri
     const slot = i % tpls.length;
     if (slot === CODE_SLOT) {
       const code = validCode(p.mpn, p.title) ? p.mpn!.trim() : validEan(p.gtin) ? p.gtin!.trim() : null;
-      if (code) return { text: code, category, intent: "cod" as const, productId: p.id };
+      if (code) return { text: tpls[CODE_SLOT](code), category, intent: "cod" as const, productId: p.id };
       return { text: tpls[3](name), category, intent: "produs" as const, productId: p.id };
     }
     return { text: tpls[slot](name), category, intent: "produs" as const, productId: p.id };
@@ -322,7 +335,7 @@ export function suggestPrompts(products: CatalogProduct[], storeName: string, la
   // Catalog mic (puține tipuri de produs): restul locurilor merg la alte produse.
   if (out.length < room) {
     const more = pickProducts(products, language, room).picked.filter((x) => !named.some((n) => n.productId && n.productId === x.product.id));
-    for (const x of more) push({ text: humanName(x.product), category: x.category, intent: "produs", productId: x.product.id });
+    for (const x of more) push({ text: buyerQuery(x.product, language), category: x.category, intent: "produs", productId: x.product.id });
   }
   return [...out, ...store];
 }
