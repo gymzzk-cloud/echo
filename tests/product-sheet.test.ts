@@ -142,3 +142,13 @@ describe("fișa produsului: cine apare în locul tău", () => {
     expect(titles.some((t) => t.includes("compari.ro"))).toBe(true);
   });
 });
+
+import { productCodes } from "@/lib/product-codes";
+describe("codurile afișate în panou", () => {
+  it("codul producătorului și EAN-ul, fără codul intern", () => {
+    expect(productCodes({ externalId: "1221852", mpn: "06019N7003", gtin: "4053423342871" })).toEqual(["Cod producător 06019N7003", "EAN 4053423342871"]);
+  });
+  it("codul intern doar când lipsesc amândouă", () => {
+    expect(productCodes({ externalId: "1221852", mpn: " ", gtin: null })).toEqual(["Cod intern 1221852"]);
+  });
+});

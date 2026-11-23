@@ -1,4 +1,5 @@
 import { currentProject } from "@/lib/project";
+import { productCodes } from "@/lib/product-codes";
 import { busyKinds } from "@/core/jobs";
 import { PRODUCT_AI_PAGE_SIZE, productAiList, productAiSummary, type ProductAiFilter } from "@/core/product-ai-read";
 import { PRODUCT_AI_WINDOW_DAYS } from "@/core/product-visibility-job";
@@ -157,7 +158,7 @@ function proofHref(r: { productId: string; statedRunId: string | null; wrongPric
 
 /** Cum găsești produsul sigur: codul din catalog, EAN-ul și pagina lui de pe magazin. */
 function ProductIds({ r }: { r: { externalId: string; mpn: string | null; gtin: string | null; brand: string | null; inStock: boolean; url: string } }) {
-  const ids = [`Cod ${r.externalId}`, r.mpn && r.mpn !== r.externalId && `Cod producător ${r.mpn}`, r.gtin && `EAN ${r.gtin}`, r.brand, !r.inStock && "fără stoc"].filter(Boolean).join(" · ");
+  const ids = [...productCodes(r), r.brand, !r.inStock && "fără stoc"].filter(Boolean).join(" · ");
   return (
     <span className="block text-xs text-muted">
       <span className="num break-all">{ids}</span> · <TextLink href={r.url} external className="text-xs">Pe site</TextLink>

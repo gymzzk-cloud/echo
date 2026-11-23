@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { productCodes } from "@/lib/product-codes";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { currentProject } from "@/lib/project";
@@ -41,7 +42,7 @@ export default async function ProductSheetPage({ params }: { params: Promise<{ i
   const tracked = sheet.prompts.some((x) => x.active && x.intent === "produs");
   const fixes = topFixes([openai.report, google.report, page?.report ?? null]);
 
-  const ids = [`Cod ${p.externalId}`, p.mpn && p.mpn !== p.externalId && `Cod producător ${p.mpn}`, p.gtin && `EAN ${p.gtin}`, p.brand, money(p.price, p.currency), !p.inStock && "fără stoc"].filter(Boolean).join(" · ");
+  const ids = [...productCodes(p), p.brand, money(p.price, p.currency), !p.inStock && "fără stoc"].filter(Boolean).join(" · ");
   const trackForm = canWrite && p.inStock && !tracked && (
     <form action={trackProduct}>
       <input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="productId" value={p.id} /><input type="hidden" name="on" value="1" />

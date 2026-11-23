@@ -1,4 +1,5 @@
 import { Badge, Card, Chips, Table, Td, TextLink } from "@/components/ui";
+import { productCodes } from "@/lib/product-codes";
 import { CardHelp } from "@/components/card-help";
 import { CHANNELS, buildFeed, type FeedProduct } from "@/core/feed";
 import { money, num } from "@/lib/format";
@@ -45,7 +46,7 @@ export async function FeedView({ projectId, channel, total }: { projectId: strin
           <tr key={p.id}>
             <Td>
               <TextLink href={`/panou/produse-ai/${p.id}`}>{p.title}</TextLink>
-              <div className="num break-all text-xs text-muted">{[`Cod ${p.externalId}`, p.brand ?? "fără marcă", p.gtin ? `EAN ${p.gtin}` : "fără EAN"].join(" · ")}</div>
+              <div className="num break-all text-xs text-muted">{[p.mpn && `Cod producător ${p.mpn}`, p.gtin ? `EAN ${p.gtin}` : "fără EAN", p.brand ?? "fără marcă"].filter(Boolean).join(" · ")}</div>
             </Td>
             <Td className="num whitespace-nowrap text-right">{p.price != null ? money(p.price, p.currency) : <Badge tone="warn">lipsă</Badge>}</Td>
             <Td>{p.inStock ? <Badge tone="good">da</Badge> : <Badge tone="warn">nu</Badge>}</Td>

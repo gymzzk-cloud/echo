@@ -1,4 +1,5 @@
 import { currentProject } from "@/lib/project";
+import { productCodes } from "@/lib/product-codes";
 import { db, schema } from "@/db";
 import { eq } from "drizzle-orm";
 import { findCatalogProducts } from "@/core/product-sheet/read";
@@ -72,7 +73,7 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
                   <li key={h.id} className="flex items-start justify-between gap-3 py-1">
                     <Checkbox name="productId" value={h.id} disabled={chosen.has(h.id)} defaultChecked={hits.length === 1 && !chosen.has(h.id)} className="min-w-0 flex-1"
                       label={<span className="font-medium">{h.title}</span>}
-                      hint={<span className="num break-all">{[`Cod ${h.externalId}`, h.mpn && h.mpn !== h.externalId && `Cod producător ${h.mpn}`, h.gtin && `EAN ${h.gtin}`, h.brand, money(h.price, h.currency)].filter(Boolean).join(" · ")}</span>} />
+                      hint={<span className="num break-all">{[...productCodes(h), h.brand, money(h.price, h.currency)].filter(Boolean).join(" · ")}</span>} />
                     <span className="pt-2">{chosen.has(h.id) ? <Badge tone="good">Urmărit</Badge> : !h.inStock && <Badge tone="warn">Fără stoc</Badge>}</span>
                   </li>
                 ))}
@@ -100,7 +101,7 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
                   <Td className="w-8">{canWrite && <Checkbox name="productId" value={i.productId!} className="py-0" label={<span className="sr-only">Bifează {i.title}</span>} />}</Td>
                   <Td className="min-w-56">
                     <TextLink href={`/panou/produse-ai/${i.productId}`} className="font-medium">{i.title}</TextLink>
-                    <span className="num block break-all text-xs text-muted">{[`Cod ${i.externalId}`, i.gtin && `EAN ${i.gtin}`, i.brand, i.rank && `Top vânzări #${i.rank}`].filter(Boolean).join(" · ")}</span>
+                    <span className="num block break-all text-xs text-muted">{[...productCodes(i), i.brand, i.rank && `Top vânzări #${i.rank}`].filter(Boolean).join(" · ")}</span>
                   </Td>
                   <Td className="num whitespace-nowrap text-right">{money(i.price, i.currency)}</Td>
                   <Td><div className="flex flex-wrap gap-1"><Badge tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Badge>{!i.inStock && <Badge tone="warn">Fără stoc</Badge>}</div></Td>
@@ -126,8 +127,8 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
               {removed.map((i) => (
                 <li key={i.productId}>
                   {canWrite
-                    ? <Checkbox name="productId" value={i.productId!} label={i.title} hint={<span className="num">Cod {i.externalId}</span>} />
-                    : <p className="py-2 text-sm">{i.title} <span className="num text-xs text-muted">· Cod {i.externalId}</span></p>}
+                    ? <Checkbox name="productId" value={i.productId!} label={i.title} hint={<span className="num">{productCodes(i).join(" · ")}</span>} />
+                    : <p className="py-2 text-sm">{i.title} <span className="num text-xs text-muted">· {productCodes(i).join(" · ")}</span></p>}
                 </li>
               ))}
             </ul>
