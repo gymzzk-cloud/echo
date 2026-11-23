@@ -31,7 +31,7 @@ export default async function StoreRegistry({ searchParams }: { searchParams: Pr
       <PublicHeader />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <div><div className="label">Intern</div><h1 className="mt-1 text-3xl font-semibold">Registrul de magazine</h1>
-          <p className="mt-1 text-sm text-muted">Fiecare magazin pentru care s-a cerut audit, pe care l-a menționat un AI sau care e client. Datele firmei se refolosesc 90 de zile; auditul gratuit se refolosește 24 de ore.</p></div>
+          <p className="mt-1 text-sm text-muted">Fiecare magazin pentru care s-a cerut audit, pe care l-a menționat un AI sau care e client. Datele firmei se refolosesc 90 de zile; auditul gratuit se refolosește 24 de ore. Costurile AI pe magazin: <a href="/admin/costuri" className="text-primary hover:underline">Costuri AI</a>.</p></div>
         <Card title="Verificarea pe magazinul etalon (ShopExpert RO)" description="Rulează singură după fiecare publicare: auditul, clasificarea surselor și recomandările deschise, comparate cu ce știm sigur despre ShopExpert RO.">
           {!golden ? <p className="text-sm text-muted">Încă nu a rulat.</p> : (
             <div className="space-y-2 text-sm">

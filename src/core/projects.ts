@@ -188,7 +188,7 @@ export async function runProject(projectId: string) {
   for (const pr of ps) {
     // Plafonul lunar: ne oprim înainte să-l depășim și anunțăm o singură dată pe zi.
     if (!withinBudget(spent, monthlyBudgetUsd)) {
-      await alert(projectId, "ai_budget", "warn", `Am atins bugetul lunar pentru AI (${monthlyBudgetUsd} USD). Restul întrebărilor rulează luna viitoare sau după ce mărești bugetul.`, true);
+      await alert(projectId, "ai_budget", "warn", "Am pus luna aceasta toate întrebările incluse în plan. Restul întrebărilor rulează luna viitoare.", true);
       break;
     }
     // Limba întrebării decide piața (un magazin poate urmări și întrebări în maghiară).
