@@ -12,7 +12,7 @@ const BASE = process.env.PERF_URL ?? "http://localhost:3000";
 const EMAIL = process.env.PERF_EMAIL ?? "demo@echo.local";
 const LIMIT = Number(process.env.PERF_LIMIT_MS ?? 100);
 const SEED = Number(process.env.PERF_SEED ?? 0);
-const PAGES = PANEL_PAGES;
+const PAGES: string[] = [...PANEL_PAGES];
 
 const [user] = await db.select().from(schema.users).where(eq(schema.users.email, EMAIL));
 if (!user) throw new Error(`Nu există utilizatorul ${EMAIL}.`);
@@ -30,6 +30,10 @@ if (SEED > 0) {
   for (let i = 0; i < rows.length; i += 1000) await db.insert(schema.products).values(rows.slice(i, i + 1000));
   console.log(`Am adăugat ${SEED} produse de test la ${project.domain}${project.pathPrefix ?? ""}.`);
 }
+
+// Paginile pe un produs: fișa produsului (feed ChatGPT, Google, pagina, răspunsuri) și căutarea în tot catalogul.
+const [one] = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.projectId, project.id)).limit(1);
+if (one) PAGES.push(`/panou/produse-ai/${one.id}`, "/panou/produse-ai?cauta=bormasina%20percutie");
 
 const time = async (path: string) => {
   const t = performance.now();
