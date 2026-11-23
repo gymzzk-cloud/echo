@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OPENAI_COLUMNS, categoryPath, cleanBrand, cleanGtin, missingOpenAiSettings, openAiRow, plainText, renderOpenAiCsv } from "../src/core/feed-channels/openai";
+import { OPENAI_COLUMNS, categoryPath, cleanBrand, cleanGtin, missingOpenAiSettings, openAiRow, openAiWriter, plainText, renderOpenAiCsv } from "../src/core/feed-channels/openai";
 import { detectPolicyLinks, effectivePolicy } from "../src/core/feed-channels/policy-links";
 import type { FeedProduct } from "../src/core/feed";
 
@@ -59,6 +59,15 @@ describe("feed ChatGPT (OpenAI)", () => {
     expect(lines).toHaveLength(3);
     expect(lines[2]).toContain('"Set ""Pro"", 3 piese"');
     expect(stats).toEqual({ total: 3, included: 2, excluded: { "fără preț": 1 }, missing: { brand: 1, gtin_mpn: 1 } });
+  });
+  it("TSV (fișierul găzduit pentru ChatGPT): tab între coloane, fără tab-uri sau rânduri noi în celule", () => {
+    const w = openAiWriter(store, null);
+    expect(w.head).toBe(`${OPENAI_COLUMNS.join("\t")}\n`);
+    const row = w.row(p({ title: 'Set "Pro",\t3 piese' }))!;
+    expect(row.endsWith("\n")).toBe(true);
+    const cells = row.slice(0, -1).split("\t");
+    expect(cells).toHaveLength(OPENAI_COLUMNS.length);
+    expect(cells[OPENAI_COLUMNS.indexOf("title")]).toBe('Set "Pro", 3 piese');
   });
   it("marca: păstrează numele reale, golește valorile pe care OpenAI le respinge", () => {
     expect(cleanBrand("Bosch")).toBe("Bosch");

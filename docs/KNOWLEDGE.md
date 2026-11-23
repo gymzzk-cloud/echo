@@ -460,6 +460,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: workerul calculează cifrele acestor pagini (job `panel`, `src/core/panel-snapshot.ts`) după fiecare rulare AI, audit, calcul pe produs, feed și sincronizare, plus o dată pe zi. Le salvează în `panel_snapshots`, iar pagina citește un singur rând. Un `stamp` mic (rulări, concurenți, audit, produse numite de AI, ziua) arată dacă au apărut date noi. Atunci pagina arată cifrele salvate, cu ora calculului, și cere un calcul nou, iar `JobWatcher` o reîncarcă la final. Lista din Produse citește primele 100 de rânduri direct din index (`products_project_stock_rank_idx`). O pagină nouă care calculează pe toate rulările primește o cheie în `panel_snapshots`, nu un calcul în cerere.
 - De ce: ZoZo a cerut ca fiecare pagină să răspundă sub 1 s (regula „Viteză”). Local, cu procesorul limitat ca pe Render: Acasă a scăzut de la 2 s la 0,2 s, Produse de la 1,3 s la 0,3 s, iar Surse și Reputație au ajuns la 0,1 s.
 
+**B49. Feed-ul ChatGPT dat ca CSV la „Update products with hosted URL”** *(23.11.2026, 20:36)*
+- Nu: adresa feed-ului ChatGPT era `/feed/<token>.csv`, cu fișier CSV. OpenAI a răspuns „The feed service could not complete this request” fără să descarce nimic: în logurile Render nu există nicio cerere la `/feed/` din 20.11 încoace. Și alți vânzători spun că adresa găzduită pentru CSV e refuzată pe loc, iar cea pentru TSV merge.
+- În schimb: fișierul ChatGPT e TSV (`text/tab-separated-values`, tab între coloane, fără tab-uri sau rânduri noi în celule), iar adresa din panou se termină în `.tsv`. Vechea adresă `.csv` servește același fișier (extensia nu contează la server). Fișierul rămâne calculat de worker și înlocuit dintr-o dată, deci nu e niciodată gol sau parțial.
+- De ce: ZoZo nu a putut conecta feed-ul în OpenAI (captură, 23.11, 20:36). Data viitoare când un serviciu extern dă eroare, verificăm întâi în logurile Render dacă cererea a ajuns la noi.
+
 ## C. Regula de întreținere (permanentă)
 
 1. **De fiecare dată când ZoZo spune că ceva e greșit**, punctul se adaugă imediat, în aceeași tură, în **partea B**, în forma „Nu / În schimb / De ce”, cu data.
