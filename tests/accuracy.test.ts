@@ -146,3 +146,13 @@ describe("prima pagină: producătorii și propriile magazine nu sunt „în loc
     expect(shareOfRecommendations(rows, "shopexpert.com", 3, ex).map((s) => s.domain)).not.toContain("bosch-professional.com");
   });
 });
+
+describe("llms.txt: categoriile din tot catalogul", () => {
+  it("numără din categoriile pe tot catalogul, nu din primele produse", () => {
+    const code = llmsFix({ domain: "shopexpert.com", origin: "https://www.shopexpert.com/ro", storeName: "ShopExpert RO", checks: [],
+      categories: [{ category: "Scule electrice > Rotopercutoare > BOSCH", brand: "BOSCH", n: 900 }, { category: "Scule electrice > Rotopercutoare > MAKITA", brand: "MAKITA", n: 300 }, { category: "Accesorii > Găurire", brand: "BOSCH", n: 92 }],
+      products: [] }).code ?? "";
+    expect(code).toContain("- Scule electrice > Rotopercutoare (1200 produse)");
+    expect(code.indexOf("Rotopercutoare")).toBeLessThan(code.indexOf("Accesorii > Găurire"));
+  });
+});

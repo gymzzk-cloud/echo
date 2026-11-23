@@ -26,3 +26,13 @@ export async function orgDomains(orgId: string) {
     where m1.org_id = ${orgId}`);
   return (r as unknown as { domain: string }[]).map((x) => x.domain);
 }
+
+/**
+ * Câte produse în stoc are fiecare categorie din catalog, pe tot catalogul (un group by în SQL), pentru llms.txt.
+ * Gruparea pe primele niveluri o face categoryHead (fixes.ts), care scoate și marca de la final.
+ */
+export async function catalogCategories(projectId: string) {
+  const r = await db.execute(dsql`select category, brand, count(*)::int as n from products
+    where project_id = ${projectId} and in_stock and coalesce(category, '') <> '' group by category, brand order by n desc limit 3000`);
+  return r as unknown as { category: string; brand: string | null; n: number }[];
+}
