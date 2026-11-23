@@ -357,7 +357,7 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
       status: words === 0 ? "unknown" : words >= 120 ? "pass" : words >= 40 ? "warn" : "fail",
       detail: words === 0
         ? "Nu am putut verifica: nu am recunoscut automat unde e descrierea pe pagina de produs (nu e într-un câmp de descriere standard). Nu spunem că lipsește."
-        : `Descrierea are ~${words} cuvinte. AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.`,
+        : `Pe produsul verificat${f?.name ? ` („${f.name}”)` : ""} descrierea are ~${words} cuvinte. Am verificat o singură pagină de produs (linkul de mai jos), nu tot catalogul. AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.`,
       fixKind: words === 0 || words >= 120 ? undefined : "content", weight: 8,
       evidence: [{ label: "Pagina de produs verificată", url: productPage.url, value: words ? `~${words} cuvinte în descriere și specificații` : "descrierea nu e într-un câmp standard (itemprop=description, #description etc.)" }],
     });
