@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { humanName, promptLimit, suggestPrompts, type SuggestedPrompt } from "./prompts";
+import { enqueue } from "./jobs";
 
 type Existing = { id: string; text: string; active: boolean; suggested: boolean };
 
@@ -87,7 +88,8 @@ export async function setProductTracked(projectId: string, productId: string, on
     if (byName) await db.update(schema.prompts).set({ suggested: false, active: true }).where(eq(schema.prompts.id, byName.id));
     else await db.insert(schema.prompts).values({ projectId, text: humanName(prod), category: null, intent: "produs", productId, language: p?.language ?? "ro", suggested: false });
   }
-  await refreshPrompts(projectId);
+  // Lista automată se reface în worker, nu în cererea din panou.
+  await enqueue("prompts", { projectId });
 }
 
 /** Produsele urmărite în AI (căutare activă pe numele lor) și dacă le-a ales clientul. */

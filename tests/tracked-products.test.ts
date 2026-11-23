@@ -50,3 +50,17 @@ describe("isPartialCode (căutarea după o parte din codul producătorului)", ()
     expect(isPartialCode("123")).toBe(false);
   });
 });
+
+describe("sortTracked (ordinea listei Produse urmărite)", () => {
+  it("alese de tine întâi, ultimul adăugat sus; apoi automate după vânzări", async () => {
+    const { sortTracked } = await import("@/core/tracked-products");
+    const d = (m: number) => new Date(Date.UTC(2026, 10, 23, 17, m));
+    const out = sortTracked([
+      { title: "auto2", status: "automat" as const, added: d(0), rank: 2 },
+      { title: "ales vechi", status: "ales" as const, added: d(1), rank: 1 },
+      { title: "auto1", status: "automat" as const, added: d(0), rank: 1 },
+      { title: "ales nou", status: "ales" as const, added: d(40), rank: 500 },
+    ]);
+    expect(out.map((x) => x.title)).toEqual(["ales nou", "ales vechi", "auto1", "auto2"]);
+  });
+});

@@ -11,7 +11,7 @@ import { decrypt, parseStoreUrl } from "@/lib/util";
 import { verifyTotp } from "@/lib/totp";
 import { enqueue, syncingConnections } from "@/core/jobs";
 import { connectStore, importFeedFile, runAuditRow } from "@/core/projects";
-import { refreshPrompts, setProductTracked } from "@/core/tracked-prompts";
+import { setProductTracked } from "@/core/tracked-prompts";
 import { promptLimit } from "@/core/prompts";
 import { claimStore, noteAuditRequest, recentAudit } from "@/core/stores";
 import { invalidateWorld } from "@/core/ai/engine";
@@ -277,8 +277,8 @@ export async function addPrompt(_: FormState, form: FormData): Promise<FormState
   const limit = promptLimit(org.plan);
   if (manual.length >= limit) return { error: `Planul tău urmărește cel mult ${limit} căutări. Oprește una ca să adaugi alta.` };
   await db.insert(schema.prompts).values({ projectId, text: parsed.data.text, language: project.language, suggested: false, intent: parsed.data.intent });
-  // Căutările adăugate de mână intră în limită: scoatem una dintre cele propuse, dacă e nevoie.
-  await refreshPrompts(projectId);
+  // Căutările adăugate de mână intră în limită: lista propusă se reface în worker (citește tot catalogul).
+  await enqueue("prompts", { projectId });
   revalidatePath("/panou/setari");
   return { ok: "Căutare adăugată. Intră în următoarea rulare." };
 }
