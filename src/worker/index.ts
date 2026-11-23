@@ -13,6 +13,7 @@ import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
 import { projectsDueForPolicies, refreshPolicies } from "@/core/policies";
 import { pruneMcpCalls } from "@/core/mcp";
 import { generateFixes, projectsDueForFixes } from "@/core/fixes";
+import { runCatalogDetails } from "@/core/catalog-details";
 import { computeProductVisibility, projectsDueForProductAi } from "@/core/product-visibility-job";
 import { checkProductPage } from "@/core/product-sheet/page-check";
 import { runGoldenCheck } from "@/core/golden";
@@ -35,7 +36,19 @@ async function handle(kind: string, payload: Record<string, string>) {
       if (c) await enqueue("fixes", { projectId: c.projectId });
       // Produse noi sau redenumite → vizibilitatea pe produs se recalculează (din răspunsurile salvate, fără AI).
       if (c) await enqueue("product_ai", { projectId: c.projectId });
+      // Descrierile pe care lista API-ului nu le dă se citesc separat, încet (nu face nimic dacă nu lipsește nimic).
+      if (c) await enqueue("catalog_details", { connectionId: payload.connectionId, projectId: c.projectId });
       return n;
+    }
+    case "catalog_details": {
+      const r = await runCatalogDetails(payload.connectionId);
+      // Mai sunt de citit: următoarea tranșă după o pauză, ca magazinul să nu primească toate cererile odată.
+      // Altă tranșă = alte date ale jobului (`round`), altfel coada ar refuza-o ca dublură a jobului care rulează acum.
+      const round = Number(payload.round ?? 0) + 1;
+      if (r.left > 0 && r.read > 0) await enqueue("catalog_details", { connectionId: payload.connectionId, projectId: payload.projectId, round: String(round) }, new Date(Date.now() + 2 * 60e3));
+      // Descrieri noi → feed-ul și reparațiile se refac la fiecare a patra tranșă și la final, nu după fiecare.
+      if (r.read > 0 && r.projectId && (r.left === 0 || round % 4 === 0)) { await enqueue("feed", { projectId: r.projectId }); await enqueue("fixes", { projectId: r.projectId }); }
+      return r;
     }
     case "feed": return generateFeedFiles(payload.projectId);
     case "fixes": {

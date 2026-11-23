@@ -162,6 +162,13 @@
       "when": 1795438964268,
       "tag": "0022_resync_no_packaging",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795449739149,
+      "tag": "0023_product_details",
+      "breakpoints": true
     }
   ]
 }

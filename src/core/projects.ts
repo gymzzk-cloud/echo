@@ -14,6 +14,7 @@ import { rankFromItems } from "./connectors/popularity";
 import { detectConnector, fetchCatalog, fetchFeedFull, parseFeed, type CatalogItem, type ConnectorKind } from "./connectors";
 import { nextSyncAt } from "./connectors/polite";
 import { saveCatalogDelivery } from "./policies";
+import { applyCachedDetails } from "./catalog-details";
 import { ERROR_MODEL, invalidateWorld, isDemo, loadWorld, projectUsageThisMonth, runQuery, usableProviders } from "./ai/engine";
 import { costConfig, withinBudget } from "./ai/budget";
 import { PROVIDERS, providerLabel } from "./ai/types";
@@ -56,6 +57,8 @@ export async function syncCatalog(connectionId: string) {
       }
       if (!r.items.length) throw new Error("Nu am găsit produse la acest link. Verifică să fie feed-ul (sau API-ul) de produse și cheia, dacă e nevoie.");
       items = r.items;
+      // Descrierile pe care lista nu le dă: cele deja citite din pagina de detaliu a API-ului (jobul catalog_details).
+      await applyCachedDetails(p.id, items);
       const d = await saveChangedItems(p.id, items);
       console.log(`catalog ${p.domain}${p.pathPrefix}: ${items.length} produse în ${r.requests} cereri, ${d.changed} noi/schimbate, ${d.gone} dispărute`);
       await db.update(schema.connections).set({ etag: r.etag ?? null, lastModified: r.lastModified ?? null, contentHash: r.hash }).where(eq(schema.connections.id, c.id));

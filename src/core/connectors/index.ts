@@ -29,6 +29,8 @@ export type CatalogItem = {
   salesRank?: number | null;
   /** Marcat în feed ca bestseller (ex. custom_label „bestseller”, „top vânzări”). */
   bestseller?: boolean;
+  /** Lista nu a trimis descrierea lungă (unele API-uri o dau doar pe pagina unui produs): o citim separat, încet. */
+  needsDetail?: boolean;
 };
 export type ConnectorKind = "shopify" | "woocommerce" | "feed" | "gomag" | "merchantpro" | "prestashop" | "upload";
 export const API_KINDS = ["gomag", "merchantpro", "prestashop"] as const;
@@ -43,7 +45,17 @@ async function fetchJson(url: string) {
   return r.json();
 }
 
-const stripHtml = (s?: string | null) => (s ?? "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim() || null;
+/** Entitățile HTML din descrieri (ShopExpert: „&icirc;nşurubat”), ca în feed să ajungă „înşurubat”. */
+const ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", icirc: "î", Icirc: "Î", acirc: "â", Acirc: "Â", ndash: "–", mdash: "—",
+  rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "„", bdquo: "„", deg: "°", times: "×", hellip: "…", oslash: "ø", Oslash: "Ø", micro: "µ", plusmn: "±",
+  sup2: "²", sup3: "³", frac12: "½", frac14: "¼", frac34: "¾", euro: "€", reg: "®", trade: "™", copy: "©", laquo: "«", raquo: "»", middot: "·", bull: "•",
+};
+export const decodeEntities = (s: string) => s
+  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+  .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+  .replace(/&([a-z]+\d*);/gi, (m, n: string) => ENTITIES[n] ?? m);
+const stripHtml = (s?: string | null) => decodeEntities((s ?? "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim() || null;
 
 // ── Shopify (endpoint public /products.json) ───────────────────────────────
 export async function fetchShopify(base: string, currency = "RON"): Promise<CatalogItem[]> {
@@ -236,6 +248,7 @@ export function mapRecord(rec: Record<string, unknown>, currency = "RON"): Catal
     sales: num(get(KEYS.sales)),
     salesRank: num(get(KEYS.salesRank)),
     bestseller: KEYS.labels.some((k) => BESTSELLER_RE.test(scalar(m.get(k)))),
+    ...(get(KEYS.description) ? {} : { needsDetail: true }),
   };
 }
 
@@ -385,6 +398,49 @@ export function endpointFromOpenApi(spec: Record<string, unknown>, specUrl: stri
   const sortP = ps.find((p) => ["sort", "sort_by", "sortby", "orderby", "order_by", "ordonare"].includes(p.name));
   const popular = (sortP?.schema?.enum ?? []).map(String).find((v) => POPULAR_SORT_RE.test(v));
   return { popularSort: sortP && popular ? [sortP.name, popular] : null, url: base + best.path, params, pageParam: names.includes("offset") ? "offset" : names.includes("page") ? "page" : null, limitParam, limit, scheme: sc ? { in: sc.in!, name: sc.name! } : null };
+}
+
+/** Endpoint-ul de detaliu al unui produs (GET cu parametrul `id` în query, fără paginare), dacă API-ul îl are. */
+export type DetailEndpoint = { url: string; idParam: string; scheme: { in: string; name: string } | null };
+export function detailEndpointFromOpenApi(spec: Record<string, unknown>, specUrl: string): DetailEndpoint | null {
+  const paths = spec.paths as Record<string, Record<string, { parameters?: { name: string; in?: string }[] }>> | undefined;
+  if (!paths) return null;
+  const servers = (spec.servers as { url: string }[] | undefined) ?? [];
+  const base = new URL(servers[0]?.url ?? ".", specUrl).toString().replace(/\/$/, "");
+  const schemes = ((spec.components as Record<string, unknown> | undefined)?.securitySchemes ?? {}) as Record<string, { type?: string; in?: string; name?: string }>;
+  const sc = Object.values(schemes).find((x) => x.type === "apiKey" && x.name && x.in);
+  for (const [path, ops] of Object.entries(paths)) {
+    const ps = ops.get?.parameters ?? [];
+    const names = ps.map((x) => x.name);
+    const idParam = ["id", "product_id", "sku"].find((n) => ps.some((x) => x.name === n && x.in === "query"));
+    if (!idParam || names.includes("limit") || names.includes("offset") || names.includes("page")) continue;
+    if (!/product|produs|item/i.test(path)) continue;
+    return { url: base + path, idParam, scheme: sc ? { in: sc.in!, name: sc.name! } : null };
+  }
+  return null;
+}
+
+/** Găsește endpoint-ul de detaliu din linkul de catalog (specificația OpenAPI). Null dacă linkul nu e un OpenAPI. */
+export async function detailEndpointFor(specUrl: string, secret?: string): Promise<DetailEndpoint | null> {
+  const first = await getText(specUrl, feedAuth(secret));
+  const spec = isOpenApi(first.body);
+  return spec ? detailEndpointFromOpenApi(spec, specUrl) : null;
+}
+
+/**
+ * Descrierea completă a unui produs, citită din endpoint-ul de detaliu (o cerere, prin politeFetch).
+ * Întoarce descrierea așa cum o construiește mapRecord (descrierea lungă + atributele de produs), sau null.
+ */
+export async function fetchDetailDescription(ep: DetailEndpoint, secret: string | undefined, externalId: string, currency = "RON"): Promise<string | null> {
+  const { status, body } = await getText(withQuery(ep.url, [[ep.idParam, externalId]]), feedAuth(secret, ep.scheme), { accept: "application/json" });
+  if (status >= 400 || !body) return null;
+  let doc: unknown;
+  try { doc = JSON.parse(body); } catch { return null; }
+  const o = doc as Record<string, unknown>;
+  const rec = (o && typeof o === "object" && !Array.isArray(o) ? ((o.product ?? o.item ?? o.data ?? o) as Record<string, unknown>) : null);
+  if (!rec || typeof rec !== "object") return null;
+  const m = mapRecord({ ...rec, url: rec.url ?? "x", title: rec.title ?? rec.name ?? "x" }, currency);
+  return m.needsDetail ? null : m.description ?? null;
 }
 
 /**

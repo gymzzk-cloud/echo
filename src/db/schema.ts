@@ -583,3 +583,16 @@ export const stores = pgTable("stores", {
   claimedProjectId: uuid("claimed_project_id").references(() => projects.id, { onDelete: "set null" }),
   firstSeenAt: createdAt(),
 }, (t) => [uniqueIndex("stores_domain_path_idx").on(t.domain, t.pathPrefix)]);
+
+/**
+ * Descrierile citite din pagina de detaliu a API-ului magazinului, când lista de produse nu le trimite
+ * (ex. ShopExpert: /search fără descriere la ~12.000 de produse, /product?id= cu descriere).
+ * Rândul apare la sincronizare (fetched_at null = de citit); jobul `catalog_details` le citește încet și le păstrează,
+ * iar sincronizările următoare folosesc descrierea păstrată în loc să o ceară din nou.
+ */
+export const productDetails = pgTable("product_details", {
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  externalId: text("external_id").notNull(),
+  description: text("description"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.projectId, t.externalId] }), index("product_details_pending_idx").on(t.projectId, t.fetchedAt)]);
