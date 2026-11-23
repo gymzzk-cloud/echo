@@ -39,3 +39,14 @@ describe("parseSitePrice", () => {
     expect([parseSitePrice("2635.00"), parseSitePrice("2.635,00"), parseSitePrice("2.635"), parseSitePrice(2635), parseSitePrice(""), parseSitePrice(null)]).toEqual([2635, 2635, 2635, 2635, null, null]);
   });
 });
+
+describe("isPartialCode (căutarea după o parte din codul producătorului)", () => {
+  it("recunoaște bucăți de cod", async () => {
+    const { isPartialCode } = await import("@/core/product-sheet/read");
+    expect(isPartialCode("N3200")).toBe(true);
+    expect(isPartialCode("06019N3200")).toBe(true);
+    expect(isPartialCode("gsr")).toBe(false);
+    expect(isPartialCode("bosch")).toBe(false);
+    expect(isPartialCode("123")).toBe(false);
+  });
+});
