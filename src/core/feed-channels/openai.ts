@@ -102,15 +102,25 @@ export function openAiRow(p: FeedProduct, store: Store, s: FeedOutputSettings | 
 }
 
 const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+/** TSV nu are ghilimele: tab-urile și rândurile noi din text devin spații (descrierile sunt deja text simplu). */
+const tsvCell = (v: string) => v.replace(/[\t\r\n]+/g, " ");
 
-/** Scrie feed-ul OpenAI ca CSV, rând cu rând, și ține statistica pentru panou (excluse pe motive, câmpuri recomandate lipsă). */
-export function openAiWriter(store: Store, s: FeedOutputSettings | null) {
+/**
+ * Formatul fișierului găzduit pentru ChatGPT: TSV. Câmpul „hosted URL” din OpenAI refuză feed-urile CSV fără să le descarce
+ * („The feed service could not complete this request”, nicio cerere în logurile noastre), iar TSV e acceptat (KNOWLEDGE B49).
+ */
+export type OpenAiFormat = "tsv" | "csv";
+
+/** Scrie feed-ul OpenAI (TSV implicit, CSV pentru export), rând cu rând, și ține statistica pentru panou (excluse pe motive, câmpuri recomandate lipsă). */
+export function openAiWriter(store: Store, s: FeedOutputSettings | null, format: OpenAiFormat = "tsv") {
+  const sep = format === "tsv" ? "\t" : ",";
+  const cell = format === "tsv" ? tsvCell : csvCell;
   const excluded: Record<string, number> = {};
   const samples: Record<string, FeedIssueSample[]> = {};
   const missing: Record<string, number> = {};
   let total = 0, included = 0;
   return {
-    head: `${OPENAI_COLUMNS.join(",")}\n`,
+    head: `${OPENAI_COLUMNS.join(sep)}\n`,
     row(p: FeedProduct): string | null {
       total++;
       const r = openAiRow(p, store, s);
@@ -124,7 +134,7 @@ export function openAiWriter(store: Store, s: FeedOutputSettings | null) {
       if (!r.row.gtin && !r.row.mpn) missing.gtin_mpn = (missing.gtin_mpn ?? 0) + 1;
       if (!r.row.product_category) missing.product_category = (missing.product_category ?? 0) + 1;
       included++;
-      return `${OPENAI_COLUMNS.map((c) => csvCell(r.row[c])).join(",")}\n`;
+      return `${OPENAI_COLUMNS.map((c) => cell(r.row[c])).join(sep)}\n`;
     },
     stats: (): FeedFileStats => ({ total, included, excluded, missing, ...(Object.keys(samples).length ? { samples } : {}) }),
   };
@@ -132,7 +142,7 @@ export function openAiWriter(store: Store, s: FeedOutputSettings | null) {
 
 /** Tot feed-ul OpenAI ca CSV (cataloage mici și teste). */
 export function renderOpenAiCsv(items: FeedProduct[], store: Store, s: FeedOutputSettings | null): { body: string; stats: FeedFileStats } {
-  const w = openAiWriter(store, s);
+  const w = openAiWriter(store, s, "csv");
   let body = w.head;
   for (const p of items) body += w.row(p) ?? "";
   return { body, stats: w.stats() };
