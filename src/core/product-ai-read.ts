@@ -45,6 +45,10 @@ export async function productAiList(projectId: string, opts: { filter?: ProductA
     productId: S.productId, title: P.title, url: P.url, brand: P.brand, externalId: P.externalId, mpn: P.mpn, gtin: P.gtin, price: P.price, currency: P.currency, inStock: P.inStock,
     appearances: S.appearances, prompts: S.prompts, providers: S.providers, avgPosition: S.avgPosition, bestPosition: S.bestPosition,
     withStore: S.withStore, statedPrice: S.statedPrice, statedProvider: S.statedProvider, statedRunId: S.statedRunId, realPrice: S.realPrice, realSource: S.realSource, priceWrong: S.priceWrong, wrongPrices: S.wrongPrices, lastSeen: S.lastSeen,
+    // Întrebările din care vin aparițiile (din dovezile salvate) și dacă întrebăm AI-urile direct despre produs:
+    // „0 din 4” înseamnă altceva la o întrebare generală decât la căutarea exactă a produsului (KNOWLEDGE B47).
+    queries: dsql<string[]>`(select coalesce(array_agg(distinct e->>'query'), '{}') from jsonb_array_elements(${S.examples}) e)`,
+    askedDirect: dsql<boolean>`exists (select 1 from ${Q} where ${Q.projectId} = ${projectId} and ${Q.productId} = ${S.productId} and ${Q.active})`,
     total: dsql<number>`count(*) over ()::int`,
   }).from(S).innerJoin(P, eq(P.id, S.productId)).where(and(...where))
     .orderBy(desc(S.appearances), asc(S.avgPosition), asc(P.title))

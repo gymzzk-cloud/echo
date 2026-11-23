@@ -448,6 +448,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: arătăm sursele pe care le-au citit efectiv AI-urile pentru produs (site-ul magazinului, comparatoare, articole, marketplace-uri, recenzii) și unde apare sau nu magazinul în ele. Fiecare sursă e una dintre cele citite, nu singura; ce faci e o opțiune a magazinului, cu costul și limita ei, nu o garanție.
 - De ce: ZoZo: „shopexpert nu e pe compari, asta nu înseamnă că nu este prezent pe piață”.
 
+**B47. „ChatGPT nu numește produsul” spus fără întrebarea din spate** *(23.11.2026, 18:17)*
+- Nu: rândul „Niciodată” la GA5030R lăsa să se înțeleagă că ChatGPT nu arată ShopExpert pentru produs. De fapt Echo nu întrebase ChatGPT direct despre GA5030R. Îl întrebase doar „polizoare unghiulare mici cel mai bun preț”. În aplicație, la „GA5030R” + „cumpărare”, ChatGPT arată ShopExpert pe locul 2 (261 lei + 20 lei livrare, preț luat de pe Discount.ro; pe site sunt 269 lei).
+- În schimb: fiecare „nu te numește” spune la ce întrebări și pe ce cale (ChatGPT prin API, căutare pe web din România), iar pentru ChatGPT spunem că aplicația poate arăta altceva (carduri de produs, oferte din comparatoare, feed). Ca să vedem ce vede un cumpărător care caută produsul, îl urmărim în AI (întrebare directă pe nume și cod).
+- De ce: ZoZo: „deci la noi analiza nu e bună? … acolo arată că nu e shopexpert la acest produs”.
+
 ---
 
 **B48. Acasă, Produse, Surse și Reputație recalculau toate răspunsurile la fiecare deschidere** *(23.11.2026, 20:15)*
