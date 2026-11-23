@@ -1,4 +1,4 @@
-import { AI_BOTS } from "./index";
+import { AI_BOTS, type Check } from "./index";
 
 /**
  * „Rezolvă”: generează exact ce trebuie pus pe site, cu instrucțiuni pe platformă.
@@ -14,7 +14,12 @@ type Ctx = {
   facts?: { cui?: string; organization?: { telephone?: string; email?: string } };
   products?: { title: string; url: string; price: string | null; currency: string; category: string | null; brand: string | null; inStock: boolean; imageUrl: string | null; gtin: string | null; description: string | null }[];
   currency?: string;
+  /** Verificările din audit: „Rezolvă” cere doar ce lipsește cu adevărat. */
+  checks?: Pick<Check, "id" | "status" | "missing">[];
+  sitemapUrl?: string;
 };
+
+const failing = (ctx: Ctx, id: string) => ctx.checks?.find((c) => c.id === id && (c.status === "warn" || c.status === "fail"));
 
 const platformHint = (p?: string | null) => ({
   shopify: "În Shopify: Online Store → Themes → Edit code.",
@@ -33,7 +38,7 @@ export function robotsFix(ctx: Ctx): Fix {
     "# User-agent: GPTBot",
     "# Disallow: /",
     "",
-    `Sitemap: ${ctx.origin}/sitemap.xml`,
+    `Sitemap: ${ctx.sitemapUrl ?? `${ctx.origin}/sitemap.xml`}`,
   ].join("\n");
   return {
     title: "Permite roboții AI în robots.txt",
@@ -112,18 +117,29 @@ export function jsonLdFix(ctx: Ctx): Fix {
     gtin13: p.gtin ?? undefined,
     offers: { "@type": "Offer", url: p.url, price: p.price, priceCurrency: p.currency, availability: p.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock", itemCondition: "https://schema.org/NewCondition", seller: { "@type": "Organization", name: ctx.storeName } },
   } : null;
-  const code = `<!-- Pe toate paginile -->\n<script type="application/ld+json">\n${JSON.stringify(org, null, 2)}\n</script>` +
-    (product ? `\n\n<!-- Pe fiecare pagină de produs (exemplu generat din catalogul tău) -->\n<script type="application/ld+json">\n${JSON.stringify(product, null, 2)}\n</script>` : "");
-  return {
-    title: "Adaugă date structurate (schema.org)",
-    steps: [
-      "Blocul OnlineStore merge în <head> pe toate paginile.",
-      "Blocul Product trebuie generat automat pentru fiecare produs (tema sau plugin-ul SEO). Exemplul arată câmpurile obligatorii: preț, monedă, stoc, brand, GTIN.",
-      ctx.platform === "woocommerce" ? "WooCommerce generează Product automat. Verifică să nu fie dezactivat de temă și completează GTIN-ul (ex. cu plugin-ul „GTIN for WooCommerce”)." : platformHint(ctx.platform),
-      "Validează cu https://validator.schema.org după publicare.",
-    ],
-    code, codeLang: "html",
-  };
+  // Cu rezultatul auditului cerem doar ce lipsește: un magazin care are deja Product nu primește din nou blocul Product.
+  const known = !!ctx.checks;
+  const needOrg = !known || !!failing(ctx, "jsonld-org");
+  const prodCheck = failing(ctx, "jsonld-product");
+  const needProductBlock = !known || !!prodCheck?.missing?.includes("Product");
+  const productFieldsMissing = prodCheck && !prodCheck.missing?.includes("Product") ? prodCheck.missing ?? [] : [];
+  const parts: string[] = [];
+  if (needOrg) parts.push(`<!-- Pe toate paginile -->\n<script type="application/ld+json">\n${JSON.stringify(org, null, 2)}\n</script>`);
+  if (needProductBlock && product) parts.push(`<!-- Pe fiecare pagină de produs (exemplu generat din catalogul tău) -->\n<script type="application/ld+json">\n${JSON.stringify(product, null, 2)}\n</script>`);
+  const title = needOrg && !needProductBlock && !productFieldsMissing.length
+    ? "Adaugă blocul Organization (datele firmei)"
+    : !needOrg && !needProductBlock && productFieldsMissing.length
+      ? "Completează câmpurile lipsă din Product"
+      : "Adaugă date structurate (schema.org)";
+  const steps = [
+    ...(known && !needProductBlock ? ["Produsele tale au deja schema.org Product. Nu-l schimba și nu-l dubla."] : []),
+    ...(needOrg ? ["Blocul OnlineStore merge în <head> pe toate paginile (sau măcar pe pagina principală). Completează logo-ul, telefonul și rețelele sociale reale."] : []),
+    ...(needProductBlock ? ["Blocul Product trebuie generat automat pentru fiecare produs (tema sau plugin-ul SEO). Exemplul arată câmpurile obligatorii: preț, monedă, stoc, brand, GTIN."] : []),
+    ...(productFieldsMissing.length ? [`În blocul Product existent adaugă: ${productFieldsMissing.join(", ")}.`] : []),
+    ctx.platform === "woocommerce" ? "WooCommerce generează Product automat. Verifică să nu fie dezactivat de temă și completează GTIN-ul (ex. cu plugin-ul „GTIN for WooCommerce”)." : platformHint(ctx.platform),
+    "Validează cu https://validator.schema.org după publicare.",
+  ];
+  return { title, steps, code: parts.length ? parts.join("\n\n") : undefined, codeLang: "html" };
 }
 
 export function contentFix(): Fix {
@@ -139,9 +155,23 @@ export function contentFix(): Fix {
 }
 
 export function sitemapFix(ctx: Ctx): Fix {
+  const declare = failing(ctx, "sitemap-robots");
+  if (declare && !failing(ctx, "sitemap")) {
+    const url = ctx.sitemapUrl ?? declare.missing?.[0] ?? `${ctx.origin}/sitemap.xml`;
+    return {
+      title: "Declară sitemap-ul în robots.txt",
+      file: "/robots.txt",
+      steps: [
+        "Sitemap-ul tău există și e bun. Lipsește doar linia care le spune roboților unde e.",
+        "Adaugă linia de mai jos oriunde în robots.txt (de obicei la final). Dacă ai sitemap-uri și pentru alte limbi, adaugă câte o linie pentru fiecare.",
+        "Verifică apoi cu butonul „Verifică din nou” din pagina de audit.",
+      ],
+      code: `Sitemap: ${url}`, codeLang: "text",
+    };
+  }
   return {
     title: "Publică un sitemap",
-    steps: [platformHint(ctx.platform), `Sitemap-ul trebuie să fie la ${ctx.origin}/sitemap.xml și declarat în robots.txt.`, "Include toate produsele active și categoriile."],
+    steps: [platformHint(ctx.platform), `Publică sitemap-ul (de exemplu la ${ctx.origin}/sitemap.xml) și declară-l în robots.txt cu linia „Sitemap: <adresa>”.`, "Include toate produsele active și categoriile."],
   };
 }
 

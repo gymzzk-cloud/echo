@@ -11,6 +11,7 @@ export const PROBLEM_TITLES: Record<string, string> = {
   "content-product": "Descrierile de produs sunt prea scurte",
   llms: "Lipsește llms.txt (rezumatul pentru AI)",
   sitemap: "Nu am găsit un sitemap valid",
+  "sitemap-robots": "Sitemap-ul nu e declarat în robots.txt",
   meta: "Lipsesc titlul, descrierea sau limba paginii",
   trust: "Prea puține semnale de încredere pe site",
   speed: "Pagina principală se încarcă greu",
