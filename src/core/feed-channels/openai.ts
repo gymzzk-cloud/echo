@@ -61,6 +61,9 @@ export const cleanGtin = (g: string | null) => {
   return /^(\d{8}|\d{12,14})$/.test(d) ? d : "";
 };
 
+/** Motivul de excludere pentru produsele fără marcă validă (OpenAI respinge rândul). */
+export const OPENAI_SKIP_NO_BRAND = "fără marcă";
+
 const isHttpUrl = (u: string | null | undefined) => !!u && /^https?:\/\/\S+$/i.test(u);
 
 /**
@@ -72,6 +75,9 @@ export function openAiRow(p: FeedProduct, store: Store, s: FeedOutputSettings | 
   if (!isHttpUrl(p.url)) return { skip: "fără link" };
   if (!isHttpUrl(p.imageUrl)) return { skip: "fără imagine" };
   if (p.price == null || !(p.price > 0)) return { skip: "fără preț" };
+  const brand = cleanBrand(p.brand);
+  // OpenAI cere marca: un rând fără marcă e respins la import („brand” lipsă), deci nu îl trimitem și îl arătăm în panou.
+  if (!brand) return { skip: OPENAI_SKIP_NO_BRAND };
   const title = plainText(p.title, 150);
   return {
     row: {
@@ -82,7 +88,7 @@ export function openAiRow(p: FeedProduct, store: Store, s: FeedOutputSettings | 
       image_link: p.imageUrl!,
       price: `${p.price.toFixed(2)} ${p.currency}`,
       availability: p.inStock ? "in_stock" : "out_of_stock",
-      brand: cleanBrand(p.brand),
+      brand,
       gtin: cleanGtin(p.gtin),
       mpn: plainText(p.mpn, 70),
       condition: "new",
@@ -124,12 +130,13 @@ export function openAiWriter(store: Store, s: FeedOutputSettings | null, format:
     row(p: FeedProduct): string | null {
       total++;
       const r = openAiRow(p, store, s);
-      if ("skip" in r) { excluded[r.skip] = (excluded[r.skip] ?? 0) + 1; return null; }
-      if (!r.row.brand) missing.brand = (missing.brand ?? 0) + 1;
-      if (!r.row.brand && (p.brand ?? "").trim()) {
-        missing.brand_invalid = (missing.brand_invalid ?? 0) + 1;
-        const list = (samples.brand_invalid ??= []);
-        if (list.length < SAMPLE_MAX) list.push({ code: p.externalId, title: r.row.title, value: (p.brand ?? "").slice(0, 120) });
+      if ("skip" in r) {
+        excluded[r.skip] = (excluded[r.skip] ?? 0) + 1;
+        if (r.skip === OPENAI_SKIP_NO_BRAND) {
+          const list = (samples.brand_missing ??= []);
+          if (list.length < SAMPLE_MAX) list.push({ code: p.externalId, title: plainText(p.title, 150), value: (p.brand ?? "").trim().slice(0, 120) });
+        }
+        return null;
       }
       if (!r.row.gtin && !r.row.mpn) missing.gtin_mpn = (missing.gtin_mpn ?? 0) + 1;
       if (!r.row.product_category) missing.product_category = (missing.product_category ?? 0) + 1;

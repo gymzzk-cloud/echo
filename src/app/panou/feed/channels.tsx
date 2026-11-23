@@ -4,7 +4,7 @@ import { CopyButton, SubmitButton } from "@/components/client";
 import { Badge, Card, Notice, Table, Td, TextLink, Working } from "@/components/ui";
 import { CHANNELS } from "@/core/feed";
 import { busyKinds } from "@/core/jobs";
-import { missingOpenAiSettings } from "@/core/feed-channels/openai";
+import { missingOpenAiSettings, OPENAI_SKIP_NO_BRAND } from "@/core/feed-channels/openai";
 import { effectivePolicy } from "@/core/feed-channels/policy-links";
 import { CardHelp } from "@/components/card-help";
 import { regenerateFeeds, toggleChannel } from "@/app/actions-feed";
@@ -21,7 +21,7 @@ type Output = Awaited<ReturnType<typeof outputsOf>>[number];
 const EXT: Record<string, string> = { openai: ".csv", emag: ".csv" };
 export const feedUrl = (o: { token: string; channel: string }) => `${process.env.APP_URL ?? "http://localhost:3000"}/feed/${o.token}${EXT[o.channel] ?? ""}`;
 
-const MISSING: Record<string, string> = { brand: "fără marcă", brand_invalid: "cu marcă nevalidă în magazin (trimisă fără marcă)", gtin_mpn: "fără EAN și fără cod de producător", product_category: "fără categorie" };
+const MISSING: Record<string, string> = { gtin_mpn: "fără EAN și fără cod de producător", product_category: "fără categorie" };
 
 function Status({ o, busy }: { o: Output | undefined; busy: boolean }) {
   if (!o?.active) return <Badge>Oprit</Badge>;
@@ -41,7 +41,8 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
   const det = o?.settings?.detected;
   const s = o?.stats;
   const excluded = s ? Object.entries(s.excluded).filter(([, n]) => n > 0) : [];
-  const gaps = s ? Object.entries(s.missing).filter(([, n]) => n > 0) : [];
+  const gaps = s ? Object.entries(s.missing).filter(([k, n]) => n > 0 && MISSING[k]) : [];
+  const noBrand = s?.samples?.brand_missing ?? [];
 
   return (
     <Card title="ChatGPT (OpenAI)" action={<Status o={o} busy={working} />} description={<CardHelp id="feed.chatgpt" />}>
@@ -68,20 +69,20 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
               {gaps.length > 0 && <p className="text-muted">Intră, dar ar fi recomandate mai multe date: {gaps.map(([k, n]) => `${num(n)} ${MISSING[k] ?? k}`).join(", ")}.</p>}
             </div>
           )}
-          {(s?.samples?.brand_invalid?.length ?? 0) > 0 && (
+          {noBrand.length > 0 && (
             <details className="text-sm">
-              <summary className="cursor-pointer font-semibold">Produse cu marcă nevalidă în magazin ({num(s?.missing.brand_invalid ?? 0)})</summary>
-              <p className="mt-2 text-muted">Le trimitem fără marcă, ca ChatGPT să nu le respingă. Corectează marca în magazin și feed-ul se reface la următoarea sincronizare.</p>
+              <summary className="cursor-pointer font-semibold">Produse scoase din feed pentru că nu au marcă ({num(s?.excluded[OPENAI_SKIP_NO_BRAND] ?? 0)})</summary>
+              <p className="mt-2 text-muted">OpenAI cere marca și respinge rândurile fără ea, așa că nu le trimitem. Completează marca în magazin; produsele intră singure în feed după următoarea sincronizare.</p>
               <Table className="mt-2" head={["Cod", "Produs", "Marca din magazin"]}>
-                {s?.samples?.brand_invalid?.map((x) => (
+                {noBrand.map((x) => (
                   <tr key={x.code} className="border-b border-border last:border-0">
                     <Td className="whitespace-nowrap font-mono text-xs">{x.code}</Td>
                     <Td>{x.title}</Td>
-                    <Td className="break-all font-mono text-xs">{x.value}</Td>
+                    <Td className="break-all font-mono text-xs">{x.value || <span className="font-sans text-muted">goală</span>}</Td>
                   </tr>
                 ))}
               </Table>
-              {(s?.missing.brand_invalid ?? 0) > (s?.samples?.brand_invalid?.length ?? 0) && <p className="mt-2 text-xs text-muted">Arătăm primele {num(s?.samples?.brand_invalid?.length ?? 0)}.</p>}
+              {(s?.excluded[OPENAI_SKIP_NO_BRAND] ?? 0) > noBrand.length && <p className="mt-2 text-xs text-muted">Arătăm primele {num(noBrand.length)} din {num(s?.excluded[OPENAI_SKIP_NO_BRAND] ?? 0)}.</p>}
             </details>
           )}
           <ol className="list-decimal space-y-1 pl-6 text-sm">

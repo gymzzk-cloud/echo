@@ -21,15 +21,22 @@ describe("fișa produsului: ChatGPT", () => {
     expect(r.checks.filter((c) => c.fix)).toEqual([]);
   });
 
-  it("lipsa EAN-ului, mărcii și descrierii scade scorul și spune ce să repari", () => {
-    const p = { ...good, gtin: "123", brand: "N/A", description: null, mpn: null };
+  it("lipsa EAN-ului și descrierii scade scorul și spune ce să repari", () => {
+    const p = { ...good, gtin: "123", description: null, mpn: null };
     const r = openAiReport(p, openAiRow(p, store, policies));
     const by = Object.fromEntries(r.checks.map((c) => [c.field, c]));
     expect(by.gtin.status).toBe("bad");
     expect(by.gtin.value).toContain("invalid");
-    expect(by.brand.status).toBe("bad");
     expect(by.description.status).toBe("bad");
-    expect(r.score).toBeLessThan(60);
+    expect(r.score).toBeLessThan(100);
+  });
+
+  it("fără marcă validă: produsul nu intră în feed și fișa spune de ce (OpenAI respinge rândul)", () => {
+    const p = { ...good, brand: "N/A" };
+    const r = openAiReport(p, openAiRow(p, store, policies));
+    expect(r.included).toBe(false);
+    expect(r.reason).toContain("„N/A”");
+    expect(r.reason).toContain("OpenAI cere marca");
   });
 
   it("cod producător fără EAN dă jumătate de puncte", () => {

@@ -14,7 +14,7 @@ import { effectivePolicy, withDetectedPolicyLinks } from "./feed-channels/policy
  */
 
 const MAX_PRODUCTS = 100_000;
-const FORMAT_VERSION = "6"; // crește când se schimbă formatul unui canal, ca fișierele să se regenereze
+const FORMAT_VERSION = "7"; // crește când se schimbă formatul unui canal, ca fișierele să se regenereze
 
 /**
  * Amprenta datelor din care se face feed-ul: produse (număr + ultima modificare), titluri aprobate, reguli, ziua curentă
