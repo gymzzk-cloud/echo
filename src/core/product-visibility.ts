@@ -112,7 +112,7 @@ function storeAt(line: string, sm: StoreMatcher): number {
   return -1;
 }
 /** Toate prețurile de pe un rând, cu poziția lor. */
-function pricesIn(line: string) {
+export function pricesIn(line: string) {
   const out: { at: number; p: NonNullable<ReturnType<typeof parsePrice>> }[] = [];
   for (const m of line.matchAll(new RegExp(PRICE_RE.source, "gi"))) {
     const p = parsePrice(m[0]);

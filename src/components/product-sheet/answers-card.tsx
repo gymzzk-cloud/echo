@@ -1,4 +1,6 @@
 import { competitorView, likelyReasons } from "@/core/product-sheet/answers";
+import { whyNotRecommended } from "@/core/product-sheet/why";
+import type { ProductExample } from "@/core/product-visibility";
 import type { ChannelReport } from "@/core/product-sheet/channels";
 import { orgDomains, productAnswerRuns, SHEET_WINDOW_DAYS } from "@/core/product-sheet/read";
 import { providerLabel } from "@/core/ai/types";
@@ -7,16 +9,24 @@ import { dateTime } from "@/lib/format";
 
 /**
  * „Când AI-urile aleg pe altcineva”: răspunsurile salvate despre produs, cine apare în locul magazinului,
- * ce comparatoare citează AI-ul și motivele probabile. Stă în <Suspense>: e partea cea mai grea a fișei.
+ * ce comparatoare și pagini citește AI-ul, apoi „De ce nu ești recomandat și ce faci”, punct cu punct, cu dovada.
+ * Stă în <Suspense>: e partea cea mai grea a fișei.
  */
 export async function AnswersCard(props: {
   projectId: string; productId: string; productUrl: string; ownDomain: string; orgId: string; inStock: boolean; tracked: boolean;
   namedRunIds: string[]; wrongPrices: { provider: string; price: number }[];
   openai: ChannelReport | null; openaiActive: boolean; google: ChannelReport | null; page: ChannelReport | null;
+  product: { price: number | null; currency: string; mpn: string | null; gtin: string | null; inStock: boolean };
+  country: string | null; pageRating: string | null | undefined; examples: ProductExample[];
 }) {
   const [runs, domains] = await Promise.all([productAnswerRuns(props.projectId, props.productId, props.namedRunIds), orgDomains(props.orgId)]);
   const view = competitorView(runs, { ownDomain: props.ownDomain, ownDomains: domains, productUrl: props.productUrl, namedRunIds: new Set(props.namedRunIds) });
-  const reasons = likelyReasons({ inStock: props.inStock, openai: props.openai, openaiActive: props.openaiActive, google: props.google, page: props.page, view: runs.length ? view : null, wrongPrices: props.wrongPrices });
+  const reasons = likelyReasons({ inStock: props.inStock, openai: props.openai, openaiActive: props.openaiActive, google: props.google, page: props.page, wrongPrices: props.wrongPrices });
+  const why = whyNotRecommended({
+    product: props.product, ownDomain: props.ownDomain, country: props.country, tracked: props.tracked, openaiActive: props.openaiActive,
+    pageRating: props.pageRating, view, examples: props.examples, providerLabel,
+  });
+  const total = why.length + reasons.length;
 
   return (
     <>
@@ -61,12 +71,29 @@ export async function AnswersCard(props: {
         )}
       </Card>
 
-      <Card title={reasons.length ? "De ce apar probabil alții în locul tău" : "Nu vedem o problemă la acest produs"}
-        description="Motive probabile, din datele produsului și din răspunsurile salvate. AI-urile nu spun de ce aleg o sursă, deci nu sunt certitudini.">
-        {reasons.length
-          ? <ol className="space-y-3">{reasons.map((r, i) => <li key={i} className="text-sm"><span className="font-medium">{i + 1}. {r.title}.</span> <span className="text-muted">{r.detail}</span></li>)}</ol>
-          : <Notice tone="good">Feed-ul și pagina au datele importante. Urmărește produsul în AI ca să vezi cum evoluează.</Notice>}
-      </Card>
+      {runs.length > 0 && view.withoutStore > 0 && (
+        <Card title={total ? "De ce nu ești recomandat și ce poți face" : "Nu vedem încă de ce nu ești recomandat"}
+          description="Ce au citit AI-urile pentru acest produs și unde apari sau nu, din răspunsurile deja primite și din datele produsului, fiecare cu dovada. AI-urile nu spun de ce aleg o sursă, deci sunt observații, nu verdicte.">
+          {total > 0
+            ? <ol className="space-y-4">
+              {why.map((w, i) => (
+                <li key={w.key} className="space-y-1 text-sm">
+                  <p className="font-medium">{i + 1}. {w.title}.</p>
+                  <p className="text-muted">{w.evidence}</p>
+                  <p><span className="font-medium">Ce faci: </span>{w.action}</p>
+                  {w.links.length > 0 && <p className="flex flex-wrap gap-x-4 gap-y-1">{w.links.map((l) => <TextLink key={l.href} href={l.href} external={l.external} className="break-all">{l.label}</TextLink>)}</p>}
+                </li>
+              ))}
+              {reasons.map((r, i) => <li key={`r${i}`} className="text-sm"><span className="font-medium">{why.length + i + 1}. {r.title}.</span> <span className="text-muted">{r.detail}</span></li>)}
+            </ol>
+            : <Notice tone="primary">Răspunsurile salvate nu arată un motiv clar (nicio sursă citată, niciun preț). Urmărește produsul în AI ca să adunăm mai multe răspunsuri.</Notice>}
+        </Card>
+      )}
+      {(!runs.length || !view.withoutStore) && reasons.length > 0 && (
+        <Card title="Ce poate ține produsul departe de AI-uri" description="Probleme în datele produsului (feed, pagină, stoc) care pot face AI-urile să aleagă pe altcineva.">
+          <ol className="space-y-3">{reasons.map((r, i) => <li key={i} className="text-sm"><span className="font-medium">{i + 1}. {r.title}.</span> <span className="text-muted">{r.detail}</span></li>)}</ol>
+        </Card>
+      )}
     </>
   );
 }

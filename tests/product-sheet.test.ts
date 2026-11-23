@@ -129,17 +129,15 @@ describe("fișa produsului: cine apare în locul tău", () => {
 
   it("zero răspunsuri: niciun motiv inventat dacă datele sunt complete", () => {
     const openai = openAiReport(good, openAiRow(good, store, policies));
-    expect(likelyReasons({ inStock: true, openai, openaiActive: true, google: googleFeedReport(good, googleItem(good)), page: null, view: null, wrongPrices: [] })).toEqual([]);
+    expect(likelyReasons({ inStock: true, openai, openaiActive: true, google: googleFeedReport(good, googleItem(good)), page: null, wrongPrices: [] })).toEqual([]);
   });
 
-  it("motivele vin din date: fără EAN, feed oprit, comparator citat", () => {
+  it("motivele vin din date: fără EAN, feed oprit", () => {
     const p = { ...good, gtin: null, mpn: null };
     const openai = openAiReport(p, openAiRow(p, store, policies));
-    const view = competitorView([run("r2", [{ domain: "emag.ro", position: 1 }], ["https://compari.ro/y"])], opts);
-    const titles = likelyReasons({ inStock: true, openai, openaiActive: false, google: null, page: null, view, wrongPrices: [] }).map((r) => r.title);
+    const titles = likelyReasons({ inStock: true, openai, openaiActive: false, google: null, page: null, wrongPrices: [] }).map((r) => r.title);
     expect(titles[0]).toContain("ChatGPT nu primește");
     expect(titles.some((t) => t.includes("EAN"))).toBe(true);
-    expect(titles.some((t) => t.includes("compari.ro"))).toBe(true);
   });
 });
 

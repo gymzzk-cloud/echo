@@ -227,6 +227,8 @@ export const prompts = pgTable("prompts", {
   language: text("language").notNull().default("ro"),
   active: boolean("active").notNull().default(true),
   suggested: boolean("suggested").notNull().default(true),
+  // Căutare propusă scoasă din lista automată: nu mai e întrebată, dar rândul rămâne ca răspunsurile ei (deja plătite) să nu dispară.
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [index("prompts_project_idx").on(t.projectId)]);
 

@@ -3,13 +3,15 @@ import { db, schema } from "@/db";
 import { humanName, promptLimit, suggestPrompts, type SuggestedPrompt } from "./prompts";
 import { enqueue } from "./jobs";
 
-type Existing = { id: string; text: string; active: boolean; suggested: boolean };
+type Existing = { id: string; text: string; active: boolean; suggested: boolean; retiredAt?: Date | null };
 
 /**
  * Ce schimbăm în lista unui magazin ca să ajungă la lista propusă:
  * - cele adăugate de mână rămân mereu și intră în limită;
- * - cele propuse care nu mai sunt în listă (produs ieșit din stoc, produse de test, întrebări vechi) se șterg;
+ * - cele propuse care nu mai sunt în listă (produs ieșit din stoc, produse de test, întrebări vechi) ies din listă
+ *   (`remove`): cine le aplică le retrage dacă au răspunsuri salvate, ca istoricul să nu dispară, și le șterge doar pe cele fără;
  * - cele propuse care rămân nu se ating (istoricul lor rămâne), nici dacă magazinul le-a oprit;
+ * - cele retrase care intră din nou în listă se repornesc (`revive`), nu se adaugă a doua oară;
  * - cele noi se adaugă până la limită.
  * Funcție pură, ca regula să poată fi testată fără bază de date.
  */
@@ -23,10 +25,11 @@ export function planPromptChanges(existing: Existing[], desired: SuggestedPrompt
   const wanted = ordered.filter((d) => !manualKeys.has(key(d.text))).slice(0, room);
   const wantedKeys = new Set(wanted.map((d) => key(d.text)));
   const suggested = existing.filter((p) => p.suggested);
-  const remove = suggested.filter((p) => !wantedKeys.has(key(p.text))).map((p) => p.id);
+  const remove = suggested.filter((p) => !p.retiredAt && !wantedKeys.has(key(p.text))).map((p) => p.id);
+  const revive = suggested.filter((p) => p.retiredAt && wantedKeys.has(key(p.text))).map((p) => p.id);
   const have = new Set(suggested.map((p) => key(p.text)));
   const add = wanted.filter((d) => !have.has(key(d.text)));
-  return { remove, add };
+  return { remove, add, revive };
 }
 
 /** Catalogul are doar produsele de test (din fixtures), nu pe cele reale ale magazinului. */
@@ -49,19 +52,29 @@ export async function refreshPrompts(projectId: string) {
     .from(schema.products).where(and(eq(schema.products.projectId, projectId), eq(schema.products.inStock, true)));
   const lang = p.language as "ro" | "hu";
   const desired = suggestPrompts(products, p.name, lang, limit);
-  const existing = await db.select({ id: schema.prompts.id, text: schema.prompts.text, active: schema.prompts.active, suggested: schema.prompts.suggested })
+  const existing = await db.select({ id: schema.prompts.id, text: schema.prompts.text, active: schema.prompts.active, suggested: schema.prompts.suggested, retiredAt: schema.prompts.retiredAt })
     .from(schema.prompts).where(eq(schema.prompts.projectId, projectId));
-  const { remove, add } = planPromptChanges(existing, desired, limit);
+  const { remove, add, revive } = planPromptChanges(existing, desired, limit);
+  // Ștergerea unei căutări șterge și legăturile spre răspunsurile ei (prompt_runs, cascade): răspunsurile deja primite
+  // ar dispărea din panou. Cele cu răspunsuri doar se retrag (nu mai sunt întrebate); se șterg doar cele fără.
   for (let i = 0; i < remove.length; i += 500) {
-    await db.delete(schema.prompts).where(and(eq(schema.prompts.projectId, projectId), inArray(schema.prompts.id, remove.slice(i, i + 500))));
+    const ids = remove.slice(i, i + 500);
+    const answered = new Set((await db.selectDistinct({ id: schema.promptRuns.promptId }).from(schema.promptRuns).where(inArray(schema.promptRuns.promptId, ids))).map((r) => r.id));
+    const keep = ids.filter((id) => answered.has(id));
+    const drop = ids.filter((id) => !answered.has(id));
+    if (keep.length) await db.update(schema.prompts).set({ active: false, retiredAt: new Date() }).where(and(eq(schema.prompts.projectId, projectId), inArray(schema.prompts.id, keep)));
+    if (drop.length) await db.delete(schema.prompts).where(and(eq(schema.prompts.projectId, projectId), inArray(schema.prompts.id, drop)));
+  }
+  for (let i = 0; i < revive.length; i += 500) {
+    await db.update(schema.prompts).set({ active: true, retiredAt: null }).where(and(eq(schema.prompts.projectId, projectId), inArray(schema.prompts.id, revive.slice(i, i + 500))));
   }
   if (add.length) {
     await db.insert(schema.prompts).values(add.map((x) => ({
       projectId, text: x.text, category: x.category, intent: x.intent, productId: x.productId ?? null, language: p.language, suggested: true,
     })));
   }
-  if (add.length || remove.length) console.log(`căutări ${p.domain}${p.pathPrefix}: +${add.length} / -${remove.length} (limită ${limit})`);
-  return { added: add.length, removed: remove.length };
+  if (add.length || remove.length || revive.length) console.log(`căutări ${p.domain}${p.pathPrefix}: +${add.length} / -${remove.length} / repornite ${revive.length} (limită ${limit})`);
+  return { added: add.length, removed: remove.length, revived: revive.length };
 }
 
 /**
@@ -85,7 +98,7 @@ export async function setProductTracked(projectId: string, productId: string, on
     const limit = promptLimit(plan);
     if (manualActive.length >= limit) throw new Error(`Planul tău urmărește cel mult ${limit} căutări alese de tine. Scoate una ca să adaugi alta.`);
     const byName = mine.find((x) => x.intent === "produs");
-    if (byName) await db.update(schema.prompts).set({ suggested: false, active: true }).where(eq(schema.prompts.id, byName.id));
+    if (byName) await db.update(schema.prompts).set({ suggested: false, active: true, retiredAt: null }).where(eq(schema.prompts.id, byName.id));
     else await db.insert(schema.prompts).values({ projectId, text: humanName(prod), category: null, intent: "produs", productId, language: p?.language ?? "ro", suggested: false });
   }
   // Lista automată se reface în worker, nu în cererea din panou.
