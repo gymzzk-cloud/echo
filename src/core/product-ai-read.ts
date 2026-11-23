@@ -11,9 +11,10 @@ export type ProductAiFilter = "" | "fara-magazin" | "pret";
 
 const S = schema.productAiStats;
 const P = schema.products;
+const Q = schema.prompts;
 
 export async function productAiSummary(projectId: string) {
-  const [[catalog], [stats], [proj], provs] = await Promise.all([
+  const [[catalog], [stats], [proj], provs, [cover]] = await Promise.all([
     db.select({ n: dsql<number>`count(*)::int` }).from(P).where(eq(P.projectId, projectId)),
     db.select({
       named: dsql<number>`count(*)::int`,
@@ -23,9 +24,14 @@ export async function productAiSummary(projectId: string) {
     db.select({ at: schema.projects.productAiAt, answers: schema.projects.productAiAnswers }).from(schema.projects).where(eq(schema.projects.id, projectId)),
     // AI-urile care au numit cel puțin un produs: doar ele apar ca filtre.
     db.execute(dsql`select distinct jsonb_object_keys(${S.providers}) as p from ${S} where ${S.projectId} = ${projectId}`),
+    // Acoperirea: câte întrebări urmărim și despre câte produse întrebăm direct („Urmărește” din pagina Produse).
+    db.select({
+      questions: dsql<number>`count(*) filter (where ${Q.active})::int`,
+      asked: dsql<number>`count(distinct ${Q.productId}) filter (where ${Q.active} and not ${Q.suggested})::int`,
+    }).from(Q).where(eq(Q.projectId, projectId)),
   ]);
   const providers = (provs as unknown as { p: string }[]).map((x) => x.p);
-  return { catalog: catalog.n, ...stats, providers, computedAt: proj?.at ?? null, answers: proj?.answers ?? null };
+  return { catalog: catalog.n, ...stats, ...cover, providers, computedAt: proj?.at ?? null, answers: proj?.answers ?? null };
 }
 
 export async function productAiList(projectId: string, opts: { filter?: ProductAiFilter; provider?: string; q?: string; page?: number }) {
