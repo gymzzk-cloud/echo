@@ -138,8 +138,10 @@ export function extractMentions(
   // Doar magazine de pe piața clientului: fără directoare de firme, recenzii, presă sau magazine din alte țări.
   const kept = mentions.filter((m) => isStoreLike(m.domain) && inMarket(m.domain, country));
   // Sentimentul: ce spune AI-ul despre fiecare magazin, din același text (fără apel AI în plus).
+  // Numele tuturor magazinelor din text (și ale celor scoase mai sus, ex. din altă țară), ca o frază despre
+  // ele să nu fie pusă pe seama magazinului de deasupra.
   const names = new Map<string, string[]>();
-  for (const m of kept) {
+  for (const m of mentions) {
     const ns = new Set([fold(m.domain)]);
     for (const n of [m.name, world.stores.find((s) => s.domain === m.domain)?.name]) if (n && n.length >= 3) ns.add(fold(n));
     // Marca din domeniu doar dacă apare în text ca nume propriu („ShopExpert”), nu ca vorbă obișnuită („scule”).
