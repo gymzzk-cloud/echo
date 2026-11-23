@@ -30,3 +30,15 @@ describe("titlul complet din API (titlu + subtitlu)", () => {
     expect(composeTitle("Bosch Polizor unghiular GWS 7-125", "polizor unghiular").title).toBe("Bosch Polizor unghiular GWS 7-125");
   });
 });
+
+describe("atributele de ambalaj nu intră în descriere", () => {
+  it("CROMWELL 17mm IMPACT SOCKET: doar dimensiuni de ambalaj în API, deci fără descriere", () => {
+    const p = mapRecord({ id: "1228149", title: 'CROMWELL 17mm IMPACT SOCKET 3/8"SQUAREDRIVE', url: "https://x.ro/p", price: 15, short_description: "", description: null,
+      attributes: { "Lungime ambalaj (mm)": "2.60", "Latime ambalaj (mm)": "2.60", "Inaltime ambalaj (mm)": "3.10", "Greutate (gr)": "59" } });
+    expect(p.description).toBe("Greutate (gr): 59");
+  });
+  it("valorile zero se sar", () => {
+    const p = mapRecord({ id: "1", title: "X", url: "https://x.ro/p", price: 1, attributes: { "Greutate (gr)": "0", Putere: "1.300 W" } });
+    expect(p.description).toBe("Putere: 1.300 W");
+  });
+});
