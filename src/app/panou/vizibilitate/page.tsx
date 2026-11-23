@@ -91,7 +91,8 @@ async function EnginesTab({ project, days, link }: Ctx) {
 
 /** Filele de detaliu: aceleași răspunsuri, filtrate pe un AI dacă e ales. */
 async function DetailTab({ tab, project, days, ai, only, link }: Ctx & { tab: Tab }) {
-  const base = await loadBase(project, days);
+  // Filele de detaliu arată răspunsurile întregi, tonul și mărcile din text: au nevoie de textul răspunsurilor.
+  const base = await loadBase(project, days, { answers: true });
   const rows = ai ? base.rows.filter((r) => r.run.provider === ai) : base.rows;
   const failed = ai ? base.failed.filter((r) => r.run.provider === ai) : base.failed;
   if (!base.rows.length && !base.failed.length) return <Empty title="Încă nu avem răspunsuri de la AI-uri">Prima rulare pornește automat după înregistrare. Pagina se actualizează singură când e gata.</Empty>;

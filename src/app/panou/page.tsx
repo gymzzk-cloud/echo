@@ -1,7 +1,8 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
-import { overview, trend, leaderboard, whoRecommends, shareOfRecommendations } from "@/core/insights";
+import { readSnapshot } from "@/core/panel-snapshot";
+import { SnapshotNote } from "@/components/snapshot-note";
 import { PROVIDERS, providerLabel } from "@/core/ai/types";
 import { Badge, ButtonLink, Card, Delta, Empty, ListRow, Notice, SubCard, Table, Td, TextLink, Working, impactTone } from "@/components/ui";
 import { actionTitle } from "@/core/audit/problems";
@@ -12,8 +13,6 @@ import { dateShort } from "@/lib/format";
 import { busyKinds } from "@/core/jobs";
 import { activeProviders, isDemo } from "@/core/ai/engine";
 import { CardHelp } from "@/components/card-help";
-import { notRivals } from "@/core/source-kind";
-import { catalogBrands, orgDomains } from "@/core/store-context";
 
 // Tu: culoarea de marcă; concurenții: nuanțe de gri (DESIGN §9).
 const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"];
@@ -21,36 +20,31 @@ const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--cha
 export default async function Home({ searchParams }: { searchParams: Promise<{ "bun-venit"?: string }> }) {
   const sp = await searchParams;
   const { project } = await currentProject();
-  const o = await overview(project);
-  const [conns, jobs, alerts, actions, prods] = await Promise.all([
+  // Cifrele din toate rulările (scor, grafic, cine te recomandă, cote) vin calculate din worker: pagina citește un rând (KNOWLEDGE B48).
+  const [snap, conns, jobs, alerts, actions] = await Promise.all([
+    readSnapshot(project, "home"),
     db.select().from(schema.connections).where(eq(schema.connections.projectId, project.id)),
     db.select().from(schema.jobs).where(and(inArray(schema.jobs.status, ["queued", "running"]))).limit(50),
     db.select().from(schema.alerts).where(and(eq(schema.alerts.projectId, project.id), eq(schema.alerts.read, false))).orderBy(desc(schema.alerts.createdAt)).limit(5),
     db.select().from(schema.actions).where(and(eq(schema.actions.projectId, project.id), eq(schema.actions.status, "noua"))).limit(50),
-    db.select({ title: schema.products.title, price: schema.products.price }).from(schema.products).where(eq(schema.products.projectId, project.id)).limit(5000),
   ]);
-  const [busy, own, brands] = await Promise.all([busyKinds(project.id, conns.map((c) => c.id)), orgDomains(project.orgId), catalogBrands(project.id)]);
-  // Producătorii (Bosch Professional), propriile magazine și site-urile care nu vând nu sunt „în locul tău” (KNOWLEDGE A0, B32).
-  const exclude = new Set(notRivals(o.rows.flatMap((r) => ((r.run.mentions as { domain: string }[]) ?? []).map((m) => m.domain)), { ownDomains: [project.domain, ...own], brands }));
-  exclude.delete(project.domain);
+  const o = snap.data;
+  const busy = await busyKinds(project.id, conns.map((c) => c.id));
   const analysing = busy.has("audit") || busy.has("run_project") || busy.has("sync");
   const noAi = isDemo() && process.env.ALLOW_DEMO_AI !== "1";
   const working = jobs.filter((j) => (j.payload as Record<string, string>).projectId === project.id || conns.some((c) => c.id === (j.payload as Record<string, string>).connectionId));
   const rank: Record<string, number> = { mare: 0, mediu: 1, mic: 2 };
   const top3 = actions.sort((a, b) => rank[a.impact] - rank[b.impact] || rank[a.effort] - rank[b.effort]).slice(0, 3);
 
-  const comps = leaderboard(o.rows.filter((r) => r.run.runDate >= o.rows.map((x) => x.run.runDate).sort().slice(-7)[0]), project.domain, o.competitors).filter((c) => c.name !== "Tu").slice(0, 3);
-  const chart = trend(o.rows, project.domain, comps.map((c) => c.domain));
+  const { comps, chart, who, share } = o;
   const score = o.latest?.score ?? null;
-  const focusScore = (o.audit?.result as { focus?: { score: number } } | null)?.focus?.score ?? null;
+  const focusScore = o.audit?.focusScore ?? null;
   const diff = o.latest && o.weekAgo && o.latest.day !== o.weekAgo.day ? o.latest.score - o.weekAgo.score : null;
   const recommending = o.perProvider.filter((p) => p.visibility > 0).length;
   // Doar AI-urile care au răspuns efectiv; cele cu eroare nu se socotesc ca „nu te recomandă”.
   const checked = o.perProvider.filter((p) => p.checked).length;
   const live = new Set(activeProviders().filter((p) => p.live).map((p) => p.id));
   const unchecked = new Map(o.unchecked.map((u) => [u.provider, u.reason]));
-  const who = whoRecommends(o.rows, project.domain, o.audit, prods, exclude);
-  const share = shareOfRecommendations(o.rows.filter((r) => r.run.runDate >= (o.latest?.day ?? "")), project.domain, 3, exclude);
   const perQ = who[0]?.total ?? 0;
 
   if (!o.latest) {
@@ -79,6 +73,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
     <div className="space-y-6">
       {/* 1. Scorul și verdictul */}
       <Card>
+        <SnapshotNote computedAt={snap.computedAt} stale={snap.stale} />
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
           <div className="shrink-0"><ScoreRing score={score ?? 0} size={120} /></div>
           <div className="min-w-0 flex-1">
@@ -188,7 +183,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
           </ul>
         </Card>
       )}
-      {o.rows.length === 0 && <Empty title="Nicio întrebare rulată încă" />}
+      {o.rowCount === 0 && <Empty title="Nicio întrebare rulată încă" />}
     </div>
   );
 }

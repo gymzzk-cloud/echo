@@ -1,7 +1,6 @@
 import { currentProject } from "@/lib/project";
-import { loadBase } from "@/core/insights";
-import { reputation } from "@/core/reputation";
-import type { AuditResult } from "@/core/audit";
+import { readSnapshot } from "@/core/panel-snapshot";
+import { SnapshotNote } from "@/components/snapshot-note";
 import { providerLabel } from "@/core/ai/types";
 import { Badge, Card, Empty, Notice, PageHeader, Table, Td, TextLink } from "@/components/ui";
 import { TrendChart } from "@/components/client";
@@ -9,12 +8,14 @@ import { CardHelp } from "@/components/card-help";
 
 export default async function Reputation() {
   const { project } = await currentProject();
-  const { rows, audit } = await loadBase(project, 30);
-  const r = reputation(rows, project.domain, project.name, (audit?.result as AuditResult | undefined)?.facts ?? null);
+  // Calculat în worker din răspunsurile pe 30 de zile; pagina citește un rând (KNOWLEDGE B48).
+  const snap = await readSnapshot(project, "reputation");
+  const r = snap.data;
   if (!r.hasData) return <><PageHeader eyebrow="Vizibilitate" title="Ce spune AI-ul despre tine" /><Empty title="Încă nu avem răspunsuri la întrebările despre magazin">Le punem zilnic: „{project.name} este un magazin de încredere?”, „Ce părere au clienții…”, „Livrează rapid?”.</Empty></>;
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Vizibilitate" title="Ce spune AI-ul despre tine" subtitle="Tonul fiecărui AI, ce afirmă despre tine și ce afirmații contrazic faptele de pe site. Pe acestea le poți corecta." />
+      <SnapshotNote computedAt={snap.computedAt} stale={snap.stale} />
       <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
         <Card>
           <Table head={["AI", "Te cunoaște", "Ton", "Plusuri", "Minusuri"]}>

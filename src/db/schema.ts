@@ -162,6 +162,8 @@ export const products = pgTable("products", {
   uniqueIndex("products_project_ext_idx").on(t.projectId, t.externalId),
   index("products_project_idx").on(t.projectId),
   index("products_project_popularity_idx").on(t.projectId, t.popularityRank),
+  // Pagina Produse: lista implicită (în stoc, apoi cele mai vândute) citește doar primele 100, fără sortare pe tot catalogul.
+  index("products_project_stock_rank_idx").on(t.projectId, t.inStock.desc(), t.popularityRank.asc().nullsLast()),
   index("products_project_focus_idx").on(t.projectId, t.focus),
   index("products_gtin_idx").on(t.gtin), // fișa produsului: căutare după EAN și prețul aceluiași EAN în alte magazine
   index("products_project_mpn_idx").on(t.projectId, t.mpn), // fișa produsului: căutare după codul producătorului
@@ -626,3 +628,16 @@ export const feedSummaries = pgTable("feed_summaries", {
   data: jsonb("data").notNull().$type<import("../core/feed-summary").FeedSummary>(),
   computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.projectId, t.channel] })]);
+
+/**
+ * Cifrele paginilor panoului calculate din toate rulările pe 30 de zile (Acasă, Produse, Surse, Reputație),
+ * salvate de worker după fiecare rulare și citite de pagini. `stamp` spune din ce date au fost calculate:
+ * când rulările, concurenții, auditul sau catalogul se schimbă, pagina cere un calcul nou (KNOWLEDGE B48).
+ */
+export const panelSnapshots = pgTable("panel_snapshots", {
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  stamp: text("stamp").notNull(),
+  data: jsonb("data").notNull(),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.projectId, t.key] })]);
