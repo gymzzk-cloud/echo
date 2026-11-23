@@ -327,6 +327,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: citim JSON-LD, Microdata și RDFa; luăm pagina de produs din catalog, din pagina principală sau din sitemap; căutăm sitemap-ul în robots.txt, sub prefixul de limbă (`/ro/sitemap.xml`), în rădăcină și în variantele index/.gz; dacă firewall-ul ne refuză, încercăm o dată ca browser. Recomandăm doar ce lipsește cu adevărat, numind câmpurile (ex. „lipsește doar blocul Organization”, „Sitemap-ul nu e declarat în robots.txt”, „lipsesc brand, GTIN”), iar sub fiecare verificare arătăm „Ce am găsit și unde” (adresele verificate și ce era acolo). Recomandările vechi a căror verificare trece acum se închid singure.
 - De ce: ZoZo: „de ce zice să corectez să am schema.org, că avem făcut de 12 ani… la fel și sitemap scrie că nu avem deși este”. O recomandare greșită face clientul să nu mai creadă restul auditului.
 
+**B31. „Claude: 3.700 lei” luat de la alt magazin din aceeași listă** *(23.11.2026, 12:29)*
+- Nu: să socotim drept „preț spus de AI” orice preț de lângă produs (alt magazin, un comparator) sau dintr-un răspuns mai vechi, în timp ce dovada arată „Nu spune prețul”, iar „Vezi unde a spus-o” duce la alt răspuns.
+- În schimb: prețul spus de AI e doar cel de pe rândul care numește magazinul (sau are linkul lui), în partea de răspuns despre acel produs; se salvează rularea care l-a spus, iar linkul duce exact la dovada ei, cu rândul evidențiat. Lista și dovezile arată același preț.
+- De ce: ZoZo: „aici spune că Claude a zis greșit prețul, deși dacă dau pe vezi unde, apare corect” (BOSCH GBH 4-32 DFR, ShopExpert 2.635 lei în răspuns).
+
 ---
 
 ## C. Regula de întreținere (permanentă)

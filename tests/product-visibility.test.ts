@@ -146,6 +146,9 @@ describe("prețul spus pentru magazinul tău (bug raportat de ZoZo, 23.11)", () 
     // 2.635 față de 2.848 în catalog = −7,5%: greșit, cu dovada exactă (rularea r2), nu 3.700 de la Dedeman.
     expect(s.wrongPrices).toEqual([{ provider: "claude", price: 2635, runId: "r2" }]);
     expect(s.examples.find((e) => e.runId === "r1")?.statedPrice).toBeNull();
+    // Rândul cu prețul numește magazinul: apariția e „cu magazinul tău”, chiar dacă lista de mențiuni nu l-a prins.
+    expect(s.examples.find((e) => e.runId === "r2")?.withStore).toBe(true);
+    expect(s.withStore).toBe(1);
   });
 });
 

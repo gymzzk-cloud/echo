@@ -263,7 +263,8 @@ export function aggregateProducts(runs: AnswerRun[], products: CatalogProduct[],
     for (const h of findProducts(r.answer, idx, store)) {
       const p = byId.get(h.productId)!;
       const a: Acc = acc.get(h.productId) ?? { positions: [], prompts: new Set(), providers: {}, withStore: 0, lastSeen: r.runDate, lastPrice: new Map(), latest: null, examples: [] };
-      const withStore = r.storeNamed || sources.has(normUrl(p.url));
+      // Un preț citit de pe rândul cu magazinul înseamnă că răspunsul numește magazinul.
+      const withStore = r.storeNamed || sources.has(normUrl(p.url)) || (!!store && h.priceText !== null);
       a.positions.push(h.position);
       for (const id of r.promptIds) a.prompts.add(id);
       a.providers[r.provider] = (a.providers[r.provider] ?? 0) + 1;
