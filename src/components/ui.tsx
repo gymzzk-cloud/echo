@@ -73,8 +73,8 @@ export const btn = (variant: Variant = "primary", size: Size = "md") =>
     size === "md" && "h-11 px-4 text-sm sm:h-10",
     size === "lg" && "h-12 px-6 text-base",
     variant === "primary" && "bg-primary text-primary-fg hover:opacity-90",
-    variant === "secondary" && "border border-border bg-bg hover:bg-surface",
-    variant === "danger" && "border border-border bg-bg text-bad hover:bg-bad-bg",
+    variant === "secondary" && "border border-border-strong bg-bg text-fg hover:bg-surface",
+    variant === "danger" && "border border-border-strong bg-bg text-bad hover:bg-bad-bg",
     variant === "ghost" && "text-muted hover:bg-surface hover:text-fg",
     variant === "side" && "text-side-muted hover:bg-side-active hover:text-side-fg");
 

@@ -59,7 +59,25 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 function AutoLabels({ summary }: { summary: FeedSummary }) {
   return (
     <Card title="Etichete automate" description={<CardHelp id="feed.labels" />}>
-      <div className="flex flex-wrap gap-2">{summary.labelCounts.map(([k, n]) => <Badge key={k} tone={k === "recomandat_ai" || k === "pret_cel_mai_bun" ? "good" : k === "zombie" || k === "pret_peste_piata" || k === "date_lipsa" ? "warn" : "muted"}>{LABELS[k] ?? k}: {n}</Badge>)}</div>
+      <div className="flex flex-wrap gap-2">{summary.labelCounts.filter(([k]) => k !== "zombie").map(([k, n]) => <Badge key={k} tone={k === "recomandat_ai" || k === "pret_cel_mai_bun" ? "good" : k === "ai_nu_apare" || k === "pret_peste_piata" || k === "date_lipsa" ? "warn" : "muted"}>{LABELS[k] ?? k}: {n.toLocaleString("ro-RO")}</Badge>)}</div>
+      <AiCoverage summary={summary} />
     </Card>
+  );
+}
+
+/**
+ * Pe câte produse se sprijină etichetele AI: „neîntrebat” e separat de „întrebat și nu apare” (KNOWLEDGE A0).
+ * Fără date de vânzări de la platformă nu există etichetă de vânzări; spunem asta, nu „fără vânzări”.
+ */
+function AiCoverage({ summary }: { summary: FeedSummary }) {
+  const count = (k: string) => summary.labelCounts.find(([x]) => x === k)?.[1] ?? 0;
+  const named = count("recomandat_ai"), notNamed = count("ai_nu_apare");
+  const notAsked = Math.max(0, summary.total - named - notNamed);
+  const n = (x: number) => x.toLocaleString("ro-RO");
+  return (
+    <ul className="mt-4 space-y-1 text-sm text-muted">
+      <li><span className="font-medium text-fg">AI:</span> {n(named)} produse numite de AI în răspunsuri; {n(notNamed)} întrebate direct și nu apar; {n(notAsked)} din {n(summary.total)} încă neîntrebate, deci nu știm (nu primesc etichetă AI).</li>
+      <li><span className="font-medium text-fg">Vânzări:</span> nu avem date de vânzări de la platforma ta, așa că nu punem etichete de vânzări (de exemplu „fără vânzări”).</li>
+    </ul>
   );
 }

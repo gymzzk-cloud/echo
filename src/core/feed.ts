@@ -3,6 +3,7 @@ import { db, schema } from "@/db";
 import type { FeedAction, FeedCondition, FeedFileStats, FeedOutputSettings } from "@/db/schema";
 import { cleanGtin, openAiWriter } from "./feed-channels/openai";
 import { normalizeText } from "@/lib/util";
+import { ERROR_MODEL } from "./ai/types";
 
 /**
  * Optimizarea feed-ului (în stilul Channable): etichete automate, reguli „dacă… atunci…”,
@@ -31,7 +32,11 @@ export type FeedProduct = {
 };
 
 type LabelInput = { id: string; title: string; inStock: boolean; price: string | null; gtin: string | null; imageUrl: string | null; brand: string | null };
-export type LabelContext = { mentioned: Set<string>; clickN: Map<string, number>; minOther: Map<string, number> };
+/**
+ * mentioned = numite de AI; asked = produse despre care am întrebat AI-urile direct și am primit răspuns (30 de zile).
+ * Un produs neîntrebat nu primește nicio etichetă AI: nu știm (KNOWLEDGE A0), nu e „fără AI”.
+ */
+export type LabelContext = { mentioned: Set<string>; asked?: Set<string>; clickN: Map<string, number>; minOther: Map<string, number> };
 
 /** Datele din care se calculează etichetele automate (AI, clicuri, prețuri în alte magazine). Se citesc o dată pe magazin. */
 export async function labelContext(projectId: string, domain: string): Promise<LabelContext> {
@@ -41,6 +46,11 @@ export async function labelContext(projectId: string, domain: string): Promise<L
   const named = await db.select({ id: schema.productAiStats.productId }).from(schema.productAiStats)
     .where(and(eq(schema.productAiStats.projectId, projectId), dsql`${schema.productAiStats.appearances} > 0`));
   const mentioned = new Set<string>(named.map((x) => x.id));
+  // 1b. Întrebate direct: produsele cu o întrebare proprie care a primit un răspuns valid în ultimele 30 de zile.
+  const Q = schema.prompts, PR = schema.promptRuns, R = schema.runs;
+  const askedRows = await db.selectDistinct({ id: Q.productId }).from(Q).innerJoin(PR, eq(PR.promptId, Q.id)).innerJoin(R, eq(R.id, PR.runId))
+    .where(and(eq(Q.projectId, projectId), dsql`${Q.productId} is not null`, dsql`${R.model} is distinct from ${ERROR_MODEL}`, gte(R.runDate, new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10))));
+  const asked = new Set<string>(askedRows.map((x) => x.id!));
   // 2. Clicuri din căutarea Echo (popularitate). Filtrăm după magazin, nu după o listă de mii de id-uri.
   const clicks = await db.select({ productId: schema.clicks.productId, n: dsql<number>`count(*)::int` }).from(schema.clicks)
     .where(and(eq(schema.clicks.projectId, projectId), gte(schema.clicks.createdAt, new Date(Date.now() - 30 * 864e5)))).groupBy(schema.clicks.productId);
@@ -51,7 +61,7 @@ export async function labelContext(projectId: string, domain: string): Promise<L
       dsql`${schema.products.gtin} in (select ${schema.products.gtin} from ${schema.products} where ${schema.products.projectId} = ${projectId} and ${schema.products.gtin} is not null)`))
     .groupBy(schema.products.gtin);
   const minOther = new Map(others.map((o) => [o.gtin!, parseFloat(o.min)]));
-  return { mentioned, clickN, minOther };
+  return { mentioned, asked, clickN, minOther };
 }
 
 /** Etichetele unui produs. Funcție pură. */
@@ -59,9 +69,10 @@ export function labelsFor(p: LabelInput, ctx: LabelContext) {
   const l: string[] = [];
   const isMentioned = ctx.mentioned.has(p.id);
   if (isMentioned) l.push("recomandat_ai");
-  const n = ctx.clickN.get(p.id) ?? 0;
-  if (n >= 5) l.push("popular");
-  else if (n === 0 && !isMentioned) l.push("zombie");
+  else if (ctx.asked?.has(p.id)) l.push("ai_nu_apare");
+  // Clicuri din căutarea Echo: doar „popular” când chiar există. Fără date de vânzări nu punem „fără vânzări” (zombie):
+  // lipsa datelor nu e o performanță slabă (ZoZo, 23.11.2026). Revine doar cu vânzări reale de la platformă.
+  if ((ctx.clickN.get(p.id) ?? 0) >= 5) l.push("popular");
   l.push(p.inStock ? "in_stoc" : "fara_stoc");
   const price = p.price ? parseFloat(p.price) : null;
   const best = p.gtin ? ctx.minOther.get(p.gtin) : undefined;

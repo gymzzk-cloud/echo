@@ -118,7 +118,7 @@ export function RulesCard({ projectId, rules, channel, example, summary }: { pro
           <div className="md:col-span-2 lg:col-span-4"><Field label="Numele regulii"><Input name="name" defaultValue={ex?.name} placeholder="ex. Scoate din feed produsele fără stoc" required /></Field></div>
           <Field label="Dacă"><Select name="field" defaultValue={ex?.condition.field}>{Object.entries(FIELD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
           <Field label="Condiție"><Select name="op" defaultValue={ex?.condition.op}>{Object.entries(OPS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
-          <Field label="Valoare" hint="La stoc: da sau nu. La etichete: recomandat_ai, zombie, fara_stoc…"><Input name="value" defaultValue={ex?.condition.value} /></Field>
+          <Field label="Valoare" hint="La stoc: da sau nu. La etichete: recomandat_ai, ai_nu_apare, fara_stoc…"><Input name="value" defaultValue={ex?.condition.value} /></Field>
           <Field label="Canal"><Select name="channel" defaultValue=""><option value="">Toate</option>{CHANNELS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>
           <Field label="Atunci"><Select name="type" defaultValue={ex?.action.type}>{Object.entries(ACT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
           <Field label="Câmpul"><Select name="actionField" defaultValue={ex?.action.field ?? ""}><option value="">–</option>{["title", "description", "brand", "category", "price"].map((k) => <option key={k} value={k}>{FIELD_LABEL[k]}</option>)}</Select></Field>

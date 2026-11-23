@@ -16,13 +16,13 @@ describe("rezumatul feed-ului calculat în worker", () => {
   });
 
   it("numără ce lipsește și etichetele pe tot catalogul, dar păstrează doar 20 de exemple cu descrierea scurtată", () => {
-    const items = Array.from({ length: 50 }, (_, i) => prod(i, { inStock: i % 10 !== 0, description: i < 5 ? null : "d".repeat(2000), labels: i < 3 ? ["zombie"] : [] }));
+    const items = Array.from({ length: 50 }, (_, i) => prod(i, { inStock: i % 10 !== 0, description: i < 5 ? null : "d".repeat(2000), labels: i < 3 ? ["ai_nu_apare"] : [] }));
     const s = summarize(base(items), "openai");
     expect(s.total).toBe(50);
     expect(s.gaps).toEqual(feedGaps(items));
     expect(s.gaps.outOfStock).toBe(5);
     expect(s.gaps.noDescription).toBe(5);
-    expect(s.labelCounts).toEqual([["zombie", 3]]);
+    expect(s.labelCounts).toEqual([["ai_nu_apare", 3]]);
     expect(s.preview).toHaveLength(20);
     expect(s.preview.every((p) => (p.description?.length ?? 0) <= 400)).toBe(true);
     // Fără stoc → regula propusă „Scoate din feed produsele fără stoc”, cu numărul real de produse.
