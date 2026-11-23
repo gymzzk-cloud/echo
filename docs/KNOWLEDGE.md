@@ -388,6 +388,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: fiecare cifră spune ce măsoară („Date trimise la ChatGPT: calitatea feed-ului, din 100, nu de câte ori apari”, „Numit de”).
 - De ce: ZoZo: „afară apare doar că are Claude, deși dacă intru pe el apar toate scorurile, ChatGPT și Gemini la fel scor 95”.
 
+**B38. Feed-ul cu subtitlul în loc de descriere, deși magazinul are descriere** *(23.11.2026, 17:54)*
+- Nu: să ne bazăm doar pe lista de produse a unui API. La ShopExpert, `/search?details=1` nu trimite descrierea la ~12.000 de produse care o au, iar `/product?id=` o trimite (ex. BOSCH GSR 12V-32, 1221852: „Prima mașină de găurit și înșurubat de 12 V de la Bosch Professional…”). Feed-ul ChatGPT/Google primea subtitlul („Masina de gaurit si insurubat brushless…”), adică tot titlul. Și entitățile HTML („&icirc;”) ajungeau ca atare în feed.
+- În schimb: când lista nu dă descrierea, o citim din pagina de detaliu a API-ului, încet (500 pe tranșă, o cerere odată, cu pauză), o păstrăm (tabelul `product_details`) și o reverificăm după 30 de zile; feed-ul și reparațiile se refac după. Decodăm entitățile HTML. Înainte să spunem că un produs „nu are descriere” sau „nu are imagine”, verificăm pagina de detaliu și pagina de pe site (imaginea lipsește chiar la 228 de produse din 28.129).
+- De ce: ZoZo: „la descriere pare că feed e greșit, arată din nou titlul… deci feed către ChatGPT și AI-uri sunt greșite”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)
