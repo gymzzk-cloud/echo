@@ -205,6 +205,14 @@ try {
     if (!(seen as unknown as unknown[]).length) await enqueue("golden_check", { commit }, new Date(Date.now() + 3 * 60e3));
   }
 } catch (e) { console.error("Nu am putut programa verificarea pe magazinul etalon:", e); }
+// Format nou de fișier pe un canal (ex. ChatGPT: CSV → TSV, KNOWLEDGE B49): feed-urile cu tipul vechi se refac imediat după publicare,
+// nu la reîmprospătarea zilnică. Doar cele care chiar au alt tip; celelalte rămân cum sunt.
+try {
+  const old = await db.execute(sql`select distinct project_id::text as id from feed_outputs
+    where active and channel = 'openai' and file_type is not null and file_type not like 'text/tab-separated-values%'`) as unknown as { id: string }[];
+  for (const { id } of old) await enqueue("feed", { projectId: id });
+  if (old.length) console.log(`Feed-uri ChatGPT de refăcut în TSV: ${old.length}`);
+} catch (e) { console.error("Nu am putut verifica formatul feed-urilor:", e); }
 let lastSchedule = 0;
 while (!stopping) {
   if (Date.now() - lastSchedule > 10 * 60e3) {
