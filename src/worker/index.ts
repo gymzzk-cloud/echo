@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { finishJob, enqueue, pickJob, pendingJobs, requeueInterrupted } from "@/core/jobs";
+import { refreshPrompts } from "@/core/tracked-prompts";
 import { allProjectIds, auditProject, runAuditRow, runProject, syncCatalog, dueConnections } from "@/core/projects";
 import { buildWeeklyReport, sendReport } from "@/core/report";
 import { today } from "@/lib/util";
@@ -64,6 +65,7 @@ async function handle(kind: string, payload: Record<string, string>) {
       return r;
     }
     case "product_ai": return computeProductVisibility(payload.projectId);
+    case "prompts": return refreshPrompts(payload.projectId);
     case "product_page": {
       const r = await checkProductPage(payload.projectId, payload.productId);
       // Citită după un calcul pe produs (prețul de pe site): refacem calculul o singură dată, după ce trec toate paginile.

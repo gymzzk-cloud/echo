@@ -410,6 +410,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: magazinul vede doar ce AI-uri întrebăm, câte întrebări pe rulare și câte luna asta; costurile, tokenii și plafonul pe fiecare magazin sunt doar în pagina internă `/admin/costuri`.
 - De ce: ZoZo: „asta este un panou al clientului, el nu trebuie să vadă aceste costuri, eventual doar noi… nu este corect să pui aici în magazin aceste date”.
 
+**B41. Un buton din panou care recalculează tot catalogul în timp ce aștepți** *(23.11.2026, 19:42)*
+- Nu: „Adaugă” în Produse urmărite (și „Urmărește în AI”, „Adaugă căutare”) refăcea lista automată de întrebări citind toate cele ~28.000 de produse în cererea din panou: 10–16 s pe Render, iar ZoZo a apăsat de două ori. Produsul adăugat apărea apoi la întâmplare în listă.
+- În schimb: cererea doar salvează alegerea (câteva rânduri) și pune la coadă lucrarea „Actualizarea listei de întrebări” (job `prompts`), pe care o face workerul; pagina se actualizează singură când e gata. Produsele alese de tine apar primele, cele adăugate ultimele sus.
+- De ce: ZoZo: „merge extrem de încet panoul… de 2 ori am dat adaugă”, „le-a adăugat doar că aiurea în ordine și nu mi-am dat seama”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

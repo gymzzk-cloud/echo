@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, or, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { humanName, promptLimit } from "./prompts";
-import { refreshPrompts } from "./tracked-prompts";
+import { enqueue } from "./jobs";
 
 /**
  * Lista „Produse urmărite”: produsele despre care întrebăm AI-urile direct, la fiecare rulare programată.
@@ -32,13 +32,21 @@ export function monthlyCostEstimate(activePrompts: number, providers: number, ru
 }
 
 export type TrackedStatus = "ales" | "automat" | "scos";
+
+/** Ordinea listei: alese de tine (ultimele adăugate sus), apoi propuse automat și scoase, după vânzări și nume. */
+export function sortTracked<T extends { status: TrackedStatus; added: Date; rank: number | null; title: string }>(items: T[]) {
+  const order: Record<TrackedStatus, number> = { ales: 3, automat: 2, scos: 1 };
+  return items.sort((a, b) => order[b.status] - order[a.status]
+    || (a.status === "ales" ? b.added.getTime() - a.added.getTime() : 0)
+    || (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.title.localeCompare(b.title, "ro"));
+}
 const P = schema.products;
 const Q = schema.prompts;
 
 /** Produsele din listă, cu starea lor, plus câte întrebări alese de client sunt active (toate tipurile, ca limita planului). */
 export async function trackedProductList(projectId: string) {
   const [rows, [counts]] = await Promise.all([
-    db.select({ productId: Q.productId, active: Q.active, suggested: Q.suggested, title: P.title, externalId: P.externalId, mpn: P.mpn, gtin: P.gtin, brand: P.brand, price: P.price, currency: P.currency, inStock: P.inStock, rank: P.popularityRank })
+    db.select({ productId: Q.productId, active: Q.active, suggested: Q.suggested, title: P.title, externalId: P.externalId, mpn: P.mpn, gtin: P.gtin, brand: P.brand, price: P.price, currency: P.currency, inStock: P.inStock, rank: P.popularityRank, added: Q.createdAt })
       .from(Q).innerJoin(P, eq(P.id, Q.productId))
       .where(and(eq(Q.projectId, projectId), eq(Q.intent, "produs"), isNotNull(Q.productId)))
       .orderBy(asc(P.popularityRank), asc(P.title)).limit(1000),
@@ -56,7 +64,9 @@ export async function trackedProductList(projectId: string) {
     const e = byId.get(r.productId!);
     if (!e || order[s] > order[e.status]) byId.set(r.productId!, { ...r, status: s });
   }
-  return { items: [...byId.values()], manualActive: counts?.manualActive ?? 0, activePrompts: counts?.active ?? 0 };
+  // Ordinea (KNOWLEDGE A0b): întâi alese de tine, cele adăugate ultimele sus; apoi propuse automat, după vânzări.
+  const items = sortTracked([...byId.values()]);
+  return { items, manualActive: counts?.manualActive ?? 0, activePrompts: counts?.active ?? 0 };
 }
 
 /** Produsele din catalog după codurile lipite (cod din catalog, EAN sau cod producător), și codurile negăsite. */
@@ -96,16 +106,19 @@ export async function addTrackedProducts(projectId: string, productIds: string[]
       .where(and(eq(Q.projectId, projectId), eq(Q.intent, "produs"), inArray(Q.productId, prods.map((p) => p.id))));
     const have = new Map(existing.map((e) => [e.productId!, e.id]));
     const reuse = prods.filter((p) => have.has(p.id)).map((p) => have.get(p.id)!);
-    if (reuse.length) await db.update(Q).set({ suggested: false, active: true }).where(inArray(Q.id, reuse));
+    // createdAt = când l-a ales clientul, ca lista să-l arate primul.
+    if (reuse.length) await db.update(Q).set({ suggested: false, active: true, createdAt: new Date() }).where(inArray(Q.id, reuse));
     const fresh = prods.filter((p) => !have.has(p.id));
     if (fresh.length) await db.insert(Q).values(fresh.map((p) => ({ projectId, text: humanName(p), category: null, intent: "produs", productId: p.id, language, suggested: false })));
   }
-  await refreshPrompts(projectId);
+  // Lista automată se reface în worker (citește tot catalogul): cererea din panou rămâne rapidă.
+  if (add.length) await enqueue("prompts", { projectId });
   return { added: add.length, over: over.length, already, limit: promptLimit(plan) };
 }
 
 /** Scoate produse din listă: nu mai sunt întrebate, iar lista automată nu le mai pune la loc. Istoricul rămâne. */
 export async function removeTrackedProducts(projectId: string, productIds: string[]) {
-  if (productIds.length) await db.update(Q).set({ active: false, suggested: false }).where(and(eq(Q.projectId, projectId), inArray(Q.productId, productIds)));
-  await refreshPrompts(projectId);
+  if (!productIds.length) return;
+  await db.update(Q).set({ active: false, suggested: false }).where(and(eq(Q.projectId, projectId), inArray(Q.productId, productIds)));
+  await enqueue("prompts", { projectId });
 }
