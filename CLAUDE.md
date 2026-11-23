@@ -76,6 +76,7 @@ O sarcină e gata doar când:
 ## Viteză (regulă permanentă: panoul răspunde imediat)
 
 - **Ținta**: orice pagină a panoului răspunde în **sub 1 secundă** pe serverul de producție (azi Render gratuit: 0,1 procesor), iar clicul din meniu arată imediat că se încarcă (spinner și schelet `loading.tsx`).
+- **Nicio acțiune din panou (buton, formular, „Adaugă”, „Salvează”) nu face lucru pe tot catalogul în timpul cererii.** Salvează doar ce a ales clientul (câteva rânduri) și pune restul la coadă (`enqueue`), cu starea live prin `JobWatcher`. Înainte de PR se verifică: ce citește acțiunea și cât durează pe 15.000 de produse (KNOWLEDGE B41).
 - **Nimic pe tot catalogul la deschiderea paginii.** Pagina citește doar ce afișează: coloanele de care are nevoie, cu `limit` și paginare (maxim 50–100 de rânduri pe ecran). Totalurile și numărătorile se fac în SQL (`count`, `group by`), nu în JavaScript pe mii de rânduri.
 - **Calculele grele se fac în worker și se salvează** (etichete, scoruri, agregate), iar pagina doar le citește. Dacă un calcul trebuie făcut la cerere, se păstrează în cache, cu invalidare la schimbare.
 - **Fără bucle pătratice**: nicio căutare `filter`/`find` într-o listă mare în interiorul altei bucle. Se folosesc `Map`/`Set`.
