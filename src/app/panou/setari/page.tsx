@@ -12,6 +12,7 @@ import { FEED_HINTS } from "@/core/connectors/platforms";
 import { dateShort } from "@/lib/format";
 import { syncingConnections } from "@/core/jobs";
 import { promptLimit } from "@/core/prompts";
+import { CardHelp } from "@/components/card-help";
 
 // Tipurile noi (produs, cod, categorie) sunt primele; cele vechi rămân doar ca etichete pentru căutările adăugate înainte.
 const usd = (n: number) => `$${n.toFixed(2)}`;
@@ -74,7 +75,7 @@ export default async function Settings() {
     <div className="space-y-6">
       <PageHeader eyebrow="Cont" title="Setări magazin" subtitle={`${project.name} · ${project.domain}${project.pathPrefix} · ${project.country === "HU" ? "Ungaria" : "România"} · ${project.currency}`} />
 
-      <Card title="Catalogul de produse">
+      <Card title="Catalogul de produse" description={<CardHelp id="settings.catalog" />}>
         {conns.length > 0 && (
           <ul className="mb-6 text-sm">
             {conns.map((c) => (
@@ -139,7 +140,7 @@ export default async function Settings() {
         </ul>
       </Card>
 
-      <Card title="AI-uri și costuri">
+      <Card title="AI-uri și costuri" description={<CardHelp id="settings.aiCosts" />}>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {providers.map((p) => <li key={p.id}><SubCard className="flex items-center justify-between gap-2 p-3 text-sm">{providerLabel(p.id)}<Badge tone={p.live ? "good" : undefined}>{p.live ? "Activ" : p.off === "off" ? "Oprit" : "Fără cheie"}</Badge></SubCard></li>)}
         </ul>

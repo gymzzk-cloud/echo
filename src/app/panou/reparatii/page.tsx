@@ -7,6 +7,7 @@ import { busyKinds } from "@/core/jobs";
 import { fixCounts, listFixes, PAGE_SIZE, type FixStatus } from "@/core/fixes";
 import { approveConfident, decideFix, runFixes, saveAutoThreshold } from "@/app/actions-fixes";
 import { dateShort } from "@/lib/format";
+import { CardHelp } from "@/components/card-help";
 
 type Sp = { s?: string; f?: string; p?: string };
 
@@ -81,6 +82,7 @@ async function FixesBody({ projectId, threshold, checkedAt, sp, busy }: { projec
       </Card>
 
       <Card title={`${STATUS.find((s) => s.id === status)!.label}${field ? `: ${FIELD_LABEL[field].toLowerCase()}` : ""} (${shown})`}
+        description={<CardHelp id="fixes.list" />}
         action={status === "propus" && highPending > 0 && (
           <form action={approveConfident}>{pid}<input type="hidden" name="min" value="80" />{field && <input type="hidden" name="field" value={field} />}
             <SubmitButton size="sm" pendingText="Aprob…">Aprobă peste 80% ({highPending})</SubmitButton></form>

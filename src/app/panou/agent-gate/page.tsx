@@ -5,6 +5,7 @@ import { Badge, Card, Checkbox, Field, FieldGroup, FormActions, Input, PageHeade
 import { DEFAULT_POLICY, KNOWN_AGENTS, recentAgentOrders } from "@/core/agent-gate";
 import { savePolicy, simulateOrder } from "@/app/actions-trust";
 import { money, dateShort } from "@/lib/format";
+import { CardHelp } from "@/components/card-help";
 
 const DEC: Record<string, { label: string; tone: "good" | "warn" | "bad" | "primary" }> = {
   accepta: { label: "Acceptată", tone: "good" }, confirma_sms: { label: "Confirmare SMS", tone: "primary" }, verificare: { label: "Verificare manuală", tone: "warn" }, respinge: { label: "Respinsă", tone: "bad" },
@@ -23,7 +24,7 @@ export default async function AgentGate() {
         {(["accepta", "confirma_sms", "verificare", "respinge"] as const).map((d) => <Stat key={d} label={DEC[d].label} value={orders.filter((o) => o.decision === d).length} hint="ultimele 50" />)}
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Regulile magazinului">
+        <Card title="Regulile magazinului" description={<CardHelp id="gate.rules" />}>
           <ActionForm action={savePolicy} className="space-y-4">
             {pid}
             <FieldGroup label="Agenți acceptați">
@@ -38,7 +39,7 @@ export default async function AgentGate() {
             <SubmitButton>Salvează regulile</SubmitButton>
           </ActionForm>
         </Card>
-        <Card title="Încearcă o comandă">
+        <Card title="Încearcă o comandă" description={<CardHelp id="gate.try" />}>
           <ActionForm action={simulateOrder} className="grid items-start gap-4 sm:grid-cols-2">
             {pid}
             <Field label="Agent"><Input name="agent" defaultValue="ChatGPT" /></Field>
@@ -49,7 +50,7 @@ export default async function AgentGate() {
           </ActionForm>
           <p className="mt-4 text-xs text-muted">Din magazin, decizia se cere prin API: <code>POST {app}/api/v1/agent-gate</code> cu cheia API (vezi API și MCP). Primești <code>accepta</code>, <code>confirma_sms</code>, <code>verificare</code> sau <code>respinge</code> și motivele.</p>
         </Card>
-        <Card title="Ultimele comenzi de la agenți" className="lg:col-span-2">
+        <Card title="Ultimele comenzi de la agenți" description={<CardHelp id="gate.orders" />} className="lg:col-span-2">
           {orders.length === 0 ? <p className="text-sm text-muted">Nicio comandă încă.</p> : (
             <Table head={["Când", "Agent", "Plată", "Valoare", "Risc", "Decizie", "De ce"]}>
               {orders.map((o) => (

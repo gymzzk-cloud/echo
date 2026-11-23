@@ -11,6 +11,7 @@ import { BRAND } from "@/lib/brand";
 import { PLANS, billingEnabled } from "@/core/billing";
 import { dateShort } from "@/lib/format";
 import { confirm2fa, disable2fa, inviteMember, openPortal, removeMember, revokeInvite, saveAgency, start2fa, startCheckout } from "@/app/actions-echipa";
+import { CardHelp } from "@/components/card-help";
 
 const ROLE: Record<string, string> = { owner: "Proprietar", admin: "Administrator", member: "Membru", viewer: "Doar citire", client: "Client (agenție)" };
 const STATUS: Record<string, string> = { trialing: "Perioadă de probă", active: "Activ", past_due: "Plată restantă", canceled: "Anulat" };
@@ -31,7 +32,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {sp.plata && <div className="mb-6"><Notice tone="good">Plata a fost primită. Abonamentul se activează în câteva secunde.</Notice></div>}
       {sp.eroare && <div className="mb-6"><Notice tone="warn">{sp.eroare}</Notice></div>}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Echipa" className="lg:col-span-2">
+        <Card title="Echipa" description={<CardHelp id="account.team" />} className="lg:col-span-2">
           <Table head={["Persoană", "Rol", "Magazine", ""]}>
             {members.map(({ u, m }) => (
               <tr key={u.id}>
@@ -68,7 +69,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           )}
         </Card>
 
-        <Card title="Verificare în doi pași">
+        <Card title="Verificare în doi pași" description={<CardHelp id="account.2fa" />}>
           {user.totpEnabled ? (
             <>
               <p className="mb-4 flex flex-wrap items-center gap-2 text-sm"><Badge tone="good">Activă</Badge> La intrare îți cerem și codul din aplicația de autentificare.</p>
@@ -90,7 +91,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           )}
         </Card>
 
-        <Card title="Agenție și marcă proprie">
+        <Card title="Agenție și marcă proprie" description={<CardHelp id="account.agency" />}>
           <ActionForm action={saveAgency} className="space-y-4">
             <Checkbox name="kind" value="agency" defaultChecked={org.kind === "agency"} disabled={!admin} label="Suntem o agenție și administrăm magazinele clienților" />
             <Field label="Numele afișat în panou și rapoarte" hint={`Gol = ${BRAND.name}`}><Input name="brandName" defaultValue={org.brandName ?? ""} disabled={!admin} /></Field>
@@ -99,7 +100,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </ActionForm>
         </Card>
 
-        <Card title="Abonament" className="lg:col-span-2">
+        <Card title="Abonament" description={<CardHelp id="account.billing" />} className="lg:col-span-2">
           <p className="mb-4 flex flex-wrap items-center gap-2 text-sm">Plan curent: <b className="font-semibold">{PLANS.find((p) => p.id === org.plan)?.name ?? "Probă gratuită"}</b> · <Badge tone={org.billingStatus === "active" ? "good" : org.billingStatus === "past_due" ? "bad" : "muted"}>{STATUS[org.billingStatus] ?? org.billingStatus}</Badge>
             {org.trialEndsAt && org.billingStatus === "trialing" && <span className="text-muted"> · proba se termină pe {dateShort(org.trialEndsAt)}</span>}</p>
           {!billingEnabled() && <div className="mb-4"><Notice tone="warn">Plata online se activează după ce adaugi cheile Stripe în configurare. Până atunci, planurile sunt doar afișate.</Notice></div>}

@@ -3,6 +3,7 @@ import { providerLabel } from "@/core/ai/types";
 import { dateShort } from "@/lib/format";
 import { domainOf } from "@/lib/util";
 import { Badge, Card, SubCard, Table, Td, TextLink, type Tone } from "./ui";
+import { CardHelp } from "@/components/card-help";
 
 /** Unde repari fiecare aspect criticat (DESIGN §1.3: fiecare problemă are o acțiune). */
 const FIX: Record<Aspect, { href: string; label: string }> = {
@@ -43,7 +44,7 @@ export function SentimentCard({ board, visibility, names, quotes, projectName }:
     .sort((a, b) => b.overall.score! - a.overall.score!)[0];
 
   return (
-    <Card title="Cum vorbesc AI-urile despre tine">
+    <Card title="Cum vorbesc AI-urile despre tine" description={<CardHelp id="vis.sentiment" />}>
       {me.overall.score !== null ? (
         <p className="mb-4 text-sm">
           Când te numesc, AI-urile vorbesc <strong>{word(me.overall.score)}</strong> despre tine: scor <strong className="num">{signed(me.overall.score)}</strong> din {me.withOpinion} răspunsuri cu păreri.

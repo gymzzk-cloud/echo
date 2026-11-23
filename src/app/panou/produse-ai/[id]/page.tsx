@@ -8,6 +8,7 @@ import { providerLabel } from "@/core/ai/types";
 import { Badge, Card, Empty, PageHeader, Stat, SubCard, TextLink } from "@/components/ui";
 import { dateShort, dateTime, money, num, pct } from "@/lib/format";
 import { PRICE_TOLERANCE } from "@/core/product-visibility";
+import { CardHelp } from "@/components/card-help";
 
 /** Un produs în AI: cifrele salvate și răspunsurile în care a apărut (cel mult 20, cele mai noi primele). */
 export default async function ProductInAi({ params }: { params: Promise<{ id: string }> }) {
@@ -32,7 +33,7 @@ export default async function ProductInAi({ params }: { params: Promise<{ id: st
         <Stat label="Preț spus de AI" value={s.statedPrice ? money(s.statedPrice, row.currency) : "–"} hint={s.priceWrong ? `în catalog ${money(row.price, row.currency)}; greșit la ${s.wrongPrices.map((w) => providerLabel(w.provider)).join(", ")}` : s.statedPrice ? "corect" : "niciun AI nu spune prețul"} />
       </div>
 
-      <Card title="Pe fiecare AI">
+      <Card title="Pe fiecare AI" description={<CardHelp id="productAi.perEngine" />}>
         <div className="flex flex-wrap gap-2">
           {Object.entries(s.providers).sort((a, b) => b[1] - a[1]).map(([p, n]) => <Badge key={p}>{providerLabel(p)}: {n}×</Badge>)}
           {s.wrongPrices.map((w) => <Badge key={`w${w.provider}`} tone="bad">{providerLabel(w.provider)} spune {money(w.price, row.currency)}</Badge>)}

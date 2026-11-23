@@ -2,6 +2,7 @@ import { trackRival } from "@/app/actions";
 import { RIVAL_MAX_AUTO, RIVAL_MIN_BEATS, type RivalReport } from "@/core/rivals";
 import { Badge, Card, Table, Td, TextLink } from "./ui";
 import { SubmitButton } from "./client";
+import { CardHelp } from "@/components/card-help";
 
 /** Vizibilitate: magazinele care apar mai bine ca tine la aceleași căutări, cu cota din recomandări. */
 export function RivalsCard({ report, projectId, projectName, competitors }: {
@@ -21,7 +22,7 @@ export function RivalsCard({ report, projectId, projectName, competitors }: {
   );
 
   return (
-    <Card title="Cine apare mai bine ca tine la aceleași produse">
+    <Card title="Cine apare mai bine ca tine la aceleași produse" description={<CardHelp id="vis.rivals" />}>
       {lead ? (
         <p className="mb-4 text-sm">
           <strong>{lead.name}</strong> te întrece de <strong className="num">{lead.beats}</strong> ori în {report.answers} răspunsuri AI la căutările tale.
