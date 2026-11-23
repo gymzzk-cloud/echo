@@ -1,5 +1,5 @@
 import type { ProductFields } from "../audit/structured";
-import { cleanBrand, cleanGtin, type OpenAiRow } from "../feed-channels/openai";
+import { cleanBrand, cleanGtin, OPENAI_SKIP_NO_BRAND, type OpenAiRow } from "../feed-channels/openai";
 import type { FeedProduct } from "../feed";
 import { normalizeText } from "@/lib/util";
 
@@ -62,7 +62,9 @@ export function openAiReport(p: FeedProduct, r: { row: OpenAiRow } | { skip: str
   if (!r) return { included: false, reason: "O regulă de feed exclude produsul din canalul ChatGPT.", score: 0, checks: [] };
   if ("skip" in r) return { included: false, reason: r.skip === "fără imagine"
     ? "Produsul nu intră în feed-ul ChatGPT pentru că nu are imagine: catalogul magazinului trimite câmpul de imagine gol. OpenAI cere titlu, link, imagine și preț. Adaugă imaginea în platforma magazinului; Echo o preia la următoarea sincronizare și produsul intră singur în feed."
-    : `Produsul nu intră în feed-ul ChatGPT: ${r.skip}. OpenAI cere titlu, link, imagine și preț.`, score: 0, checks: [] };
+    : r.skip === OPENAI_SKIP_NO_BRAND
+      ? `Produsul nu intră în feed-ul ChatGPT pentru că nu are o marcă validă${p.brand?.trim() ? ` (în catalog scrie „${p.brand.trim()}”)` : " în catalog"}. OpenAI cere marca și respinge rândul fără ea. Completează marca în platforma magazinului; Echo o preia la următoarea sincronizare și produsul intră singur în feed.`
+      : `Produsul nu intră în feed-ul ChatGPT: ${r.skip}. OpenAI cere titlu, link, imagine, preț și marcă.`, score: 0, checks: [] };
   const row = r.row;
   const policies = [row.return_policy, row.seller_privacy_policy, row.seller_tos].filter(Boolean).length;
   const checks: FieldCheck[] = [

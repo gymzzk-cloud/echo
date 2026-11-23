@@ -53,12 +53,12 @@ describe("feed ChatGPT (OpenAI)", () => {
     expect(categoryPath(null)).toBe("");
   });
   it("CSV: antet, ghilimele corecte și statistici", () => {
-    const { body, stats } = renderOpenAiCsv([p(), p({ externalId: "SE-2", title: 'Set "Pro", 3 piese', brand: null, gtin: null, mpn: null }), p({ externalId: "SE-3", price: null })], store, null);
+    const { body, stats } = renderOpenAiCsv([p(), p({ externalId: "SE-2", title: 'Set "Pro", 3 piese', gtin: null, mpn: null }), p({ externalId: "SE-3", price: null })], store, null);
     const lines = body.trim().split("\n");
     expect(lines[0]).toBe(OPENAI_COLUMNS.join(","));
     expect(lines).toHaveLength(3);
     expect(lines[2]).toContain('"Set ""Pro"", 3 piese"');
-    expect(stats).toEqual({ total: 3, included: 2, excluded: { "fără preț": 1 }, missing: { brand: 1, gtin_mpn: 1 } });
+    expect(stats).toEqual({ total: 3, included: 2, excluded: { "fără preț": 1 }, missing: { gtin_mpn: 1 } });
   });
   it("TSV la cerere: tab între coloane, fără tab-uri sau rânduri noi în celule; implicit CSV", () => {
     expect(openAiWriter(store, null).head).toBe(`${OPENAI_COLUMNS.join(",")}\n`);
@@ -86,11 +86,13 @@ describe("feed ChatGPT (OpenAI)", () => {
     expect(long.endsWith(" ")).toBe(false);
   });
 
-  it("marca nevalidă: rândul intră fără marcă și e numărat", () => {
-    const { stats } = renderOpenAiCsv([p({ brand: "N/A" }), p({ externalId: "SE-2", brand: "Bosch" })], store, null);
-    expect(stats.included).toBe(2);
-    expect(stats.missing).toEqual({ brand: 1, brand_invalid: 1 });
-    expect(stats.samples).toEqual({ brand_invalid: [{ code: "SE-1", title: "BOSCH HBA534BS0", value: "N/A" }] });
+  it("fără marcă validă: rândul nu intră (OpenAI îl respinge „brand” lipsă) și apare în listă", () => {
+    const { body, stats } = renderOpenAiCsv([p({ brand: "N/A" }), p({ externalId: "SE-3", brand: null }), p({ externalId: "SE-2", brand: "Bosch" })], store, null);
+    expect(stats.included).toBe(1);
+    expect(body.split("\n").filter(Boolean)).toHaveLength(2);
+    expect(stats.excluded).toEqual({ "fără marcă": 2 });
+    expect(stats.samples).toEqual({ brand_missing: [{ code: "SE-1", title: "BOSCH HBA534BS0", value: "N/A" }, { code: "SE-3", title: "BOSCH HBA534BS0", value: "" }] });
+    expect(body).not.toContain("SE-1");
   });
 
   it("catalog gol → doar antetul", () => {
