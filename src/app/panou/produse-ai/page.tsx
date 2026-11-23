@@ -106,7 +106,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
             </li>
           ))}
         </ul>
-        <Table className="hidden md:block" head={["Produs", "Preț", "Apare în", "Loc mediu", "AI-uri", "Preț spus de AI", "Cu magazinul tău"]}>
+        <Table className="hidden md:block" head={["Produs", "Preț", "Apare în", "Loc mediu", "Numit de", "Preț spus de AI", "Cu magazinul tău"]}>
           {list.rows.map((r) => (
             <tr key={r.productId}>
               <Td className="min-w-56">
