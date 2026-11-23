@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { Badge, Button, Card, Input, TextLink } from "@/components/ui";
 import { productCodes } from "@/lib/product-codes";
 import { money } from "@/lib/format";
@@ -8,11 +9,11 @@ type Hit = { id: string; title: string; externalId: string; mpn: string | null; 
 export function ProductSearchCard({ q, hits }: { q: string; hits: Hit[] | null }) {
   return (
     <Card title="Verifică un produs" description="Scrie EAN-ul, codul producătorului, linkul sau numele. Vezi exact ce primește ChatGPT și Google pentru el, ce lipsește și cine apare în locul tău.">
-      <form role="search" className="grid items-start gap-2 md:grid-cols-[1fr_auto]">
+      <Form action="/panou/produse-ai" prefetch={false} role="search" className="grid items-start gap-2 md:grid-cols-[1fr_auto]">
         <label htmlFor="cauta" className="sr-only">Cod, EAN, link sau nume</label>
         <Input id="cauta" name="cauta" defaultValue={q} placeholder="ex. un cod, un EAN sau linkul produsului" />
         <Button type="submit" variant="secondary">Caută</Button>
-      </form>
+      </Form>
       {hits && (hits.length
         ? <ul className="mt-4 divide-y divide-border">
             {hits.map((h) => (

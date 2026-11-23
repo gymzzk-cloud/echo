@@ -85,6 +85,8 @@ O sarcină e gata doar când:
 - **Linkurile din panou nu preîncarcă pagini** (`prefetch={false}` pe toate `<Link>`-urile din panou și pe `ButtonLink`): pe 0,1 procesor, fiecare preîncărcare costă cam o secundă.
 - **Se măsoară înainte de fiecare merge** care atinge o pagină sau o interogare: `pnpm perf` (vezi `scripts/perf-pages.ts`) pe o bază cu un catalog realist (15.000 de produse). O pagină peste prag nu intră în `main`. Pragul local nu garantează producția: pe Render gratuit am văzut pagini de până la 50 de ori mai lente decât local, așa că după publicare se verifică și `responseTimeMS` din logurile Render.
 - Pornirea serverului rămâne scurtă: fără procese în plus la fiecare trezire, iar workerul pornește după serverul web.
+- **Workerul cedează procesorul panoului**: rulează cu `nice -n 19` (`scripts/render-start.sh`), iar lucrările grele (feed, reparații) nu se refac după fiecare tranșă mică. Ce arată o pagină dintr-un calcul pe tot catalogul se salvează în worker (ex. `feed_summaries` pentru pagina Feed) și pagina doar citește.
+- **Orice clic arată imediat ce se întâmplă**: `NavProgress` (în layout-ul panoului) arată „Se încarcă…” la orice link, filtru sau căutare; căutările sunt `Form` din `next/form` cu `prefetch={false}`; formularele cu acțiune de server trimit doar cu `SubmitButton`. `tests/button-feedback.test.ts` verifică asta.
 
 ## Lucrări în fundal: fără dubluri (regulă permanentă)
 

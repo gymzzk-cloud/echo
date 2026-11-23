@@ -47,7 +47,7 @@ export const RULE_PRESETS: RulePreset[] = [
 export const presetById = (id: string | undefined) => RULE_PRESETS.find((p) => p.id === id);
 
 type Rule = { conditions: FeedCondition[]; actions: FeedAction[]; active: boolean };
-const same = (r: Rule, p: RulePreset) =>
+export const same = (r: Rule, p: RulePreset) =>
   r.conditions.length === 1 && r.actions.length === 1 &&
   r.conditions[0].field === p.condition.field && r.conditions[0].op === p.condition.op && (r.conditions[0].value ?? "") === (p.condition.value ?? "") &&
   r.actions[0].type === p.action.type && (r.actions[0].field ?? "") === (p.action.field ?? "") && (r.actions[0].value ?? "") === (p.action.value ?? "");

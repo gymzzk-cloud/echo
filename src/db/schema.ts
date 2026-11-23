@@ -596,3 +596,15 @@ export const productDetails = pgTable("product_details", {
   description: text("description"),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }),
 }, (t) => [primaryKey({ columns: [t.projectId, t.externalId] }), index("product_details_pending_idx").on(t.projectId, t.fetchedAt)]);
+
+/**
+ * Rezumatul feed-ului pe fiecare canal (câte produse pleacă, ce lipsește, etichete, primele 20, reguli sugerate),
+ * calculat în worker din tot catalogul și citit de pagina Feed. Pagina nu mai calculează feed-ul la deschidere.
+ */
+export const feedSummaries = pgTable("feed_summaries", {
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  channel: text("channel").notNull(),
+  stamp: text("stamp").notNull(),
+  data: jsonb("data").notNull().$type<import("../core/feed-summary").FeedSummary>(),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.projectId, t.channel] })]);

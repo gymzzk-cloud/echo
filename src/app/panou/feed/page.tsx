@@ -1,13 +1,14 @@
-import { Suspense } from "react";
 import { eq, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
-import { Badge, ButtonLink, Card, Empty, PageHeader } from "@/components/ui";
+import { Badge, ButtonLink, Card, Empty, Notice, PageHeader } from "@/components/ui";
 import { CardHelp } from "@/components/card-help";
-import { CHANNELS, buildFeed } from "@/core/feed";
+import { CHANNELS } from "@/core/feed";
+import { readFeedSummary, type FeedSummary } from "@/core/feed-summary";
+import { busyKinds, enqueue } from "@/core/jobs";
 import { ChannelsCard, ChatGptCard } from "./channels";
 import { fixCounts } from "@/core/fixes";
-import { DEFAULT_CHANNEL, FeedView, channelName } from "./feed-view";
+import { DEFAULT_CHANNEL, FeedView } from "./feed-view";
 import { RulesCard } from "./rules";
 import { LABELS } from "./labels";
 
@@ -19,17 +20,25 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const { project } = await currentProject();
   const rules = await db.select().from(schema.feedRules).where(eq(schema.feedRules.projectId, project.id)).orderBy(schema.feedRules.priority);
   const fixes = await fixCounts(project.id);
-  // Doar numărul de produse aici; etichetele și previzualizarea (calcul pe tot catalogul) vin separat, în Suspense.
-  const [{ total }] = await db.select({ total: dsql<number>`count(*)::int` }).from(schema.products).where(eq(schema.products.projectId, project.id));
+  // Rezumatul feed-ului (etichete, ce lipsește, primele 20, reguli sugerate) e calculat în worker pe tot catalogul;
+  // aici doar îl citim (un rând). Lipsește sau e mai vechi de o zi → îl punem la coadă, iar JobWatcher reîncarcă pagina la final.
+  const [[{ total }], summary, busy] = await Promise.all([
+    db.select({ total: dsql<number>`count(*)::int` }).from(schema.products).where(eq(schema.products.projectId, project.id)),
+    readFeedSummary(project.id, channel),
+    busyKinds(project.id),
+  ]);
+  const stale = !summary || Date.now() - summary.computedAt.getTime() > 24 * 3600e3;
+  if (total > 0 && stale && !busy.has("feed")) await enqueue("feed", { projectId: project.id });
+  const working = busy.has("feed") || (total > 0 && stale);
+  const at = summary?.computedAt.toLocaleString("ro-RO", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Bucharest" });
 
   return (
     <>
       <PageHeader eyebrow="Reparații" title="Feed și canale" subtitle="Un singur catalog, optimizat automat pentru fiecare canal. Catalogul tău nu se modifică: regulile și titlurile aprobate se aplică doar în feed și se pot anula oricând." />
       {total === 0 ? <Empty title="Nu există încă produse">Conectează catalogul din Setări magazin.</Empty> : (
       <div className="space-y-6">
-        <Suspense fallback={<Card title="Etichete automate" description={<CardHelp id="feed.labels" />}><Loading /></Card>}>
-          <AutoLabels projectId={project.id} channel={channel} />
-        </Suspense>
+        {working && <Notice tone="muted">{summary ? `Actualizăm feed-ul în fundal. Cifrele de mai jos sunt calculate la ${at}; pagina se reîncarcă singură când e gata.` : "Calculăm feed-ul pe tot catalogul, în fundal. Pagina se reîncarcă singură când e gata (de obicei sub un minut)."}</Notice>}
+        {summary && <AutoLabels summary={summary.data} />}
 
         <ChatGptCard projectId={project.id} />
         <ChannelsCard projectId={project.id} />
@@ -38,27 +47,19 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
           <p className="text-sm">{fixes.approved ? `${fixes.approved} reparații sunt deja aplicate în feed.` : "Încă nu ai aprobat nicio reparație."}</p>
         </Card>
 
-        <Suspense key={channel} fallback={<Card title={`Cum arată feed-ul acum: ${channelName(channel)}`} description={<CardHelp id="feed.view" />}><Loading /></Card>}>
-          <FeedView projectId={project.id} channel={channel} total={total} />
-        </Suspense>
+        {summary && <FeedView summary={summary.data} channel={channel} total={total} at={at!} />}
 
-        <RulesCard projectId={project.id} rules={rules} channel={channel} example={sp.regula} />
+        <RulesCard projectId={project.id} rules={rules} channel={channel} example={sp.regula} summary={summary?.data ?? null} />
       </div>
       )}
     </>
   );
 }
 
-const Loading = () => <p className="animate-pulse text-sm text-muted">Calculăm pentru tot catalogul…</p>;
-
-async function AutoLabels({ projectId, channel }: { projectId: string; channel: string }) {
-  // Același feed ca restul paginii (calculat o dată, din cache): etichetele nu depind de canal.
-  const feed = await buildFeed(projectId, channel);
-  const counts = new Map<string, number>();
-  for (const l of feed.labels.values()) for (const x of l) counts.set(x, (counts.get(x) ?? 0) + 1);
+function AutoLabels({ summary }: { summary: FeedSummary }) {
   return (
     <Card title="Etichete automate" description={<CardHelp id="feed.labels" />}>
-      <div className="flex flex-wrap gap-2">{[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => <Badge key={k} tone={k === "recomandat_ai" || k === "pret_cel_mai_bun" ? "good" : k === "zombie" || k === "pret_peste_piata" || k === "date_lipsa" ? "warn" : "muted"}>{LABELS[k] ?? k}: {n}</Badge>)}</div>
+      <div className="flex flex-wrap gap-2">{summary.labelCounts.map(([k, n]) => <Badge key={k} tone={k === "recomandat_ai" || k === "pret_cel_mai_bun" ? "good" : k === "zombie" || k === "pret_peste_piata" || k === "date_lipsa" ? "warn" : "muted"}>{LABELS[k] ?? k}: {n}</Badge>)}</div>
     </Card>
   );
 }

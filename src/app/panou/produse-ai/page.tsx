@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { currentProject } from "@/lib/project";
 import { productCodes } from "@/lib/product-codes";
 import { busyKinds } from "@/core/jobs";
@@ -80,12 +81,12 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
             <Chips items={[["", "Toate"], ["fara-magazin", "Fără magazinul tău"], ["pret", "Preț greșit"]].map(([k, l]) => ({ href: base({ f: k as ProductAiFilter, p: "" }), label: l, active: filter === k }))} />
             <Chips items={[{ href: base({ ai: "", p: "" }), label: "Toate AI-urile", active: !provider }, ...PROVIDERS.filter((x) => sum.providers.includes(x.id)).map((x) => ({ href: base({ ai: x.id, p: "" }), label: x.label, active: provider === x.id }))]} />
           </div>
-          <form role="search" className="w-full lg:w-64">
+          <Form action="/panou/produse-ai" prefetch={false} role="search" className="w-full lg:w-64">
             {filter && <input type="hidden" name="f" value={filter} />}
             {provider && <input type="hidden" name="ai" value={provider} />}
             <label htmlFor="q" className="sr-only">Caută produs</label>
             <Input id="q" name="q" defaultValue={q} placeholder="Caută produs…" />
-          </form>
+          </Form>
         </div>
         {/* Pe telefon: listă de carduri (DESIGN §6.4); de la 768 px, tabelul. */}
         <ul className="divide-y divide-border md:hidden">

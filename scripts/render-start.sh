@@ -20,6 +20,8 @@ if [ $? -eq 10 ]; then
 fi
 if [ "${RUN_WORKER:-1}" = "1" ]; then
   # Workerul pornește după 30 s, ca la trezire procesorul (0,1 pe planul gratuit) să servească întâi paginile.
-  (sleep "${WORKER_START_DELAY:-30}"; exec npx tsx --conditions=react-server src/worker/index.ts) &
+  # Rulează cu prioritatea cea mai mică (nice 19): când panoul are o cerere, procesorul merge întâi la panou,
+  # iar workerul folosește doar ce rămâne. Fără asta, un feed refăcut sau o sincronizare făceau paginile de 10–15 s.
+  (sleep "${WORKER_START_DELAY:-30}"; exec nice -n "${WORKER_NICE:-19}" npx tsx --conditions=react-server src/worker/index.ts) &
 fi
 exec npx next start -p "${PORT:-10000}"

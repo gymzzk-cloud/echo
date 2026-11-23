@@ -33,7 +33,7 @@ if (SEED > 0) {
 
 // Paginile pe un produs: fișa produsului (feed ChatGPT, Google, pagina, răspunsuri) și căutarea în tot catalogul.
 const [one] = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.projectId, project.id)).limit(1);
-if (one) PAGES.push(`/panou/produse-ai/${one.id}`, "/panou/produse-ai?cauta=bormasina%20percutie");
+if (one) PAGES.push(`/panou/produse-ai/${one.id}`, "/panou/produse-ai?cauta=bormasina%20percutie", "/panou/produse-urmarite?cauta=gws%2018v-8", "/panou/produse?cauta=test%201234", "/api/panou/jobs?ids=");
 
 const time = async (path: string) => {
   const t = performance.now();

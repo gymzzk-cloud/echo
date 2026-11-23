@@ -421,6 +421,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: întrebările gata făcute au răspuns pe loc, din reguli, fără AI. Întrebarea scrisă de client merge la modelul ieftin (Haiku / gpt-5-mini, gândire „low”, cel mult 600 de tokeni), cu costul salvat pe magazin și răspunsul păstrat pe zi. La clic apare imediat „Caut răspunsul…”, iar butoanele se blochează până vine răspunsul.
 - De ce: ZoZo: „aștept foarte mult până primesc răspuns și nici măcar nu am feedback că rulează ceva… nu e interactiv cu clientul”.
 
+**B43. Panoul lent peste tot cât lucrează workerul, și clicuri fără niciun semn** *(23.11.2026, 19:44)*
+- Nu: workerul (sincronizare, citirea descrierilor, feed refăcut, reparații) rula cu aceeași prioritate ca panoul, pe același server de 0,15 procesor, deci paginile ajungeau la 7–15 s, iar „Adaugă” părea că nu merge. Pagina Feed recalcula tot feed-ul (28.000 de produse) la fiecare deschidere, pentru că descrierile citite schimbau catalogul la câteva secunde. Căutările din panou citeau tot catalogul. Un clic pe un link, filtru sau căutare nu arăta nimic până venea pagina.
+- În schimb: workerul pornește cu `nice -n 19` (procesorul merge întâi la panou); feed-ul și reparațiile se refac la a opta tranșă de descrieri, nu la a patra; pagina Feed citește un rezumat calculat în worker (`feed_summaries`); căutările folosesc indexuri trigram; orice clic care schimbă pagina arată imediat „Se încarcă…” (`NavProgress`), căutările merg fără reîncărcarea paginii (`Form` din next/form), iar un test (`tests/button-feedback.test.ts`) pică dacă un buton sau formular nu arată starea.
+- De ce: ZoZo: „merge extrem de încet panoul iar… de 2 ori am dat adaugă, așa încet merge încât nici nu le-a adăugat”, „merge f f greu interfața peste tot”, „nici măcar nu am feedback că rulează ceva în fundal sau ce se întâmplă, nu merge butonul”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)

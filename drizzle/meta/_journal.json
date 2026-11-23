@@ -169,6 +169,20 @@
       "when": 1795449739149,
       "tag": "0023_product_details",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795456000000,
+      "tag": "0024_search_trgm",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795456428863,
+      "tag": "0025_feed_summaries",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,7 @@ import { deliverWebhook } from "@/core/platform";
 import { isDemo } from "@/core/ai/engine";
 import { costConfig, isRunDue } from "@/core/ai/budget";
 import { generateFeedFiles, projectsWithStaleFeeds } from "@/core/feed-files";
+import { computeFeedSummaries } from "@/core/feed-summary";
 import { detectRivals, projectsDueForRivals } from "@/core/rivals-job";
 import { projectsDueForPolicies, refreshPolicies } from "@/core/policies";
 import { pruneMcpCalls } from "@/core/mcp";
@@ -47,11 +48,17 @@ async function handle(kind: string, payload: Record<string, string>) {
       // Altă tranșă = alte date ale jobului (`round`), altfel coada ar refuza-o ca dublură a jobului care rulează acum.
       const round = Number(payload.round ?? 0) + 1;
       if (r.left > 0 && r.read > 0) await enqueue("catalog_details", { connectionId: payload.connectionId, projectId: payload.projectId, round: String(round) }, new Date(Date.now() + 2 * 60e3));
-      // Descrieri noi → feed-ul și reparațiile se refac la fiecare a patra tranșă și la final, nu după fiecare.
-      if (r.read > 0 && r.projectId && (r.left === 0 || round % 4 === 0)) { await enqueue("feed", { projectId: r.projectId }); await enqueue("fixes", { projectId: r.projectId }); }
+      // Descrieri noi → feed-ul și reparațiile se refac la fiecare a opta tranșă (~40 min) și la final, nu după fiecare:
+      // refacerea feed-ului e cea mai grea lucrare a workerului și ar încetini panoul de prea multe ori.
+      if (r.read > 0 && r.projectId && (r.left === 0 || round % 8 === 0)) { await enqueue("feed", { projectId: r.projectId }); await enqueue("fixes", { projectId: r.projectId }); }
       return r;
     }
-    case "feed": return generateFeedFiles(payload.projectId);
+    case "feed": {
+      // Fișierele canalelor pornite, apoi rezumatul citit de pagina Feed (pagina nu mai calculează feed-ul la deschidere).
+      const files = await generateFeedFiles(payload.projectId);
+      const summaries = await computeFeedSummaries(payload.projectId);
+      return { files, summaries };
+    }
     case "fixes": {
       const r = await generateFixes(payload.projectId);
       // Reparațiile aprobate automat intră în feed: fișierele se refac (doar dacă s-a schimbat ceva).
@@ -132,6 +139,8 @@ async function schedule() {
   }
   // Alerte de preț și stoc pentru cumpărători: la fiecare programare (10 min), după sincronizările de catalog
   if (!(await pendingJobs(["watches"], "all", "1"))) await enqueue("watches", { all: "1" });
+  // Istoricul joburilor: păstrăm 14 zile (coada rămâne mică, iar starea lucrărilor se citește repede).
+  await db.execute(sql`delete from jobs where status in ('done','failed') and created_at < now() - interval '14 days'`).catch((e) => console.error("jobs prune", (e as Error).message));
   // Jurnalul apelurilor MCP: păstrat doar MCP_LOG_DAYS zile (promis în politica de confidențialitate).
   await pruneMcpCalls().catch((e) => console.error("mcp prune", (e as Error).message));
   // Raport săptămânal: lunea, pentru proprietarii fiecărui magazin
