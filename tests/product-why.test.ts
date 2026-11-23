@@ -70,6 +70,16 @@ describe("de ce nu ești recomandat", () => {
     expect(items[0].evidence).toContain("276 lei");
   });
 
+  it("întrebare directă: AI-ul descrie produsul (cod în răspuns) fără niciun magazin — nu spunem că nu-l numește", () => {
+    const direct = run("gpt2", "chatgpt", []);
+    direct.query = "Makita GA5030R Polizor unghiular 720 W";
+    direct.answer = "Vrei specificații sau prețuri? Model: Makita GA5030R, 720 W.";
+    const v = competitorView([direct], { ownDomain: "shopexpert.com", ownDomains: [], productUrl: "", namedRunIds: new Set() });
+    const keys = whyNotRecommended({ ...base, view: v, examples: [] }).map((i) => i.key);
+    expect(keys).toContain("noshop:chatgpt");
+    expect(keys).not.toContain("silent:chatgpt");
+  });
+
   it("căutarea pe comparator, pe piața magazinului", () => {
     expect(comparatorSearch("polizor-unghiular.compari.ro", "GA5030R")).toBe("https://www.compari.ro/CategorySearch.php?st=GA5030R");
     expect(comparatorSearch("arukereso.hu", "GA5030R")).toBe("https://www.arukereso.hu/CategorySearch.php?st=GA5030R");
