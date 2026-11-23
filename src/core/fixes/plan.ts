@@ -7,7 +7,8 @@ import type { FixCandidate } from "./rules";
  * - decizie luată (aprobat / respins): rămâne, cât timp datele produsului sunt aceleași. Dacă produsul s-a schimbat
  *   în catalog și propunerea e alta, o punem din nou la aprobat;
  * - o propunere AI cu aceleași date de intrare nu e înlocuită de una din reguli (AI-ul nu se plătește de două ori);
- * - propunerile în așteptare care nu mai au motiv (catalogul a fost reparat) se șterg.
+ * - propunerile în așteptare care nu mai au motiv (catalogul a fost reparat) se șterg; la fel deciziile vechi,
+ *   dacă datele produsului s-au schimbat de atunci și reparația nu mai e propusă.
  */
 
 export type ExistingFix = { id: string; productId: string; field: string; value: string; status: string; source: string; inputHash: string | null; confidence: number };
@@ -34,6 +35,13 @@ export function planFixWrites(candidates: FixCandidate[], existing: ExistingFix[
     if (e.value === c.value && e.confidence === c.confidence && sameInput) continue;
     upsert.push({ ...c, inputHash: hash, ...decide(c) });
   }
-  const remove = existing.filter((e) => e.status === "propus" && !seen.has(`${e.productId}|${e.field}`) && !(e.source === "ai" && e.inputHash === hashOf.get(e.productId))).map((e) => e.id);
+  const remove = existing.filter((e) => {
+    if (seen.has(`${e.productId}|${e.field}`)) return false;
+    const sameInput = e.inputHash === (hashOf.get(e.productId) ?? "");
+    if (e.status === "propus") return !(e.source === "ai" && sameInput);
+    // O decizie (aprobat / respins) rămâne cât timp produsul e același. Dacă datele produsului s-au schimbat și
+    // reparația nu mai are motiv, o scoatem: altfel un titlu aprobat pe date vechi ar înlocui titlul bun din catalog.
+    return !sameInput && hashOf.has(e.productId);
+  }).map((e) => e.id);
   return { upsert, remove };
 }

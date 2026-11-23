@@ -1,5 +1,5 @@
 {
-  "id": "669cbcc9-671c-4a5a-ba2d-2a76b58f0807",
+  "id": "3bb35973-799b-4b8d-8714-1f4b46fb9240",
   "prevId": "cdee7fd1-dbc6-4de2-a61c-8f0b6cf491d2",
   "version": "7",
   "dialect": "postgresql",
@@ -2143,24 +2143,6 @@
         "stated_run_id": {
           "name": "stated_run_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "real_price": {
-          "name": "real_price",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "real_source": {
-          "name": "real_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "site_checked_at": {
-          "name": "site_checked_at",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
