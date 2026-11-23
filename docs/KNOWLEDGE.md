@@ -416,6 +416,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - De ce: ZoZo: „merge extrem de încet panoul… de 2 ori am dat adaugă”, „le-a adăugat doar că aiurea în ordine și nu mi-am dat seama”. Și: „în regulă trebuia să fie scrisă și asta… cum lucrăm și construim așa”.
 - Regula (scrisă și în CLAUDE.md, „Viteză”): nicio acțiune din panou nu face lucru pe tot catalogul în timpul cererii. Salvează doar alegerea și pune restul la coadă. La fiecare acțiune nouă verificăm, înainte de PR, ce citește și cât durează pe 15.000 de produse.
 
+**B42. Asistentul care răspunde greu și nu arată că lucrează** *(23.11.2026, 19:49)*
+- Nu: la fiecare clic (și pe întrebările gata făcute) pagina „Întreabă asistentul” chema Claude Opus cu gândire, până la 4.000 de tokeni, în cererea paginii, fără niciun semn că lucrează. Clientul crede că butonul nu merge. Și era modelul cel mai scump, contrar regulii de costuri.
+- În schimb: întrebările gata făcute au răspuns pe loc, din reguli, fără AI. Întrebarea scrisă de client merge la modelul ieftin (Haiku / gpt-5-mini, gândire „low”, cel mult 600 de tokeni), cu costul salvat pe magazin și răspunsul păstrat pe zi. La clic apare imediat „Caut răspunsul…”, iar butoanele se blochează până vine răspunsul.
+- De ce: ZoZo: „aștept foarte mult până primesc răspuns și nici măcar nu am feedback că rulează ceva… nu e interactiv cu clientul”.
+
 ---
 
 ## C. Regula de întreținere (permanentă)
