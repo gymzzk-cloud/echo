@@ -42,6 +42,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
   const comps = leaderboard(o.rows.filter((r) => r.run.runDate >= o.rows.map((x) => x.run.runDate).sort().slice(-7)[0]), project.domain, o.competitors).filter((c) => c.name !== "Tu").slice(0, 3);
   const chart = trend(o.rows, project.domain, comps.map((c) => c.domain));
   const score = o.latest?.score ?? null;
+  const focusScore = (o.audit?.result as { focus?: { score: number } } | null)?.focus?.score ?? null;
   const diff = o.latest && o.weekAgo && o.latest.day !== o.weekAgo.day ? o.latest.score - o.weekAgo.score : null;
   const recommending = o.perProvider.filter((p) => p.visibility > 0).length;
   // Doar AI-urile care au răspuns efectiv; cele cu eroare nu se socotesc ca „nu te recomandă”.
@@ -89,7 +90,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
             <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
               <div><dt className="text-xs text-muted">Apari în răspunsuri</dt><dd className="num font-medium">{o.latest.visibility}%</dd></div>
               <div><dt className="text-xs text-muted">Cota din recomandări</dt><dd className="num font-medium">{o.latest.shareOfVoice}%</dd></div>
-              <div><dt className="text-xs text-muted">Pregătire tehnică</dt><dd className="num font-medium">{o.audit ? `${o.audit.score}/100` : "–"}</dd></div>
+              <div><dt className="text-xs text-muted">Pregătire tehnică</dt><dd className="num font-medium">{o.audit ? `${o.audit.score}/100` : "–"}</dd>{focusScore !== null && <dd className="text-xs text-muted">Produse focus: <span className="num">{focusScore}/100</span></dd>}</div>
             </dl>
             <p className="mt-2 text-xs text-muted">
               Ultima măsurătoare ({o.latest.day.slice(8, 10)}.{o.latest.day.slice(5, 7)}). Scorul = 50% apariții + 20% cotă + 30% pregătire tehnică.

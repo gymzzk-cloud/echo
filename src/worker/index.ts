@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { finishJob, enqueue, pickJob, pendingJobs, requeueInterrupted } from "@/core/jobs";
+import { computeFocus } from "@/core/focus";
 import { refreshPrompts } from "@/core/tracked-prompts";
 import { allProjectIds, auditProject, runAuditRow, runProject, syncCatalog, dueConnections } from "@/core/projects";
 import { buildWeeklyReport, sendReport } from "@/core/report";
@@ -71,8 +72,24 @@ async function handle(kind: string, payload: Record<string, string>) {
       await enqueue("product_ai", { projectId: payload.projectId });
       return r;
     }
-    case "product_ai": return computeProductVisibility(payload.projectId);
-    case "prompts": return refreshPrompts(payload.projectId);
+    case "product_ai": {
+      const r = await computeProductVisibility(payload.projectId);
+      // Produsele numite de AI fac parte din „Produse focus”: setul se recalculează după fiecare calcul pe produs.
+      await enqueue("focus", { projectId: payload.projectId });
+      return r;
+    }
+    case "focus": {
+      const r = await computeFocus(payload.projectId);
+      // Alegere nouă în Setări: auditul se reface, ca scorul „Produse focus” să o arate.
+      if (payload.then === "audit") await enqueue("audit", { projectId: payload.projectId });
+      return r;
+    }
+    case "prompts": {
+      const r = await refreshPrompts(payload.projectId);
+      // Produsele alese de magazin intră în „Produse focus”.
+      await enqueue("focus", { projectId: payload.projectId });
+      return r;
+    }
     case "product_page": {
       const r = await checkProductPage(payload.projectId, payload.productId);
       // Citită după un calcul pe produs (prețul de pe site): refacem calculul o singură dată, după ce trec toate paginile.

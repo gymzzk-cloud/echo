@@ -61,6 +61,13 @@ export type AuditResult = {
   error?: string;
   reusedFacts?: string[]; // date stabile luate din verificarea anterioară (site-ul nu le-a mai arătat acum)
   home?: HomeCatalog; // categoriile, mărcile și produsele de pe prima pagină (propunere pentru profilul din onboarding)
+  /**
+   * Același audit pe „Produse focus”: verificările de site sunt aceleași, iar cele pe produse (descrierile)
+   * sunt socotite doar pe setul focus. `products` = câte produse are setul. Lipsește fără catalog.
+   */
+  focus?: { score: number; products: number; checks: Check[] };
+  /** Câte produse în stoc are tot catalogul (pentru „Tot magazinul”). */
+  catalogProducts?: number;
 };
 export type StoreFacts = {
   title?: string;
@@ -235,6 +242,7 @@ function extractFacts($: cheerio.CheerioAPI, html: string, nodes: Record<string,
 export type AuditOptions = {
   /** Pagini de produs din catalogul conectat, verificate înaintea celor ghicite din site. */ productUrls?: string[];
   /** Descrierile pe tot catalogul (din SQL); cu ele verificarea descrierilor nu mai depinde de o singură pagină. */ descriptions?: DescriptionStats;
+  /** Aceleași numărători doar pe „Produse focus”. */ descriptionsFocus?: DescriptionStats;
 };
 
 export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promise<AuditResult> {
@@ -460,7 +468,26 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
     weight: 7,
   });
 
-  return finalize(result);
+  finalize(result);
+  result.focus = focusVariant(result, opts.descriptionsFocus);
+  if (opts.descriptions?.total) result.catalogProducts = opts.descriptions.total;
+  return result;
+}
+
+/**
+ * Auditul pe „Produse focus”: verificarea descrierilor refăcută pe setul focus, restul la fel.
+ * null când setul e gol sau nu avem descrieri citite pentru el.
+ */
+export function focusVariant(r: Pick<AuditResult, "checks">, focus: DescriptionStats | undefined): AuditResult["focus"] {
+  const cat = catalogDescriptionVerdict(focus);
+  if (!focus || !cat) return undefined;
+  const checks = r.checks.map((c): Check => c.id !== "content-product" ? c : {
+    ...c, status: cat.status, fixKind: cat.status === "pass" ? undefined : ("content" as const),
+    detail: `${cat.detail.replace("produse în stoc verificate", "produse focus verificate")} AI-urile recomandă produse cu descrieri care spun pentru cine e, ce problemă rezolvă și cum se compară.`,
+    evidence: [{ label: "Produse focus", value: `${cat.pct}% din ${cat.checked.toLocaleString("ro-RO")} produse au descriere bună` }, ...(c.evidence ?? []).filter((e) => e.label !== "Catalogul conectat")],
+  });
+  const f = finalize({ checks, score: 0 } as unknown as AuditResult);
+  return { score: f.score, products: focus.total, checks: checks.filter((c) => c.id === "content-product") };
 }
 
 function finalize(r: AuditResult) {
