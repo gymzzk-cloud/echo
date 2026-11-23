@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { btn, cx } from "./ui";
+import { Input, btn, cx } from "./ui";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 
 export function CopyButton({ text }: { text: string }) {
@@ -83,6 +84,48 @@ export function CodeBlock({ code, label }: { code: string; label?: string }) {
     <div className="mt-2 min-w-0 rounded-lg border border-border bg-surface">
       <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 text-xs text-muted"><span>{label}</span><CopyButton text={code} /></div>
       <pre className="max-h-56 overflow-auto p-3 font-mono text-xs">{code}</pre>
+    </div>
+  );
+}
+
+/**
+ * Câmpul de întrebare al asistentului, cu întrebările gata făcute. La clic arată imediat „Caut răspunsul…”
+ * și blochează butoanele până vine răspunsul, ca clientul să știe că lucrăm și să nu apese de două ori.
+ */
+export function AskBox({ initial, examples }: { initial: string; examples: string[] }) {
+  const router = useRouter();
+  const [q, setQ] = useState(initial);
+  const [asked, setAsked] = useState(initial);
+  const [pending, start] = useTransition();
+  const ask = (text: string) => {
+    const t = text.trim();
+    if (t.length < 3 || pending) return;
+    setQ(t);
+    setAsked(t);
+    start(() => router.push(`?q=${encodeURIComponent(t)}`, { scroll: false }));
+  };
+  return (
+    <div>
+      <form className="flex flex-col gap-2 md:flex-row" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
+        <label htmlFor="q" className="sr-only">Întrebare</label>
+        <Input id="q" name="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="ex. De ce nu mă recomandă Gemini?" disabled={pending} />
+        <button type="submit" data-ui="button" disabled={pending} className={cx(btn("primary", "md"), "w-full md:w-auto")}>{pending ? "Caut…" : "Întreabă"}</button>
+      </form>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {examples.map((e) => (
+          <button key={e} type="button" disabled={pending} onClick={() => ask(e)} aria-pressed={e === asked}
+            className={cx("inline-flex h-9 items-center whitespace-nowrap rounded-full border px-3 text-sm disabled:opacity-60 sm:h-8",
+              e === asked ? "border-primary bg-primary-bg font-medium text-primary" : "border-border bg-bg text-muted hover:bg-surface hover:text-fg")}>
+            {e}
+          </button>
+        ))}
+      </div>
+      {pending && (
+        <div className="mt-6 flex items-center gap-3 rounded-lg bg-surface p-4 text-sm text-muted" role="status" aria-live="polite">
+          <span className="size-4 animate-spin rounded-full border-2 border-border border-t-primary" aria-hidden />
+          Caut răspunsul la „{asked}” în datele magazinului tău…
+        </div>
+      )}
     </div>
   );
 }
