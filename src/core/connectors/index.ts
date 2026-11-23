@@ -183,12 +183,19 @@ function joinDescription(short: string, long: string) {
 /** Leagă bucăți de text cu „. ”, fără „..” când bucata se termină deja cu punct. */
 const joinSentences = (parts: string[]) => parts.filter(Boolean).map((x, i, a) => (i < a.length - 1 && !/[.!?:;]$/.test(x) ? `${x}.` : x)).join(" ");
 
+/**
+ * Atribute de logistică, nu de produs: dimensiunile ambalajului (ShopExpert: „Lungime ambalaj (mm): 2.60”, adesea
+ * greșite sau 0) și valorile zero. Nu le punem în descriere: un AI le-ar lua drept dimensiunile produsului.
+ */
+export const isLogisticsAttr = (k: string, v: unknown) =>
+  /ambalaj|packag|package|csomag/i.test(k) || /^0+([.,]0+)?$/.test(String(v).trim());
+
 /** Descrierea scurtă + atributele tehnice (Putere: 550 W; …): exact ce caută un agent AI când compară. */
 function describe(m: Map<string, unknown>, text: string) {
   const attrs = m.get("attributes") ?? m.get("atribute") ?? m.get("specs") ?? m.get("specificatii");
   let a = "";
   if (attrs && typeof attrs === "object" && !Array.isArray(attrs)) {
-    a = Object.entries(attrs as Record<string, unknown>).filter(([, v]) => v !== null && v !== "" && typeof v !== "object")
+    a = Object.entries(attrs as Record<string, unknown>).filter(([k, v]) => v !== null && v !== "" && typeof v !== "object" && !isLogisticsAttr(k, v))
       .map(([k, v]) => `${k.trim()}: ${String(v).trim()}`).join("; ");
   }
   const out = joinSentences([stripHtml(text) ?? "", a]);

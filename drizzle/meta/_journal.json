@@ -155,6 +155,13 @@
       "when": 1795438904268,
       "tag": "0021_product_ai_site_price",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795438964268,
+      "tag": "0022_resync_no_packaging",
+      "breakpoints": true
     }
   ]
 }

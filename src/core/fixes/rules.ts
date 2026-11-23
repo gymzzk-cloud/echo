@@ -277,6 +277,8 @@ export function scoreAiDescription(out: string, s: AiSource): { confidence: numb
   if (v.length < 150) { c -= 15; notes.push("prea scurtă"); }
   if (v.length > 1200) { c -= 10; notes.push("prea lungă"); }
   if (BANNED.test(v)) { c -= 30; notes.push("conține text de reclamă sau linkuri"); }
+  // Dimensiunile ambalajului nu descriu produsul (și la ShopExpert sunt adesea greșite): o astfel de descriere nu e bună.
+  if (/ambalaj|packag|csomag/i.test(v)) return null;
   const had = (s.description ?? "").trim().length;
   return { confidence: clamp(c), reason: notes.length ? `Scrisă de AI din datele produsului; atenție: ${notes.join(", ")}.` : had ? "Descrierea actuală e prea scurtă pentru AI-uri. Am scris-o doar din datele produsului." : "Produsul nu are descriere. Am scris-o doar din datele produsului." };
 }

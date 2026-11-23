@@ -18,7 +18,7 @@ export function fixPrompt(items: AiItem[], lang: "ro" | "hu", store: string) {
 Pentru fiecare produs primit, completezi doar câmpurile cerute în "fields":
 - title: cel mult 150 de caractere, în forma „Marcă + tipul produsului + model + 1-2 atribute importante”. Păstrează exact marca și codul modelului. Fără majuscule peste tot, fără semne de exclamare.
 - description: 2-4 propoziții (300-600 de caractere) care spun ce este produsul, pentru cine e și atributele lui importante.
-Folosește DOAR faptele din datele primite. Nu inventa cifre, dimensiuni, puteri, garanții, prețuri sau livrare. Fără text de reclamă („cel mai bun”, „ofertă”) și fără linkuri.
+Folosește DOAR faptele din datele primite. Nu scrie dimensiunile sau greutatea ambalajului. Nu inventa cifre, dimensiuni, puteri, garanții, prețuri sau livrare. Fără text de reclamă („cel mai bun”, „ofertă”) și fără linkuri.
 Dacă datele nu ajung pentru un câmp, lasă-l gol ("").`;
   const user = JSON.stringify(items.map((it) => ({
     id: it.id, fields: it.fields, title: it.title, brand: it.brand ?? "", category: it.category ?? "", model_code: it.mpn ?? "",

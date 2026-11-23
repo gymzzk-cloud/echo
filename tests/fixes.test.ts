@@ -67,6 +67,12 @@ describe("marcă și categorie", () => {
   });
 });
 
+describe("descriere AI", () => {
+  it("o descriere care vorbește despre ambalaj nu e propusă", () => {
+    expect(scoreAiDescription("Cheie tubulară de impact Cromwell de 17 mm, cu acționare prin pătrat de 3/8 inch. Produsul are dimensiuni de ambalaj de 2,60 × 2,60 × 3,10 mm.", { title: "CROMWELL 17mm IMPACT SOCKET", brand: "CROMWELL", category: null, description: "Lungime ambalaj (mm): 2.60", mpn: null })).toBeNull();
+  });
+});
+
 describe("titlu", () => {
   it("nu lipește categoria (la plural) în titlu, iar codurile de model rămân exact", () => {
     expect(buildTitle("BOSCH GWS 14-125 S", "BOSCH", "Scule > Polizoare unghiulare > BOSCH")).toBe("Bosch GWS 14-125 S");
