@@ -106,13 +106,13 @@ const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"
 const tsvCell = (v: string) => v.replace(/[\t\r\n]+/g, " ");
 
 /**
- * Formatul fișierului găzduit pentru ChatGPT: TSV. Câmpul „hosted URL” din OpenAI refuză feed-urile CSV fără să le descarce
- * („The feed service could not complete this request”, nicio cerere în logurile noastre), iar TSV e acceptat (KNOWLEDGE B49).
+ * Formatul fișierului găzduit pentru ChatGPT: CSV, formatul cu care OpenAI a importat deja catalogul (27.818 rânduri, 20.11).
+ * TSV rămâne disponibil în cod, dar nu îl schimbăm fără o dovadă că OpenAI îl cere (KNOWLEDGE B49).
  */
 export type OpenAiFormat = "tsv" | "csv";
 
-/** Scrie feed-ul OpenAI (TSV implicit, CSV pentru export), rând cu rând, și ține statistica pentru panou (excluse pe motive, câmpuri recomandate lipsă). */
-export function openAiWriter(store: Store, s: FeedOutputSettings | null, format: OpenAiFormat = "tsv") {
+/** Scrie feed-ul OpenAI (CSV implicit; TSV la cerere), rând cu rând, și ține statistica pentru panou (excluse pe motive, câmpuri recomandate lipsă). */
+export function openAiWriter(store: Store, s: FeedOutputSettings | null, format: OpenAiFormat = "csv") {
   const sep = format === "tsv" ? "\t" : ",";
   const cell = format === "tsv" ? tsvCell : csvCell;
   const excluded: Record<string, number> = {};

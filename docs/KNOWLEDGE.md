@@ -460,10 +460,10 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: workerul calculează cifrele acestor pagini (job `panel`, `src/core/panel-snapshot.ts`) după fiecare rulare AI, audit, calcul pe produs, feed și sincronizare, plus o dată pe zi. Le salvează în `panel_snapshots`, iar pagina citește un singur rând. Un `stamp` mic (rulări, concurenți, audit, produse numite de AI, ziua) arată dacă au apărut date noi. Atunci pagina arată cifrele salvate, cu ora calculului, și cere un calcul nou, iar `JobWatcher` o reîncarcă la final. Lista din Produse citește primele 100 de rânduri direct din index (`products_project_stock_rank_idx`). O pagină nouă care calculează pe toate rulările primește o cheie în `panel_snapshots`, nu un calcul în cerere.
 - De ce: ZoZo a cerut ca fiecare pagină să răspundă sub 1 s (regula „Viteză”). Local, cu procesorul limitat ca pe Render: Acasă a scăzut de la 2 s la 0,2 s, Produse de la 1,3 s la 0,3 s, iar Surse și Reputație au ajuns la 0,1 s.
 
-**B49. Feed-ul ChatGPT dat ca CSV la „Update products with hosted URL”** *(23.11.2026, 20:36)*
-- Nu: adresa feed-ului ChatGPT era `/feed/<token>.csv`, cu fișier CSV. OpenAI a răspuns „The feed service could not complete this request” fără să descarce nimic: în logurile Render nu există nicio cerere la `/feed/` din 20.11 încoace. Și alți vânzători spun că adresa găzduită pentru CSV e refuzată pe loc, iar cea pentru TSV merge.
-- În schimb: fișierul ChatGPT e TSV (`text/tab-separated-values`, tab între coloane, fără tab-uri sau rânduri noi în celule), iar adresa din panou se termină în `.tsv`. Vechea adresă `.csv` servește același fișier (extensia nu contează la server). Fișierul rămâne calculat de worker și înlocuit dintr-o dată, deci nu e niciodată gol sau parțial.
-- De ce: ZoZo nu a putut conecta feed-ul în OpenAI (captură, 23.11, 20:36). Data viitoare când un serviciu extern dă eroare, verificăm întâi în logurile Render dacă cererea a ajuns la noi.
+**B49. Eroarea OpenAI la feed atribuită formatului, fără dovadă** *(23.11.2026, 20:36)*
+- Nu: la „The feed service could not complete this request” (OpenAI, „Update products with hosted URL”) am schimbat feed-ul ChatGPT din CSV în TSV pe baza unui singur raport de pe forum. Am mai spus că OpenAI nu ceruse niciodată feed-ul, deși pe 20.11 importase 27.818 rânduri CSV de la aceeași adresă (feed ID bpfeed_e9874da5…). Logurile Render pe care le-am citit acopereau doar câteva ore.
+- În schimb: formatul care a mers (CSV) nu se schimbă fără dovadă. Întâi verificăm adresa din afară (status, timp, headers, primele rânduri) și spunem doar ce am verificat, cu intervalul de loguri citit. Am revenit la CSV: adresa `.csv` funcționează, iar `.tsv` servește același fișier.
+- De ce: corectura coordonatorului, cu datele importului OpenAI din 20.11. O afirmație despre logurile noastre trebuie să spună ce interval acoperă (A0, doar date verificate).
 
 ## C. Regula de întreținere (permanentă)
 

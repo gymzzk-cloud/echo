@@ -18,7 +18,7 @@ async function outputsOf(projectId: string) {
 }
 type Output = Awaited<ReturnType<typeof outputsOf>>[number];
 
-const EXT: Record<string, string> = { openai: ".tsv", emag: ".csv" };
+const EXT: Record<string, string> = { openai: ".csv", emag: ".csv" };
 export const feedUrl = (o: { token: string; channel: string }) => `${process.env.APP_URL ?? "http://localhost:3000"}/feed/${o.token}${EXT[o.channel] ?? ""}`;
 
 const MISSING: Record<string, string> = { brand: "fără marcă", brand_invalid: "cu marcă nevalidă în magazin (trimisă fără marcă)", gtin_mpn: "fără EAN și fără cod de producător", product_category: "fără categorie" };
