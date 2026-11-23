@@ -63,9 +63,10 @@ describe("marcă și categorie", () => {
 });
 
 describe("titlu", () => {
-  it("titlul „marcă + cod” primește tipul produsului, iar codurile de model rămân exact", () => {
-    expect(buildTitle("BOSCH GWS 14-125 S", "BOSCH", "Scule > Polizoare unghiulare > BOSCH")).toBe("Bosch GWS 14-125 S, polizoare unghiulare");
-    expect(buildTitle("MAKITA DHR202Z (SOLO)", "MAKITA", "Ciocane > MAKITA")).toBe("Makita DHR202Z (Solo), ciocane");
+  it("nu lipește categoria (la plural) în titlu, iar codurile de model rămân exact", () => {
+    expect(buildTitle("BOSCH GWS 14-125 S", "BOSCH", "Scule > Polizoare unghiulare > BOSCH")).toBe("Bosch GWS 14-125 S");
+    expect(titleFix(P({ id: "1", title: "BOSCH GTA 50 W" }), "BOSCH", "Scule > Ferăstraie staționare > BOSCH")).toBeNull();
+    expect(buildTitle("MAKITA DHR202Z (SOLO)", "MAKITA", "Ciocane > MAKITA")).toBe("Makita DHR202Z (Solo)");
   });
   it("nu adaugă tipul când titlul spune deja ce e produsul", () => {
     expect(titleFix(P({ id: "1", title: "Bosch Set perii colectoare" }), "Bosch", "Piese de schimb > BOSCH")).toBeNull();
@@ -145,5 +146,11 @@ describe("ce scriem (idempotent)", () => {
   it("propunerile rămase fără motiv (catalog reparat) se șterg", () => {
     expect(planFixWrites([], [e()], hash, null).remove).toEqual(["e1"]);
     expect(planFixWrites([], [e({ status: "aprobat" })], hash, null).remove).toEqual([]);
+  });
+  it("o reparație aprobată pe date vechi se scoate când produsul s-a schimbat și nu mai e nevoie de ea", () => {
+    const changed = new Map([["p1", "h2"]]);
+    expect(planFixWrites([], [e({ status: "aprobat", field: "title" })], changed, null).remove).toEqual(["e1"]);
+    expect(planFixWrites([], [e({ status: "respins", source: "ai" })], changed, null).remove).toEqual(["e1"]);
+    expect(planFixWrites([], [e({ status: "aprobat" })], new Map(), null).remove).toEqual([]);
   });
 });

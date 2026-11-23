@@ -185,24 +185,23 @@ export function buildTitle(title: string, brand: string | null, category: string
     if (normalizeText(first) === b && isCaps(first)) t = `${niceBrand(first)}${t.slice(first.length)}`;
   }
   if (brand && !normalizeText(t).includes(b!)) t = `${niceBrand(brand)} ${t}`;
-  const type = productType(category, brand);
-  if (type && !normalizeText(t).includes(normalizeText(type).split(" ")[0].slice(0, 5)) && !hasDescriptiveWord(title, brand)) t = `${t}, ${type.toLowerCase()}`;
+  // Tipul nu-l mai lipim din categorie: categoria e la plural („…, ferăstraie staționare”) și iese un titlu stângaci.
+  // Pentru titlurile fără tip, AI-ul scrie tipul la singular (doar produsele urmărite sau din top), cu scor separat.
   return t.slice(0, 150);
 }
 
 /** Titlul propus după reguli, doar când schimbarea contează (marcă, tip sau majuscule), nu doar pentru o literă. */
 export function titleFix(p: FixProduct, brand: string | null, category: string | null): FixCandidate | null {
   const i = titleIssues(p.title, brand, category);
-  if (!i.noBrand && !i.noType && !i.caps) return null;
+  if (!i.noBrand && !i.caps) return null;
   const value = buildTitle(p.title, brand, category);
   if (value === p.title) return null;
   const reasons: string[] = [];
   let confidence = 90;
   if (i.noBrand) reasons.push("adaugă marca");
-  if (i.noType) { reasons.push("spune ce fel de produs este"); confidence = 70; }
   if (i.caps) { reasons.push("scrie fără majuscule peste tot"); confidence = Math.min(confidence, 75); }
   // Doar majusculele mărcii schimbate (ex. „MAKITA HR3001CJ” → „Makita HR3001CJ”): prea puțin ca să merite.
-  if (!i.noBrand && !i.noType && normalizeText(value) === normalizeText(p.title) && value.split(" ").filter((w, k) => w !== p.title.split(" ")[k]).length < 2) return null;
+  if (!i.noBrand && normalizeText(value) === normalizeText(p.title) && value.split(" ").filter((w, k) => w !== p.title.split(" ")[k]).length < 2) return null;
   const why = reasons.join(", ");
   return { productId: p.id, field: "title", value, previous: p.title, source: "regula", confidence: clamp(confidence),
     reason: `${why.charAt(0).toUpperCase()}${why.slice(1)}. AI-urile recomandă mai des produsele cu titluri „Marcă + model + tip”.` };

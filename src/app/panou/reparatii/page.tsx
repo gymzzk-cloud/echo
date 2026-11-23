@@ -4,7 +4,7 @@ import { ActionForm } from "@/components/forms";
 import { SubmitButton } from "@/components/client";
 import { Badge, Card, Chips, Empty, Field, FormActions, ListRow, Notice, PageHeader, Select, Stat, TextLink, Working, type Tone } from "@/components/ui";
 import { busyKinds } from "@/core/jobs";
-import { fixCounts, listFixes, PAGE_SIZE, type FixStatus } from "@/core/fixes";
+import { catalogSources, fixCounts, listFixes, PAGE_SIZE, type FixStatus } from "@/core/fixes";
 import { approveConfident, decideFix, runFixes, saveAutoThreshold } from "@/app/actions-fixes";
 import { dateShort } from "@/lib/format";
 import { CardHelp } from "@/components/card-help";
@@ -12,6 +12,8 @@ import { CardHelp } from "@/components/card-help";
 type Sp = { s?: string; f?: string; p?: string };
 
 const FIELD_LABEL: Record<string, string> = { title: "Titlu", description: "Descriere", gtin: "GTIN", brand: "Marcă", category: "Categorie" };
+/** Ce câmp din catalogul sincronizat dă valoarea „Acum” (ca magazinul să o poată verifica la sursă). */
+const FIELD_SOURCE: Record<string, string> = { title: "titlul (cu subtitlul, dacă sursa îl dă separat)", description: "descrierea", gtin: "codul EAN / GTIN", brand: "marca", category: "categoria" };
 const STATUS: { id: FixStatus; label: string }[] = [{ id: "propus", label: "De aprobat" }, { id: "aprobat", label: "Aplicate în feed" }, { id: "respins", label: "Respinse" }];
 const confTone = (c: number): Tone => (c >= 80 ? "good" : c >= 60 ? "warn" : "muted");
 const THRESHOLDS = [95, 90, 85, 80, 75, 70];
@@ -39,7 +41,8 @@ async function FixesBody({ projectId, threshold, checkedAt, sp, busy }: { projec
   const status = (STATUS.find((s) => s.id === sp.s)?.id ?? "propus") as FixStatus;
   const field = sp.f && FIELD_LABEL[sp.f] ? sp.f : undefined;
   const page = Math.max(1, Math.min(1000, Number(sp.p) || 1));
-  const [counts, list] = await Promise.all([fixCounts(projectId), listFixes(projectId, { status, field, page })]);
+  const [counts, list, sources] = await Promise.all([fixCounts(projectId), listFixes(projectId, { status, field, page }), catalogSources(projectId)]);
+  const sourceLabel = sources.map((x) => x.label).join(", ") || "catalogul sincronizat";
   const pid = <input type="hidden" name="projectId" value={projectId} />;
   const total = counts.pending + counts.approved + counts.rejected;
   if (!total) {
@@ -103,10 +106,15 @@ async function FixesBody({ projectId, threshold, checkedAt, sp, busy }: { projec
                 </div>
                 <a href={p.url} target="_blank" rel="noopener" className="mt-2 block truncate font-medium hover:underline">{p.title}</a>
                 <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-4">
-                  <dt className="text-muted">Acum</dt><dd className="line-clamp-3 min-w-0 break-words text-muted">{e.previous?.trim() ? e.previous : "(gol)"}</dd>
+                  <dt className="text-muted">Acum în feed</dt><dd className="line-clamp-3 min-w-0 break-words text-muted">{e.previous?.trim() ? e.previous : "(gol)"}</dd>
                   <dt className="text-muted">Propus</dt><dd className="line-clamp-4 min-w-0 break-words font-medium">{e.value ? e.value : "(câmp gol în feed)"}</dd>
                 </dl>
                 {e.reason && <p className="mt-2 text-xs text-muted">{e.reason}</p>}
+                <p className="mt-1 text-xs text-muted">
+                  Sursa valorii „Acum”: {FIELD_SOURCE[e.field] ?? e.field} din {sourceLabel}, la ultima sincronizare.{" "}
+                  <TextLink className="text-xs" href={`/panou/produse-ai/${p.id}`}>Vezi produsul în feed</TextLink>{" · "}
+                  <TextLink className="text-xs" external href={p.url}>pe site ↗</TextLink>
+                </p>
               </ListRow>
             ))}
           </ul>

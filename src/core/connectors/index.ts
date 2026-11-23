@@ -128,7 +128,8 @@ const KEYS = {
   image: ["image_link", "imagine", "image", "image_url", "kep", "kép"],
   gtin: ["gtin", "ean", "ean13", "barcode", "cod_bare", "vonalkod", "vonalkód"],
   mpn: ["mpn", "sku", "cod_producator", "cod_produs", "part_number", "model", "cikkszam", "cikkszám"],
-  description: ["short_description", "description", "descriere", "leiras", "leírás"],
+  description: ["description", "descriere", "long_description", "leiras", "leírás"],
+  shortDescription: ["short_description", "subtitle", "subtitlu", "descriere_scurta", "rovid_leiras", "rövid_leírás"],
   delivery: ["delivery_time", "termen_livrare", "livrare", "shipping_time", "szallitas", "szállítás"],
   shipping: ["shipping_cost", "cost_livrare", "transport", "shipping_price"],
   currency: ["currency", "moneda", "monedă", "penznem", "pénznem"],
@@ -156,6 +157,32 @@ export function parseStock(v: string): boolean {
   return !/out[ _-]?of[ _-]?stock|indisponibil|epuizat|stoc epuizat|nincs|elfogyott|discontinued/.test(t);
 }
 
+/**
+ * Numele complet al produsului, ca pe site. Unele platforme (ex. ShopExpert) dau numele în două bucăți:
+ * „title” = „BOSCH GCM 305-216 S” și „short_description” = „Ferăstrău circular staționar … 1300 W, Ø216”,
+ * iar pagina produsului le afișează împreună în H1. Dacă descrierea scurtă e un subtitlu (o singură linie scurtă,
+ * nu frază), îl lipim la titlu; altfel titlul rămâne cum e și descrierea scurtă merge în descriere.
+ */
+export function composeTitle(title: string, short: string): { title: string; subtitleUsed: boolean } {
+  const t = title.replace(/\s+/g, " ").trim(), sd = short.replace(/\s+/g, " ").trim();
+  const isSubtitle = sd.length > 0 && sd.length <= 250 && !/[.!?]\s+\p{Lu}/u.test(sd) && !/[.!?]$/.test(sd) && !/[\r\n]/.test(short.trim());
+  if (!t || !isSubtitle) return { title: t, subtitleUsed: false };
+  const key = (x: string) => x.toLocaleLowerCase("ro").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  if (key(t).includes(key(sd))) return { title: t, subtitleUsed: true };
+  return { title: `${t} ${sd}`.slice(0, 300), subtitleUsed: true };
+}
+
+/** Descrierea scurtă (dacă nu e subtitlu) + descrierea lungă, fără să repetăm același text. */
+function joinDescription(short: string, long: string) {
+  const s = stripHtml(short) ?? "", l = stripHtml(long) ?? "";
+  if (!s) return l;
+  if (!l || l.includes(s)) return l || s;
+  return joinSentences([s, l]);
+}
+
+/** Leagă bucăți de text cu „. ”, fără „..” când bucata se termină deja cu punct. */
+const joinSentences = (parts: string[]) => parts.filter(Boolean).map((x, i, a) => (i < a.length - 1 && !/[.!?:;]$/.test(x) ? `${x}.` : x)).join(" ");
+
 /** Descrierea scurtă + atributele tehnice (Putere: 550 W; …): exact ce caută un agent AI când compară. */
 function describe(m: Map<string, unknown>, text: string) {
   const attrs = m.get("attributes") ?? m.get("atribute") ?? m.get("specs") ?? m.get("specificatii");
@@ -164,7 +191,7 @@ function describe(m: Map<string, unknown>, text: string) {
     a = Object.entries(attrs as Record<string, unknown>).filter(([, v]) => v !== null && v !== "" && typeof v !== "object")
       .map(([k, v]) => `${k.trim()}: ${String(v).trim()}`).join("; ");
   }
-  const out = [stripHtml(text), a].filter(Boolean).join(". ");
+  const out = joinSentences([stripHtml(text) ?? "", a]);
   return out ? out.slice(0, 2000) : null;
 }
 
@@ -184,9 +211,10 @@ export function mapRecord(rec: Record<string, unknown>, currency = "RON"): Catal
   const reg = parsePrice(get(KEYS.price), cur);
   const pr = sale.price ? sale : reg;
   const url = get(KEYS.url);
+  const name = composeTitle(stripHtml(get(KEYS.title)) ?? "", stripHtml(get(KEYS.shortDescription)) ?? "");
   return {
     externalId: get(KEYS.id) || url,
-    title: stripHtml(get(KEYS.title)) ?? "",
+    title: name.title,
     url,
     price: pr.price,
     currency: pr.currency,
@@ -196,7 +224,7 @@ export function mapRecord(rec: Record<string, unknown>, currency = "RON"): Catal
     imageUrl: get(KEYS.image) || null,
     gtin: get(KEYS.gtin) || null,
     mpn: get(KEYS.mpn) || null,
-    description: describe(m, get(KEYS.description)),
+    description: describe(m, joinDescription(name.subtitleUsed ? "" : get(KEYS.shortDescription), get(KEYS.description)) || (name.subtitleUsed ? get(KEYS.shortDescription) : "")),
     delivery: deliveryText(get(KEYS.delivery), get(KEYS.shipping), cur),
     sales: num(get(KEYS.sales)),
     salesRank: num(get(KEYS.salesRank)),

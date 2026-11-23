@@ -155,3 +155,14 @@ export function approvedFixesForExport(projectId: string, limit = 20000) {
     .from(schema.productEdits).innerJoin(schema.products, eq(schema.products.id, schema.productEdits.productId))
     .where(and(eq(schema.productEdits.projectId, projectId), eq(schema.productEdits.status, "aprobat"))).orderBy(schema.products.externalId).limit(limit);
 }
+
+/** De unde vin datele produselor (pentru „Acum” din fiecare propunere): adresa sursei sincronizate, fără chei. */
+export async function catalogSources(projectId: string) {
+  const rows = await db.select({ kind: schema.connections.kind, url: schema.connections.url, lastSyncAt: schema.connections.lastSyncAt })
+    .from(schema.connections).where(eq(schema.connections.projectId, projectId)).limit(5);
+  return rows.map((r) => {
+    let label = r.url;
+    try { const u = new URL(r.url); label = `${u.host}${u.pathname.length > 1 ? u.pathname : ""}`; } catch { /* adresă nevalidă: o arătăm cum e */ }
+    return { kind: r.kind, label, lastSyncAt: r.lastSyncAt };
+  });
+}
