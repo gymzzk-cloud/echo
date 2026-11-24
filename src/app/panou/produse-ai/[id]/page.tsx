@@ -76,7 +76,7 @@ export default async function ProductSheetPage({ params }: { params: Promise<{ i
         <ChannelCard title="Ce primește ChatGPT" report={openai.report}
           description="Rândul exact din feed-ul ChatGPT (OpenAI), calculat acum din catalog, cu titlurile aprobate și regulile tale."
           status={!openai.active
-            ? <Notice tone="warn">Feed-ul ChatGPT nu e pornit. Pornește-l din <TextLink href="/panou/feed">Feed și canale</TextLink>, apoi pune adresa lui în ChatGPT Merchants. Mai jos vezi ce am trimite.</Notice>
+            ? <Notice tone="warn">Feed-ul ChatGPT nu e pornit. Îl pornești din <TextLink href="/panou/feed">Feed și canale</TextLink> (acolo vezi unde îl poți folosi în țara ta). Mai jos vezi ce am trimite.</Notice>
             : openai.generatedAt && <p className="text-xs text-muted">Fișierul feed-ului e generat la {dateTime(openai.generatedAt)}. Ce ai schimbat după, intră automat la următoarea generare.</p>}
           footer="OpenAI nu ne spune cum folosește fiecare câmp în clasament; scorul arată cât de complete sunt datele pe care le cere specificația lor (EAN, marcă, descriere, stoc, retur)." />
         <ChannelCard title="Ce primește Google din feed" report={google.report}
@@ -120,7 +120,7 @@ export default async function ProductSheetPage({ params }: { params: Promise<{ i
         </Card>
       )}
 
-      <HonestCard title={p.title} url={p.url} />
+      <HonestCard title={p.title} url={p.url} country={project.country} />
       <ButtonLink href="/panou/produse-ai" variant="secondary">Caută alt produs</ButtonLink>
     </div>
   );

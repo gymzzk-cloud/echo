@@ -1,3 +1,4 @@
+import { merchantsOpen } from "../feed-channels/chatgpt-markets";
 import type { ProductExample } from "../product-visibility";
 import { pricesIn } from "../product-visibility";
 import { isOwnBrand } from "../rivals";
@@ -181,11 +182,13 @@ export function whyNotRecommended(input: WhyInput): WhyItem[] {
     out.push({
       key: `silent:${provider}`,
       title: `${input.providerLabel(provider)} nu numește produsul`,
-      evidence: `A răspuns de ${s.runs} ${s.runs === 1 ? "dată" : "ori"} la ${[...s.queries].slice(0, 3).map((q) => `„${q}”`).join(", ")} și n-a numit produsul. E răspunsul la aceste întrebări, nu la orice căutare: un cumpărător care scrie exact codul produsului poate vedea altceva.${isGpt ? ` Întrebăm ChatGPT prin API, cu căutare pe web din România; aplicația ChatGPT poate arăta altceva (carduri de produs, oferte din comparatoare${input.openaiActive ? ", feed-ul de produse" : ""}).` : ""}`,
+      evidence: `A răspuns de ${s.runs} ${s.runs === 1 ? "dată" : "ori"} la ${[...s.queries].slice(0, 3).map((q) => `„${q}”`).join(", ")} și n-a numit produsul. E răspunsul la aceste întrebări, nu la orice căutare: un cumpărător care scrie exact codul produsului poate vedea altceva.${isGpt ? ` Întrebăm ChatGPT prin API, cu căutare pe web din România; aplicația ChatGPT poate arăta altceva (carduri de produs, oferte din comparatoare${input.openaiActive && merchantsOpen(input.country) ? ", feed-ul de produse" : ""}).` : ""}`,
       action: isGpt
-        ? "ChatGPT recomandă din paginile pe care le găsește căutând pe web: aceleași surse de mai sus (comparatoare, articole). Pentru feed, verifică în ChatGPT Merchants (Business Hub) că ai ales România și RON la țări și monede."
+        ? merchantsOpen(input.country)
+          ? "ChatGPT recomandă din paginile pe care le găsește căutând pe web: aceleași surse de mai sus (comparatoare, articole). Pentru feed, verifică în ChatGPT Merchants că produsele au fost acceptate."
+          : "ChatGPT recomandă aici din paginile pe care le găsește căutând pe web: site-ul tău și aceleași surse de mai sus (comparatoare, articole). ChatGPT Merchants nu e deschis încă în țara ta (doar în SUA), deci nu e o cale acum."
         : "Acest AI caută pe web: apari dacă apari în paginile pe care le citește (vezi punctele de mai sus).",
-      links: isGpt ? [{ href: "https://developers.openai.com/commerce/guides/submit-product-feeds", label: "Ghidul OpenAI pentru feed", external: true }] : [],
+      links: isGpt && merchantsOpen(input.country) ? [{ href: "https://developers.openai.com/commerce/guides/submit-product-feeds", label: "Ghidul OpenAI pentru feed", external: true }] : [],
     });
   }
 

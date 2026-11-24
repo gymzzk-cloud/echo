@@ -501,6 +501,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: o recomandare spune doar ce poate face magazinul: la un comparator, să ceară listarea sau corectarea prin formularul lor, nu să „corecteze”. Pagina produsului numără descrierea din aceleași locuri ca auditul (câmpul standard plus tab-uri) și ia cea mai lungă dintre aceasta și JSON-LD. O cifră spusă clientului precizează din ce câmp vine.
 - De ce: ZoZo: „Nu eu corectez discountul, e o pagină total distinctă de noi … Unde avem descriere 5 cuvinte?” (A0: doar ce e verificat; o acțiune trebuie să poată fi făcută).
 
+**B57. ChatGPT Merchants recomandat unui magazin din România** *(24.11.2026, 20:14)*
+- Nu: panoul îi spunea magazinului să verifice „în ChatGPT Merchants (Business Hub) că ai ales România și RON” și să lipească adresa feed-ului în ChatGPT Merchants. La 24.11.2026, Merchants (listările gratuite în aplicația ChatGPT) e deschis doar în SUA. Formatul feed-ului mai cunoaște Canada și Mexic, iar România și Ungaria nu sunt acceptate.
+- În schimb: regulă de sistem, după țara magazinului (`src/core/feed-channels/chatgpt-markets.ts`, `MERCHANTS_COUNTRIES`). Unde Merchants nu e deschis, panoul nu-l recomandă. Spune că feed-ul se folosește acum pentru reclamele din ChatGPT Ads Manager, disponibile în UE, și că ChatGPT recomandă din paginile găsite pe web (site, comparatoare, articole). Când OpenAI deschide o țară nouă, se adaugă în listă.
+- De ce: ZoZo: „dar în România nu pot face merchant”. O recomandare trebuie să poată fi urmată acolo unde e magazinul (A0, B56).
+
 ## C. Regula de întreținere (permanentă)
 
 1. **De fiecare dată când ZoZo spune că ceva e greșit**, punctul se adaugă imediat, în aceeași tură, în **partea B**, în forma „Nu / În schimb / De ce”, cu data.

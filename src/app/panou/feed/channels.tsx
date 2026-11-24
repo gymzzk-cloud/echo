@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { CopyButton, SubmitButton } from "@/components/client";
+import { merchantsOpen, countryName } from "@/core/feed-channels/chatgpt-markets";
 import { Badge, Card, Notice, Table, Td, TextLink, Working } from "@/components/ui";
 import { CHANNELS } from "@/core/feed";
 import { busyKinds } from "@/core/jobs";
@@ -30,10 +31,10 @@ function Status({ o, busy }: { o: Output | undefined; busy: boolean }) {
   return <Badge tone="good">Gata · {num(o.itemCount ?? 0)} produse</Badge>;
 }
 
-/** Cardul ChatGPT: pornești canalul, Echo generează feed-ul în fundal și îți dă adresa de lipit în ChatGPT Merchants. */
+/** Cardul ChatGPT: pornești canalul, Echo generează feed-ul în fundal și îți dă adresa: pentru ChatGPT Merchants unde e deschis (SUA), altfel pentru ChatGPT Ads Manager (B57). */
 export async function ChatGptCard({ projectId }: { projectId: string }) {
   const [outputs, busy, [proj]] = await Promise.all([outputsOf(projectId), busyKinds(projectId),
-    db.select({ storeInfo: schema.projects.storeInfo }).from(schema.projects).where(eq(schema.projects.id, projectId)).limit(1)]);
+    db.select({ storeInfo: schema.projects.storeInfo, country: schema.projects.country }).from(schema.projects).where(eq(schema.projects.id, projectId)).limit(1)]);
   const o = outputs.find((x) => x.channel === "openai");
   const working = busy.has("feed");
   const pid = <input type="hidden" name="projectId" value={projectId} />;
@@ -85,12 +86,16 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
               {(s?.excluded[OPENAI_SKIP_NO_BRAND] ?? 0) > noBrand.length && <p className="mt-2 text-xs text-muted">Arătăm primele {num(noBrand.length)} din {num(s?.excluded[OPENAI_SKIP_NO_BRAND] ?? 0)}.</p>}
             </details>
           )}
-          <ol className="list-decimal space-y-1 pl-6 text-sm">
-            <li>Copiază adresa de mai sus.</li>
-            <li>În ChatGPT Merchants, la „Add products to ChatGPT”, alege <b>Use a hosted URL</b>.</li>
-            <li>Lipește adresa și salvează. ChatGPT o descarcă singur, periodic.</li>
-            <li>Dacă OpenAI arată erori la import, le vezi acolo. Feed-ul se reface singur după fiecare sincronizare a catalogului.</li>
-          </ol>
+          {merchantsOpen(proj?.country) ? (
+            <ol className="list-decimal space-y-1 pl-6 text-sm">
+              <li>Copiază adresa de mai sus.</li>
+              <li>În ChatGPT Merchants, la „Add products to ChatGPT”, alege <b>Use a hosted URL</b>.</li>
+              <li>Lipește adresa și salvează. ChatGPT o descarcă singur, periodic.</li>
+              <li>Dacă OpenAI arată erori la import, le vezi acolo. Feed-ul se reface singur după fiecare sincronizare a catalogului.</li>
+            </ol>
+          ) : (
+            <Notice tone="muted">ChatGPT Merchants (produsele gratuite în aplicația ChatGPT) nu primește încă magazine din {countryName(proj?.country)}: OpenAI îl are deschis doar în SUA. Adresa de mai sus o folosești acum pentru reclamele din ChatGPT Ads Manager (mai jos). Când OpenAI deschide Merchants pentru {countryName(proj?.country)}, același feed merge și acolo, fără altă muncă.</Notice>
+          )}
           <div className="border-t border-border pt-6">
             <span className="label mb-2 block">Reclame în ChatGPT (ChatGPT Ads Manager)</span>
             <p className="text-sm text-muted">
@@ -99,7 +104,7 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
             <ol className="mt-2 list-decimal space-y-1 pl-6 text-sm">
               <li>Intră în <TextLink href="https://ads.openai.com" external>ads.openai.com</TextLink>, la <b>Tools → Feeds</b>, și apasă <b>Create feed</b>.</li>
               <li>Alege varianta cu adresă găzduită (hosted URL) și lipește adresa de mai sus. Adresa ține reclamele la zi singură (prețuri, stoc); un fișier încărcat de mână rămâne cum l-ai încărcat.</li>
-              <li>Când feed-ul apare ca procesat, creează o campanie de tip <b>Product feed</b> și alege România la țări.</li>
+              <li>Când feed-ul apare ca procesat, creează o campanie de tip <b>Product feed</b> și alege {countryName(proj?.country)} la țări.</li>
             </ol>
           </div>
           <div className="border-t border-border pt-6">
@@ -124,7 +129,7 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
 /** Celelalte canale: pornit/oprit, starea fișierului generat și adresa cu buton de copiere. */
 export async function ChannelsCard({ projectId }: { projectId: string }) {
   const [outputs, busy, [proj]] = await Promise.all([outputsOf(projectId), busyKinds(projectId),
-    db.select({ storeInfo: schema.projects.storeInfo }).from(schema.projects).where(eq(schema.projects.id, projectId)).limit(1)]);
+    db.select({ storeInfo: schema.projects.storeInfo, country: schema.projects.country }).from(schema.projects).where(eq(schema.projects.id, projectId)).limit(1)]);
   const pid = <input type="hidden" name="projectId" value={projectId} />;
   return (
     <Card title="Alte canale" description={<CardHelp id="feed.channels" />}>
