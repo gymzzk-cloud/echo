@@ -1,4 +1,4 @@
-import { compareSameQuestions } from "./engine-view";
+import { compareSameQuestions, latestAnswers } from "./engine-view";
 import { isLookalike } from "./ai/lookalike";
 import { and, asc, desc, eq, gte, ilike, inArray, sql as dsql, type SQL } from "drizzle-orm";
 import { canAct, localMarketplace, sourceGroup, sourceKind, type SourceCtx } from "./source-kind";
@@ -193,8 +193,8 @@ const VENDOR: Record<string, string> = { chatgpt: "OpenAI", gemini: "Google", pe
 
 /** „Cine te recomandă și cine nu”: pe fiecare AI, câte întrebări, cine apare în locul tău și problema probabilă. */
 export function whoRecommends(rows: Rows, domain: string, audit: { result: unknown } | null, products: { title: string; price: string | null }[], exclude: ReadonlySet<string> = new Set()) {
-  const day = rows.map((r) => r.run.runDate).sort().at(-1);
-  const today = rows.filter((r) => r.run.runDate === day);
+  // Aceeași definiție ca „Cum te văd AI-urile”: ultimul răspuns al fiecărui AI la fiecare întrebare din lista curentă.
+  const today = latestAnswers(rows);
   const bots = ((audit?.result as { bots?: { vendor: string; important: boolean; robots: string }[] } | null)?.bots) ?? [];
   const priceOf = new Map(products.map((p) => [p.title, p.price ? parseFloat(p.price) : null]));
   return PROVIDERS.map((p) => {
