@@ -88,6 +88,12 @@ describe("fișa produsului: pagina", () => {
     expect(r.descriptionWords).toBe(50);
   });
 
+  it("descriere scurtă în JSON-LD, dar lungă în tab-ul „Descriere”: numărăm textul din pagină (B56, GA5030R)", () => {
+    const page = `<html><head><script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"MAKITA GA5030R","description":"Polizor unghiular 720 W Ø125"}</script></head>
+      <body><h3>Descriere</h3><div>${"Polizor unghiular cu o construcție ergonomică ".repeat(20)}</div></body></html>`;
+    expect(readProductPage(page).descriptionWords).toBeGreaterThan(100);
+  });
+
   it("prețul din pagină diferit de feed e semnalat", () => {
     const read = readProductPage(html);
     const r = pageReport(good, { httpStatus: 200, botBlocked: false, error: null, ...read })!;

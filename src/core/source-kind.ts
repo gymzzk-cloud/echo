@@ -90,7 +90,9 @@ export function sourceKind(domain: string, ctx: SourceCtx): SourceKind {
 
 /** Ce poate face magazinul la o sursă. null = nimic de recomandat (alt magazin, producător, propriul site). */
 export const SOURCE_ADVICE: Partial<Record<SourceKind, string>> = {
-  comparator: "Listează-ți produsele pe acest comparator, cu prețuri și stoc corecte.",
+  // Un comparator își ia singur datele (de pe site sau dintr-un feed): magazinul poate cere listarea sau corectarea,
+  // nu poate schimba direct ce scrie acolo (ZoZo, 24.11.2026, B56).
+  comparator: "Vezi dacă apari acolo și cu ce date. Dacă datele despre tine sunt greșite (preț, stoc), cere corectarea comparatorului, prin formularul lor de contact: tu nu le poți schimba direct. Dacă nu apari, poți cere listarea (de obicei cu cost, fără garanția recomandării).",
   recenzii: "Cere clienților recenzii aici (după livrare) și răspunde la cele existente.",
   "director de firme": "Verifică și completează fișa firmei: nume, adresă, telefon, site.",
   forum: "Răspunde util la discuțiile despre categoria ta (fără reclamă agresivă).",

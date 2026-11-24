@@ -389,7 +389,7 @@ export async function generateActions(projectId: string) {
       key: `source:${g.domain}`,
       title: g.kind === "marketplace" ? `${who} citește ${g.domain} când recomandă concurenții` : `${who} citește ${g.domain} (${g.kind}) când recomandă concurenții`,
       why: `În ${g.answers} răspunsuri din ultimele 14 zile, ${who} a citit ${g.domain} și a recomandat concurenți, nu pe tine. De exemplu la ${asks}. E una dintre sursele AI-ului, nu singura.`,
-      howTo: `${SOURCE_ADVICE[g.kind] ?? ""}\nVerifică întâi ce scrie acolo despre tine: dacă apari, că prețul și stocul sunt corecte (un „stoc epuizat” greșit te scoate din recomandări). Decizia de a plăti o listare e a ta: nu garantează recomandarea.\nRăspunsurile exacte sunt în Vizibilitate → Răspunsuri și în pagina Surse.`,
+      howTo: `${SOURCE_ADVICE[g.kind] ?? ""}\nRăspunsurile exacte sunt în Vizibilitate → Răspunsuri și în pagina Surse.`,
       fixKind: "source", impact: g.answers >= 5 ? "mare" : "mediu", effort: "mediu",
     }, baseline);
   }
