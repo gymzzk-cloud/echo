@@ -143,7 +143,7 @@ export async function setProductTracked(projectId: string, productId: string, on
     else await db.insert(schema.prompts).values({ projectId, text: buyerQuery(prod, (p?.language ?? "ro") as "ro" | "hu"), category: null, intent: "produs", productId, language: p?.language ?? "ro", suggested: false });
   }
   // Lista automată se reface în worker, nu în cererea din panou.
-  await enqueue("prompts", { projectId });
+  await enqueue("prompts", { projectId, byStore: true });
 }
 
 /** Produsele urmărite în AI (căutare activă pe numele lor) și dacă le-a ales clientul. */

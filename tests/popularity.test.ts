@@ -53,16 +53,15 @@ describe("întrebările urmărite cu top de vânzări", () => {
       expect(q.text).not.toBe(c.gtin);
     }
     expect(ps.slice(0, 10).every((p) => Number(p.productId) >= 490)).toBe(true); // ~80% din produse vin din top
-    // tipul celui mai vândut produs (499 % 15 = 4) are prima întrebare de cumpărător
-    expect(ps.find((p) => p.intent === "cumparare")!.text).toBe("tip 4 cel mai bun preț");
     expect(ps).toHaveLength(30);
   });
-  it("amestec: 16 întrebări de cumpărător, 12 produse populare, 2 despre magazin", () => {
+  it("toate punctuale (KNOWLEDGE A16): 28 de produse anume, 2 despre magazin, nicio întrebare generală", () => {
     const ps = suggestPrompts(cat, "Magazin", "ro", 30);
     const count = (k: string) => ps.filter((p) => p.intent === k).length;
     expect(count("brand")).toBe(2);
-    expect(count("produs") + count("cod")).toBe(12);
-    expect(count("comercial") + count("cumparare") + count("informativ")).toBe(16);
+    expect(count("produs") + count("cod")).toBe(28);
+    expect(count("comercial") + count("cumparare") + count("informativ")).toBe(0);
+    expect(ps.some((p) => /^tip \d+ /.test(p.text) || /cel mai bun preț$/.test(p.text))).toBe(false);
   });
 });
 

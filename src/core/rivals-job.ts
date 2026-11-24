@@ -21,7 +21,7 @@ export const RIVALS_WINDOW_DAYS = 30;
 export async function detectRivals(projectId: string) {
   const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
   if (!p) return { added: [] as string[] };
-  const rows = await projectRuns(projectId, daysAgo(RIVALS_WINDOW_DAYS));
+  const rows = await projectRuns(projectId, daysAgo(RIVALS_WINDOW_DAYS), { allPrompts: true });
 
   // Adăugat automat din greșeală: propriul magazin pe alt domeniu (ex. shopexpert.ro pentru shopexpert.com). Îl scoatem
   // înainte de recitire, ca mențiunile lui să fie socotite ale magazinului.

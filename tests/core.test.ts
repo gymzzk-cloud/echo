@@ -30,7 +30,7 @@ describe("căutări urmărite din catalog", () => {
     expect(productQuery({ title: "GDS 18V-320", brand: "BOSCH" })).toBe("BOSCH GDS 18V-320");
     expect(productQuery({ title: "CROMWELL Aparat de curatat cablul 0.2-16 mm WIRE STRIPPER NO. 5 PRO", brand: "CROMWELL" }).split(" ").length).toBeLessThanOrEqual(8);
   });
-  it("propune întrebări de cumpărător pe tipurile de produs, plus produse și magazinul", () => {
+  it("propune doar întrebări punctuale pe produse din catalog, plus magazinul (KNOWLEDGE A16)", () => {
     const cat = [
       se("1", "BOSCH GDS 18V-320", "BOSCH", "Scule > Șurubelnițe cu impact", { mpn: "06019L5300", gtin: "4053423841923" }),
       se("2", "MAKITA DTD153Z", "MAKITA", "Scule > Șurubelnițe cu impact", { gtin: "0088381623456" }),
@@ -39,28 +39,22 @@ describe("căutări urmărite din catalog", () => {
     ];
     const ps = suggestPrompts(cat, "ShopExpert RO", "ro", 30);
     const texts = ps.map((p) => p.text);
-    expect(texts).toContain("șurubelnițe cu impact cel mai bun preț");
-    expect(texts).toContain("șurubelnițe cu impact Bosch cel mai bun preț");
-    expect(texts).toContain("aspiratoare verticale Dreame cel mai bun preț");
-    // Fără întrebări vagi.
-    expect(texts.some((t) => /^(cum aleg|recomandă-mi)/.test(t))).toBe(false);
-    expect(texts).toContain("șurubelnițe cu impact Bosch sau Makita, ce să aleg?");
+    // Fără întrebări generale pe tip de produs („șurubelnițe cu impact cel mai bun preț”).
+    expect(texts.some((t) => /^(șurubelnițe|aspiratoare)/i.test(t))).toBe(false);
+    expect(ps.filter((p) => ["comercial", "cumparare", "informativ"].includes(p.intent))).toHaveLength(0);
     expect(texts.some((t) => t.includes("Bosch GDS 18V-320"))).toBe(true);
     expect(texts.some((t) => t.includes("BOSCH"))).toBe(false);
+    expect(ps.filter((p) => p.productId)).toHaveLength(4);
     expect(texts).toContain("ShopExpert păreri clienți");
-    // Fără numele magazinului în întrebările de cumpărător.
-    expect(ps.filter((p) => ["comercial", "cumparare", "informativ"].includes(p.intent)).some((p) => /shopexpert/i.test(p.text))).toBe(false);
   });
-  it("respectă limita, ~55% fără marcă, 12 produse, acoperă mai multe domenii și nu se repetă", () => {
+  it("respectă limita, toate pe produse, acoperă mai multe categorii și nu se repetă", () => {
     const big: CatalogProduct[] = [];
     for (let i = 0; i < 3000; i++) big.push(se(String(i), `BRAND${i % 7} Model ${i % 1500}`, `BRAND${i % 7}`, `Domeniu ${i % 4} > Tip ${i % 12}`, { gtin: String(5900000000000 + i) }));
     const ps = suggestPrompts(big, "Magazin", "ro", 30);
     expect(ps).toHaveLength(30);
     expect(new Set(ps.map((p) => p.text.toLowerCase())).size).toBe(30);
-    const nonBranded = ps.filter((p) => ["comercial", "cumparare", "informativ"].includes(p.intent));
-    expect(nonBranded.length).toBe(16);
-    expect(ps.filter((p) => p.productId).length).toBe(12);
-    expect(new Set(nonBranded.map((p) => p.category)).size).toBeGreaterThanOrEqual(6);
+    expect(ps.filter((p) => p.productId).length).toBe(28);
+    expect(new Set(ps.filter((p) => p.productId).map((p) => p.category)).size).toBeGreaterThanOrEqual(6);
     // Determinist: aceeași listă la fiecare sincronizare, deci istoricul se păstrează.
     expect(suggestPrompts([...big].reverse(), "Magazin", "ro", 30).map((p) => p.text).sort()).toEqual(ps.map((p) => p.text).sort());
   });
