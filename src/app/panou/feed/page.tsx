@@ -11,8 +11,9 @@ import { fixCounts } from "@/core/fixes";
 import { DEFAULT_CHANNEL, FeedView } from "./feed-view";
 import { RulesCard } from "./rules";
 import { LABELS } from "./labels";
+import { QualityCard } from "./quality";
 
-type Sp = { canal?: string; regula?: string };
+type Sp = { canal?: string; regula?: string; problema?: string; p?: string };
 
 export default async function FeedPage({ searchParams }: { searchParams: Promise<Sp> }) {
   const sp = await searchParams;
@@ -38,6 +39,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
       {total === 0 ? <Empty title="Nu există încă produse">Conectează catalogul din Setări magazin.</Empty> : (
       <div className="space-y-6">
         {working && <Notice tone="muted">{summary ? `Actualizăm feed-ul în fundal. Cifrele de mai jos sunt calculate la ${at}; pagina se reîncarcă singură când e gata.` : "Calculăm feed-ul pe tot catalogul, în fundal. Pagina se reîncarcă singură când e gata (de obicei sub un minut)."}</Notice>}
+        {summary?.data.quality && <QualityCard projectId={project.id} quality={summary.data.quality} channel={channel} open={sp.problema} page={Number(sp.p) || 1} />}
         {summary && <AutoLabels summary={summary.data} />}
 
         <ChatGptCard projectId={project.id} />

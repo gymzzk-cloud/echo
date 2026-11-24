@@ -110,8 +110,9 @@
 15. **Produsele populare și importante au prioritate, pentru orice client, nu doar ShopExpert.** *(ZoZo, 20.11.2026)*
     Cum: `popularity_rank` din feed (vânzări, bestseller), sortarea de popularitate a platformei; butonul „Urmărește în AI” pe Produse fixează un produs.
 
-16. **Păstrăm și întrebările generale pe tip de produs, în stilul Peec, dar nu pe cele vagi.** *(ZoZo, 20.11.2026: „trebuie să rămână și alea generale, caut un fierăstrău circular cel mai bun preț, eventual pe fiecare brand”)*
-    Cum: mixul de ~30: ~24 de întrebări de intenție pe tipurile reale din catalog, ~4 produse vândute des, 2 despre magazin.
+16. **Întrebările sunt punctuale, despre produse reale din feed: model, nume, cod. Fără întrebări generale.** *(ZoZo, 24.11.2026, înlocuiește regula din 20.11: „ajung 30 de întrebări, dar trebuie să fie corecte, punctuale, mai ales la prima rulare … să scoatem și întrebările prea generale, șurubelniță cu acumulator preț … când analizăm un feed vorbim de ce este în feed, pe model, pe nume, pe cod”)*
+    De ce: o întrebare generală pe tip de produs măsoară piața, nu magazinul, și dă cifre pe care clientul nu le poate lega de produsele lui.
+    Cum: 30 de întrebări pe magazin, fiecare despre un produs anume din feed (marcă + model, nume complet, cod producător cu marca, „model + preț”, „de unde cumpăr model”). Nu mai punem întrebări pe tip de produs („șurubelniță cu acumulator preț”, „cele mai bune ferăstraie circulare”). Cele 2 întrebări despre magazin rămân. Prima rulare e deja pe produsele propuse corect, ca să nu fie nevoie de mai multe analize.
 
 17. **Căutările reale din Google (Search Console) sunt următorul pas, încă neimplementat.**
 
@@ -124,7 +125,8 @@
 
 20. **Recomandările sunt doar lucruri pe care magazinul le poate face.** *(ZoZo, 20.11.2026)* Recenzii, comparatoare, forumuri, presă, propriul site. La site-urile producătorilor, cel mult „intră în lista de distribuitori”.
 
-21. **Magazinele proprii ale clientului nu sunt concurenți sau surse.** *(ZoZo, 20.11.2026)*
+21. **Fiecare magazin se analizează singur; alte magazine ale aceluiași proprietar sunt magazine distincte.** *(ZoZo, 24.11.2026, înlocuiește regula din 20.11: „să nu fie magazinele mele aici, calculăm ca magazine distincte în analize … e ceva personalizat, să gândim general panoul, să fie folositor pentru orice magazin”)*
+    Cum: „tu” înseamnă doar domeniul magazinului analizat (pentru ShopExpert RO: shopexpert.com/ro). shopexpert.ro și hardlineconstruct.ro se socotesc ca orice alt magazin. Nicio regulă făcută pe măsura unui singur client.
 
 ### A5. Viteză (prioritate de top)
 
@@ -211,6 +213,20 @@
 49. **Valoarea plătită a Echo e monitorizarea vizibilității în AI față de concurenți + diagnostic și reparații**, vândută mult prin agenții. Conectarea (feed, MCP) o dau platformele și gratuit. *(analiză 19.11.2026, după întrebarea lui ZoZo despre riscuri)*
 50. **În lucru din 22.11.2026 (toate cerute de ZoZo, de testat pe ShopExpert săptămâna următoare):** reparații de produs cu aprobare, vizibilitatea AI pe fiecare produs, sentimentul AI față de magazin, Grok/Copilot/AI Mode/Meta, pagina de prezentare refăcută. Sursa: `fundatie/gap-ranketta.md`.
 51. **Pe listă, neînceput:** Google Merchant Center / Google Ads în Echo, cu etichete personalizate (hero, „bad business” etc.) după reguli alese de fiecare magazin: comenzi, ROAS, valoare. *(ZoZo, 20.11.2026)*
+
+52. **Panoul are 4 secțiuni, în ordinea în care lucrezi: Acasă (ce faci săptămâna asta) → Cum te recomandă AI-urile → Repară → Rezultate, plus Setări.** *(ZoZo, 24.11.2026: „aprob cele 4 secțiuni”)* Propunerea: https://claude.ai/artifact/9XzD8ziKUtvTZEKmj46CiT
+    Cum: Acasă e o listă de 3–5 lucruri de făcut, ordonate după câte răspunsuri AI schimbă fiecare, cu dovada. O singură cifră principală, aceeași pe toate paginile. Paginile goale sau fără rost în RO se ascund.
+
+53. **Panoul e util fără factori externi: doar feed-ul și răspunsurile AI.** *(ZoZo, 24.11.2026: „nici magazinele nu o să ofere din prima SerpApi sau măsurare, trebuie să ajungem întâi cu cât mai puțini factori influențatori la un panou util”)*
+    Cum: nicio funcție de bază nu cere cheie SerpApi, cod de măsurare pe site sau Cloudflare. Acestea rămân opționale, mai târziu.
+
+54. **Echo verifică feed-urile trimise către AI-uri și dă un scor, cu fiecare problemă vizibilă și pe categorii.** *(ZoZo, 24.11.2026: „feed-ul cu 28.000 de produse este prelucrat și 100% corect, sau dacă sunt probleme să apară care sunt pentru fiecare în parte, vizibil, ușor de înțeles, categorisit”)*
+    Cum: scor pe feed, problemele grupate pe tip (preț, stoc, marcă, EAN, imagine, descriere, link), numărul de produse la fiecare, lista produselor afectate cu paginare, și „100% corect” doar când chiar nu e nicio problemă.
+
+55. **Produsele urmărite schimbă imediat analiza.** *(ZoZo, 24.11.2026: „când se adaugă în listă 20 de produse, să se reanalizeze conform produselor noi și peste tot datele să fie corecte referitoare la acestea, nu altele vechi”)*
+    Cum: la schimbarea listei pornește o analiză doar pentru produsele noi; toate paginile arată cifrele listei curente, nu răspunsuri vechi despre produse scoase. La prima logare, Echo propune singur produsele din feed, ca prima analiză să fie deja cea bună.
+
+56. **Agent Gate e ascuns pentru magazine, dar rămâne pe contul demo**, ca să nu-l uităm. *(ZoZo, 24.11.2026)*
 
 ---
 
@@ -520,6 +536,14 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - Nu: Echo socotea „tu” orice domeniu cu aceeași marcă fără cratimă (shop-expert.ro pentru shopexpert.com), iar etalonul (`golden.ts`) avea shop-expert.ro ca site propriu. Apoi l-am întrebat pe ZoZo dacă shop-expert.ro și adresa din Str. Gheorghe Pițut sunt ale lor, deși adresa reală (Calea Aradului 99, Oradea) era pe site și în profilul OpenAI. ZoZo: „cum întrebi aceste lucruri când ai toate datele … doar shopexpert.ro și shopexpert.com/ro este al nostru. tot restu cum să fie al nostru”.
 - În schimb: regulă de sistem. „Tu” înseamnă doar domeniul magazinului, aceeași marcă scrisă exact pe alt TLD (shopexpert.ro) și adresele declarate în setări; cratima contează (`brandLabel`). Orice nume apropiat (shop-expert.ro, shexpert.ro) e alt site, marcat „(alt site)” (B59). Adresele, emailurile și telefoanele din răspunsurile AI se compară cu datele magazinului citite de pe site, nu se întreabă clientul.
 - De ce: o întrebare despre ceva ce putem verifica singuri pierde timpul clientului, iar un site străin socotit „al tău” umflă vizibilitatea (A0).
+- Schimbat pe 24.11.2026, 21:20 (ZoZo): nici aceeași marcă pe alt TLD nu mai e „tu”. shopexpert.ro și hardlineconstruct.ro sunt magazine distincte în analiză (A21); „tu” e doar domeniul magazinului analizat.
+
+**B61. Un panou plin de funcții, în care proprietarul nu știe ce să facă** *(24.11.2026, 21:04)*
+- Nu: 20 de pagini în meniu, 4 scoruri (vizibilitate 42, tehnic 87, încredere 55, ton), cifre diferite pentru același lucru pe pagini diferite (ChatGPT 11 din 60 pe Acasă, 16 din 71 pe Vizibilitate), „-9 pp” dintr-un singur răspuns, toate acțiunile „impact mediu”, sfaturi ca „listează pe eBay”, 6 pagini goale și întrebări generale pe tip de produs. ZoZo: „mă simt pierdut și nu văd punctele forte … datele nu par relevante … nu știu ce să îmbunătățesc cu adevărat”.
+- În schimb: 4 secțiuni (A52), o singură cifră principală calculată o dată, întrebări punctuale pe produse din feed (A16), magazine distincte (A21), sarcini ordonate după răspunsurile AI pe care le schimbă, verificarea feed-ului cu scor și probleme pe categorii (A54), fără factori externi obligatorii (A53).
+- De ce: un panou e util doar dacă răspunde repede la „unde stau, ce fac, a mers?”, cu date corelate și corecte, pentru orice magazin.
+
+---
 
 ## C. Regula de întreținere (permanentă)
 

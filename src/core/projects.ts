@@ -22,7 +22,7 @@ import { PROVIDERS, providerLabel } from "./ai/types";
 import { isStoreLike } from "./ai/domains";
 import { notRivals, SOURCE_ADVICE, type SourceCtx } from "./source-kind";
 import { sourceGaps } from "./action-sources";
-import { catalogBrands, catalogDescriptionStats, orgDomains } from "./store-context";
+import { catalogBrands, catalogDescriptionStats, storeAliases } from "./store-context";
 import { refreshPrompts } from "./tracked-prompts";
 import { pruneStalePriceAlerts } from "./price-alerts";
 import { computeFocus } from "./focus";
@@ -170,7 +170,11 @@ export async function ensurePrompts(projectId: string) {
 // ── Rulare zilnică pentru un proiect ───────────────────────────────────────
 /** După atâtea erori la rând, un AI nu mai e întrebat în aceeași rulare. */
 const MAX_STRIKES = 3;
-export async function runProject(projectId: string) {
+/**
+ * `onlyNew`: doar întrebările care n-au niciun răspuns încă (produse adăugate acum de magazin în lista urmărită),
+ * ca analiza să le acopere imediat fără să plătim din nou restul listei (KNOWLEDGE A55, costuri AI).
+ */
+export async function runProject(projectId: string, opts: { onlyNew?: boolean } = {}) {
   const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
   const [org] = await db.select({ plan: schema.orgs.plan }).from(schema.orgs).where(eq(schema.orgs.id, p.orgId));
   // Testul gratuit (onboarding, fără plan): întrebările sunt cele confirmate de client, doar pe AI-urile ieftine.
@@ -180,7 +184,9 @@ export async function runProject(projectId: string) {
   // Fără chei AI nu inventăm răspunsuri: modul DEMO rulează doar dacă e cerut explicit (seed-ul demo).
   if (isDemo() && process.env.ALLOW_DEMO_AI !== "1") return;
   const providers = usableProviders().filter((prov) => !trial || (TRIAL_PROVIDERS as readonly string[]).includes(prov.id));
-  const ps = await db.select().from(schema.prompts).where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.active, true)));
+  const ps = await db.select().from(schema.prompts).where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.active, true),
+    opts.onlyNew ? dsql`not exists (select 1 from prompt_runs r where r.prompt_id = ${schema.prompts.id})` : undefined));
+  if (opts.onlyNew && !ps.length) return;
   const world = await loadWorld();
   const seen: Mention[] = [];
   const { monthlyBudgetUsd } = costConfig();
@@ -257,7 +263,7 @@ export async function computeStats(projectId: string) {
   const day = today();
   const rows = (await projectRuns(projectId, day)).filter((r) => r.run.runDate === day);
   if (!rows.length) return;
-  const [own, brands] = await Promise.all([orgDomains(p.orgId), catalogBrands(projectId)]);
+  const [own, brands] = await Promise.all([storeAliases(p.id), catalogBrands(projectId)]);
   const exclude = new Set(notRivals(rows.flatMap((r) => (r.run.mentions as Mention[]).map((m) => m.domain)), { ownDomains: [p.domain, ...own], brands }));
   exclude.delete(p.domain);
   const s = summarize(rows, p.domain, comps, audit?.score ?? null, exclude);
@@ -371,7 +377,7 @@ export async function generateActions(projectId: string) {
   // directoare, presă, forumuri, marketplace-uri). Nu alte magazine, site-uri de producător sau propriile magazine.
   const rows = await projectRuns(projectId, daysAgo(14));
   const comps = (await db.select().from(schema.competitors).where(eq(schema.competitors.projectId, projectId))).map((c) => c.domain);
-  const [own, brands] = await Promise.all([orgDomains(p.orgId), catalogBrands(projectId)]);
+  const [own, brands] = await Promise.all([storeAliases(p.id), catalogBrands(projectId)]);
   const srcCtx: SourceCtx = { ownDomains: [p.domain, ...own], competitorDomains: comps, brands };
   const picked = sourceGaps(rows, { domain: p.domain, competitorDomains: comps, ctx: srcCtx, country: p.country ?? "RO" }).slice(0, 5);
   // Recomandările vechi spre surse care nu mai trec regula (alt magazin, producător, subdomeniu de comparator,

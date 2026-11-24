@@ -47,6 +47,27 @@ export type EngineView = {
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const pct = (a: number, b: number) => (b ? Math.round((a * 100) / b) : 0);
 
+/**
+ * Starea de acum, aceeași definiție pe toate paginile (KNOWLEDGE B61): cel mai recent răspuns al fiecărui AI
+ * la fiecare întrebare din lista curentă. „Te recomandă în X din N” = X răspunsuri care te numesc din aceste N.
+ */
+export function latestAnswers<T extends { promptId: string; run: { provider: string; runDate: string } }>(rows: T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const r of rows) {
+    const k = `${r.run.provider}|${r.promptId}`;
+    const prev = latest.get(k);
+    if (!prev || prev.run.runDate <= r.run.runDate) latest.set(k, r);
+  }
+  return [...latest.values()];
+}
+
+/** X din N răspunsuri (cele mai recente pe fiecare întrebare și AI) care numesc magazinul. */
+export function recommendedNow(rows: { promptId: string; run: { provider: string; runDate: string; mentions: unknown } }[], domain: string) {
+  const now = latestAnswers(rows);
+  const hits = now.filter((r) => ((r.run.mentions as Mention[]) ?? []).some((m) => m.domain === domain)).length;
+  return { hits, total: now.length, pct: pct(hits, now.length) };
+}
+
 /** Comparația a două zile pe aceleași întrebări. */
 export type SameQuestions = { from: string; to: string; prompts: number; fromVis: number; toVis: number; delta: number };
 
@@ -101,7 +122,9 @@ export function perEngine(rows: EngineRow[], failed: EngineFailure[], domain: st
 
   const out: EngineView[] = [];
   for (const { id } of PROVIDERS) {
-    const rs = byProvider.get(id) ?? [];
+    const all = byProvider.get(id) ?? [];
+    // Cifrele de pe card: răspunsul cel mai recent la fiecare întrebare (aceeași definiție ca pe Acasă).
+    const rs = latestAnswers(all);
     const fail = lastFailure.get(id);
     if (!rs.length && !fail) continue;
     let hits = 0, posSum = 0;
@@ -113,9 +136,9 @@ export function perEngine(rows: EngineRow[], failed: EngineFailure[], domain: st
       if (me) { hits++; posSum += me.position; d[0]++; }
       byDay.set(r.run.runDate, d);
     }
-    const days = [...byDay.keys()].sort();
+    const days = [...new Set(all.map((r) => r.run.runDate))].sort();
     const lastDay = days.at(-1) ?? null;
-    const deltaBase = compareSameQuestions(rs, domain);
+    const deltaBase = compareSameQuestions(all, domain);
     const rivals = rs.length ? rankRivals(rs, domain, excluded) : null;
     const lead = rivals?.rivals.slice().sort((a, b) => b.appearances - a.appearances)[0];
     const beat = rivals?.rivals.find((r) => r.beats > 0);
@@ -140,8 +163,10 @@ export function engineVerdict(list: EngineView[], label: (p: string) => string) 
   const missing = asked.filter((e) => e.hits === 0).map((e) => label(e.provider));
   const best = [...yes].sort((a, b) => b.visibility - a.visibility)[0];
   if (!asked.length) return { headline: "Încă nu avem răspunsuri de la AI-uri în perioada aleasă.", best: null, missing };
+  const hits = asked.reduce((n, e) => n + e.hits, 0);
+  const total = asked.reduce((n, e) => n + e.answers, 0);
   const headline = yes.length
-    ? `Te recomandă ${yes.length} din ${asked.length} ${asked.length === 1 ? "AI" : "AI-uri"}.`
+    ? `Te recomandă în ${hits} din ${total} răspunsuri (${pct(hits, total)}%), la ultima întrebare pusă fiecărui AI.`
     : asked.length === 1 ? `${label(asked[0].provider)} nu te recomandă încă.` : `Niciun AI dintre cele ${asked.length} întrebate nu te recomandă încă.`;
   return { headline, best: best ? { name: label(best.provider), visibility: best.visibility } : null, missing };
 }

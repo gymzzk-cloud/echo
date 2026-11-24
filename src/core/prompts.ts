@@ -329,28 +329,22 @@ export function productPrompts(picked: { product: CatalogProduct; category: stri
 }
 
 /**
- * Lista propusă, cel mult `max` căutări, ca un cumpărător real:
- * - ~40% produse anume, cele mai vândute întâi, scrise cum caută un om (vezi PRODUCT_Q);
- * - ~55% fără numele magazinului sau al unui produs: recomandări, „de unde cumpăr”, comparații, „cum aleg”,
- *   pe tipurile de produs importante. Aici AI-ul numește magazine și mărci;
- * - 2 despre magazin (Reputație).
+ * Lista propusă, cel mult `max` căutări, toate punctuale (ZoZo, 24.11.2026, KNOWLEDGE A16):
+ * - fiecare despre un produs anume din feed (marcă + model, cod cu marca, „preț”, „de unde cumpăr”), cele mai vândute
+ *   și cele focus întâi, câte unul din fiecare categorie pe rând, ca lista să acopere tot magazinul (vezi PRODUCT_Q);
+ * - fără întrebări generale pe tip de produs („șurubelniță cu acumulator preț”): măsoară piața, nu magazinul;
+ * - 2 despre magazin (păreri, livrare și retur).
  */
 export function suggestPrompts(products: CatalogProduct[], storeName: string, language: "ro" | "hu" = "ro", max = 30): SuggestedPrompt[] {
   const store = STORE_Q[language].map((f) => ({ text: f(storeSearchName(storeName)), category: "magazin", intent: "brand" as const }));
   const room = Math.max(0, max - store.length);
   if (!room || !products.length) return store.slice(0, max);
-  const { picked } = pickProducts(products, language, Math.min(room, Math.max(1, Math.round(max * 0.4))));
-  const named = productPrompts(picked, language);
-  const intent = intentPrompts(products, language, room - named.length);
+  const { picked } = pickProducts(products, language, room);
   const out: SuggestedPrompt[] = [];
   const seen = new Set<string>();
-  const push = (x: SuggestedPrompt) => { const k = x.text.toLowerCase(); if (!seen.has(k) && x.text.length >= 3 && out.length < room) { seen.add(k); out.push(x); } };
-  for (const x of named) push(x);
-  for (const x of intent) push(x);
-  // Catalog mic (puține tipuri de produs): restul locurilor merg la alte produse.
-  if (out.length < room) {
-    const more = pickProducts(products, language, room).picked.filter((x) => !named.some((n) => n.productId && n.productId === x.product.id));
-    for (const x of more) push({ text: buyerQuery(x.product, language), category: x.category, intent: "produs", productId: x.product.id });
+  for (const x of productPrompts(picked, language)) {
+    const k = x.text.toLowerCase();
+    if (!seen.has(k) && x.text.length >= 3 && out.length < room) { seen.add(k); out.push(x); }
   }
   return [...out, ...store];
 }

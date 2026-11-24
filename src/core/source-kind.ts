@@ -34,8 +34,12 @@ const MARKET_EXTRA = /[.-](ebay|amazon|okazii|olx|vatera|jofogas|allegro|aliexpr
 
 const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
 
+/**
+ * Doar adresele magazinului analizat (și subdomeniile lor). Aceeași marcă pe alt TLD (shopexpert.ro pentru shopexpert.com)
+ * sau alt magazin al aceluiași proprietar e un magazin distinct (ZoZo, 24.11.2026, KNOWLEDGE A21).
+ */
 export function isOwnDomain(domain: string, ownDomains: string[]) {
-  return ownDomains.some((o) => domain === o || brandLabel(domain) === brandLabel(o));
+  return ownDomains.some((o) => domain === o || domain.endsWith(`.${o}`));
 }
 
 /** bosch-professional.com, makitatools.com, makita.ca: eticheta domeniului începe cu o marcă din catalog. */

@@ -42,8 +42,8 @@ export type RivalReport = {
   answers: number;
 };
 
-/** Același magazin pe alt domeniu (aceeași marcă): nu e concurent. */
-export const isOwnBrand = (domain: string, ownDomain: string) => domain === ownDomain || brandLabel(domain) === brandLabel(ownDomain);
+/** Magazinul analizat (domeniul lui sau un subdomeniu). Aceeași marcă pe alt TLD e alt magazin (KNOWLEDGE A21). */
+export const isOwnBrand = (domain: string, ownDomain: string) => domain === ownDomain || domain.endsWith(`.${ownDomain}`);
 
 const prettyName = (domain: string) => {
   const label = domain.split(".").slice(0, -1).pop() ?? domain;

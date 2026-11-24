@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareSameQuestions, engineVerdict, perEngine, progressSince, type EngineRow } from "@/core/engine-view";
+import { compareSameQuestions, engineVerdict, latestAnswers, perEngine, progressSince, recommendedNow, type EngineRow } from "@/core/engine-view";
 
 const ME = "shopexpert.com";
 const row = (promptId: string, provider: string, runDate: string, mentions: { domain: string; position: number; name?: string; opinions?: { aspect: null; tone: 1 | -1; quote: string }[] }[]): EngineRow =>
@@ -30,7 +30,8 @@ describe("perEngine", () => {
       row("p1", "gemini", "2026-11-20", [{ domain: ME, position: 1 }]),
       row("p2", "gemini", "2026-11-20", []),
     ];
-    expect(perEngine(rows, [], ME)[0]).toMatchObject({ visibility: 25, delta: 50, lastDay: "2026-11-20" });
+    // Cifra de pe card = ultimul răspuns la fiecare întrebare (1 din 2), aceeași definiție ca pe Acasă.
+    expect(perEngine(rows, [], ME)[0]).toMatchObject({ answers: 2, hits: 1, visibility: 50, delta: 50, lastDay: "2026-11-20" });
   });
 
   it("variația se calculează doar pe aceleași întrebări (B58): alte întrebări nu se compară", () => {
@@ -100,10 +101,27 @@ describe("perEngine", () => {
       row("p1", "gemini", "2026-11-20", []),
     ];
     const v = engineVerdict(perEngine(rows, [], ME), (p) => p.toUpperCase());
-    expect(v.headline).toBe("Te recomandă 1 din 2 AI-uri.");
+    expect(v.headline).toBe("Te recomandă în 1 din 2 răspunsuri (50%), la ultima întrebare pusă fiecărui AI.");
     expect(v.best).toEqual({ name: "CHATGPT", visibility: 100 });
     expect(v.missing).toEqual(["GEMINI"]);
   });
+});
+
+describe("aceeași cifră peste tot (B61)", () => {
+  it("recommendedNow numără doar ultimul răspuns al fiecărui AI la fiecare întrebare", () => {
+    const rows = [
+      row("p1", "chatgpt", "2026-11-13", []),
+      row("p1", "chatgpt", "2026-11-20", [{ domain: ME, position: 1 }]),
+      row("p2", "chatgpt", "2026-11-20", []),
+      row("p1", "gemini", "2026-11-20", [{ domain: ME, position: 2 }]),
+    ];
+    expect(recommendedNow(rows, ME)).toEqual({ hits: 2, total: 3, pct: 67 });
+    expect(latestAnswers(rows)).toHaveLength(3);
+    const e = perEngine(rows, [], ME);
+    expect(e.reduce((n, x) => n + x.hits, 0)).toBe(2);
+    expect(e.reduce((n, x) => n + x.answers, 0)).toBe(3);
+  });
+  it("zero date", () => expect(recommendedNow([], ME)).toEqual({ hits: 0, total: 0, pct: 0 }));
 });
 
 describe("progressSince", () => {

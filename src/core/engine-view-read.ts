@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { ERROR_MODEL } from "./ai/types";
+import { currentPrompt } from "./project-runs";
 import { failureReason } from "./ai/errors";
 import type { DayStat, EngineFailure, EngineProducts, EngineRow } from "./engine-view";
 
@@ -13,13 +14,13 @@ const R = schema.runs;
 const PR = schema.promptRuns;
 const Q = schema.prompts;
 
-/** Rulările întrebărilor magazinului, fără textul răspunsului (doar motivul, pentru cele eșuate). */
+/** Rulările întrebărilor din lista curentă a magazinului, fără textul răspunsului (doar motivul, pentru cele eșuate). */
 export async function engineRuns(projectId: string, fromDay: string) {
   const all = await db.select({
     promptId: Q.id, provider: R.provider, runDate: R.runDate, mentions: R.mentions, failed: dsql<boolean>`${R.model} = ${ERROR_MODEL}`,
     error: dsql<string | null>`case when ${R.model} = ${ERROR_MODEL} then left(${R.answer}, 500) end`,
   }).from(PR).innerJoin(R, eq(R.id, PR.runId)).innerJoin(Q, eq(Q.id, PR.promptId))
-    .where(and(eq(Q.projectId, projectId), gte(R.runDate, fromDay)));
+    .where(and(eq(Q.projectId, projectId), gte(R.runDate, fromDay), currentPrompt()));
   const rows: EngineRow[] = [];
   const failed: EngineFailure[] = [];
   for (const r of all) {

@@ -37,6 +37,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
   const top3 = actions.sort((a, b) => rank[a.impact] - rank[b.impact] || rank[a.effort] - rank[b.effort]).slice(0, 3);
 
   const { comps, chart, who, share } = o;
+  // Aceeași cifră ca pe „Cum te văd AI-urile”: ultimul răspuns al fiecărui AI la fiecare întrebare din lista curentă.
+  const now = (o as { now?: { hits: number; total: number; pct: number } }).now ?? null;
   const score = o.latest?.score ?? null;
   const focusScore = o.audit?.focusScore ?? null;
   const diff = o.latest && o.weekAgo && o.latest.day !== o.weekAgo.day ? o.latest.score - o.weekAgo.score : null;
@@ -78,12 +80,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
           <div className="shrink-0"><ScoreRing score={score ?? 0} size={120} /></div>
           <div className="min-w-0 flex-1">
             <div className="label">Scor de vizibilitate AI · {project.name}</div>
-            <div className="font-display mt-1 text-2xl font-semibold">{!checked ? "Încă nu avem răspunsuri reale de la AI-uri." : recommending ? `Ești recomandat de ${recommending} din ${checked} ${checked === 1 ? "AI verificat" : "AI-uri verificate"}.` : `Niciun AI dintre cele ${checked} verificate nu te recomandă încă.`}</div>
+            <div className="font-display mt-1 text-2xl font-semibold">{!checked || !now?.total ? "Încă nu avem răspunsuri reale de la AI-uri." : now.hits ? `Te recomandă în ${now.hits} din ${now.total} răspunsuri (${now.pct}%).` : `Niciun AI nu te recomandă încă, în ${now.total} răspunsuri.`}</div>
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
               <Delta value={diff} /><span>față de acum o săptămână</span>
             </div>
             <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-              <div><dt className="text-xs text-muted">Apari în răspunsuri</dt><dd className="num font-medium">{o.latest.visibility}%</dd></div>
+              <div><dt className="text-xs text-muted">Apari în răspunsuri</dt><dd className="num font-medium">{now ? `${now.pct}%` : `${o.latest.visibility}%`}</dd></div>
               <div><dt className="text-xs text-muted">Cota din recomandări</dt><dd className="num font-medium">{o.latest.shareOfVoice}%</dd></div>
               <div><dt className="text-xs text-muted">Pregătire tehnică</dt><dd className="num font-medium">{o.audit ? `${o.audit.score}/100` : "–"}</dd>{focusScore !== null && <dd className="text-xs text-muted">Produse focus: <span className="num">{focusScore}/100</span></dd>}</div>
             </dl>

@@ -131,7 +131,7 @@ export function homeBrands($: cheerio.CheerioAPI, nodes: Record<string, unknown>
 }
 
 /** Produsele puse în față: din datele structurate (Product) și din titlurile cardurilor de produs. */
-export function homeProducts($: cheerio.CheerioAPI, nodes: Record<string, unknown>[], max = 8) {
+export function homeProducts($: cheerio.CheerioAPI, nodes: Record<string, unknown>[], max = 12) {
   const found: string[] = [];
   for (const n of nodes) {
     const t = (n as { "@type"?: unknown; name?: unknown });

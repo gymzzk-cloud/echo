@@ -203,7 +203,9 @@ export async function loadFeedBase(projectId: string, limit = 200_000) {
     for (const e of [...(editsBy.get(p.id) ?? [])].reverse()) fp = { ...fp, [e.product_edits.field]: e.product_edits.value };
     return fp;
   });
-  return { project, products: base, rules, labels, total: products.length };
+  // Produsele focus (KNOWLEDGE A0c): verificarea feed-ului le arată primele în lista fiecărei probleme.
+  const focus = new Set(products.filter((p) => p.focus).map((p) => p.id));
+  return { project, products: base, rules, labels, focus, total: products.length };
 }
 
 /** Produsele unui canal: regulile se aplică pe canal (o regulă poate exclude sau modifica produse doar pentru Meta, de ex.). */

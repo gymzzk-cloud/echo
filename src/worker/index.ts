@@ -70,7 +70,7 @@ async function handle(kind: string, payload: Record<string, string>) {
       return r;
     }
     case "run_project": {
-      const r = await runProject(payload.projectId);
+      const r = await runProject(payload.projectId, { onlyNew: String(payload.onlyNew) === "true" });
       // Răspunsuri noi → cifrele pe produs se refac imediat, ca pagina „Produse în AI” să le arate.
       await enqueue("product_ai", { projectId: payload.projectId });
       return r;
@@ -93,6 +93,13 @@ async function handle(kind: string, payload: Record<string, string>) {
       const r = await refreshPrompts(payload.projectId);
       // Produsele alese de magazin intră în „Produse focus”.
       await enqueue("focus", { projectId: payload.projectId });
+      // Magazinul și-a schimbat lista (KNOWLEDGE A55): cifrele pe produs se refac pe lista curentă, iar întrebările noi
+      // (fără niciun răspuns) se pun acum, doar ele. Schimbările automate ale listei rămân pentru rularea programată.
+      if (String(payload.byStore) === "true") {
+        const pid = payload.projectId;
+        if (!(await pendingJobs(["product_ai", "run_project"], "projectId", pid))) await enqueue("product_ai", { projectId: pid });
+        if ((await mayAskAi(pid)) && !(await pendingJobs(["run_project"], "projectId", pid))) await enqueue("run_project", { projectId: pid, onlyNew: true });
+      }
       return r;
     }
     case "product_page": {
@@ -114,6 +121,14 @@ async function handle(kind: string, payload: Record<string, string>) {
     case "panel": return computePanelSnapshots(payload.projectId);
     default: throw new Error(`Job necunoscut: ${kind}`);
   }
+}
+
+/** Rulăm AI-urile pentru magazin: există chei (sau demo cerut explicit) și nu e în testul gratuit. */
+async function mayAskAi(projectId: string) {
+  if (isDemo() && process.env.ALLOW_DEMO_AI !== "1") return false;
+  const r = await db.execute<{ n: number }>(sql`select count(*)::int as n from projects p join orgs o on o.id = p.org_id
+    where p.id = ${projectId} and p.onboarding is not null and o.plan = 'trial'`);
+  return (r[0] as unknown as { n: number }).n === 0;
 }
 
 async function schedule() {

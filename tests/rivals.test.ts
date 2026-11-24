@@ -112,11 +112,15 @@ describe("runMentions", () => {
   });
 });
 
-describe("același magazin pe alt domeniu", () => {
-  const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }, { domain: "scule.ro", name: "Scule RO Shop" }], products: [] };
-  it("shopexpert.ro contează ca shopexpert.com; shop-expert.ro e alt site (B60)", () => {
+describe("magazinul analizat e doar domeniul lui (KNOWLEDGE A21)", () => {
+  const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }, { domain: "scule.ro", name: "Scule RO Shop" }], products: [], ownDomains: ["shopexpert.com"] };
+  it("shopexpert.ro e magazin distinct de shopexpert.com; shop-expert.ro e alt site (B60)", () => {
     const ms = extractMentions("Recenzii pentru shopexpert.ro / shop-expert.ro, apoi dedeman.ro.", [], world, undefined, "RO");
-    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com", "shop-expert.ro", "dedeman.ro"]);
+    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.ro", "shop-expert.ro", "dedeman.ro"]);
+  });
+  it("„ShopExpert.ro” scris ca adresă nu e socotit shopexpert.com", () => {
+    const ms = extractMentions("Cumpără de la ShopExpert.ro sau Dedeman.", [], world, undefined, "RO");
+    expect(ms.map((m) => m.domain)).not.toContain("shopexpert.com");
   });
   it("numele de marcă scris în text („ShopExpert”) e recunoscut", () => {
     const ms = extractMentions("Clienții ShopExpert spun că livrarea e rapidă.", [], world);
@@ -126,13 +130,9 @@ describe("același magazin pe alt domeniu", () => {
     const ms = extractMentions("Cele mai bune scule electrice pentru acasă.", [], world);
     expect(ms.some((m) => m.domain === "scule.ro")).toBe(false);
   });
-  it("sursa citată pe alt domeniu al magazinului e același magazin", () => {
-    const ms = extractMentions("Iată câteva opțiuni.", [{ url: "https://www.shopexpert.ro/x" }], world);
-    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com"]);
-  });
-  it("rankRivals nu socotește propria marcă drept concurent", () => {
+  it("rankRivals socotește aceeași marcă pe alt TLD ca magazin distinct", () => {
     const rows = [{ promptId: "p", run: { provider: "chatgpt", runDate: "2026-11-20", mentions: [{ domain: "shopexpert.ro", position: 1 }, { domain: "dedeman.ro", position: 2 }] } }];
-    expect(rankRivals(rows, "shopexpert.com").rivals.map((r) => r.domain)).toEqual(["dedeman.ro"]);
+    expect(rankRivals(rows, "shopexpert.com").rivals.map((r) => r.domain)).toContain("shopexpert.ro");
   });
   it("brandLabel", () => {
     expect(brandLabel("shopexpert.com")).toBe("shopexpert");
@@ -157,10 +157,14 @@ describe("motivul unei rulări eșuate", () => {
   ])("%s", (a, want) => expect(failureReason(a)).toBe(want));
 });
 
-describe("domeniul propriu are întâietate", () => {
-  it("chiar dacă alt domeniu al mărcii a ajuns la concurenți", () => {
+describe("alt TLD al mărcii unui magazin analizat", () => {
+  it("rămâne magazinul lui, chiar dacă e salvat la concurenți", () => {
     const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }, { domain: "shopexpert.ro", name: "Shopexpert" }], products: [], ownDomains: ["shopexpert.com"] };
-    expect(extractMentions("Vezi shopexpert.ro.", [], world).map((m) => m.domain)).toEqual(["shopexpert.com"]);
+    expect(extractMentions("Vezi shopexpert.ro.", [], world).map((m) => m.domain)).toEqual(["shopexpert.ro"]);
+  });
+  it("concurenții rămân recunoscuți pe alt domeniu al mărcii lor (dedeman.com → dedeman.ro)", () => {
+    const world = { stores: [{ domain: "dedeman.ro", name: "Dedeman" }], products: [], ownDomains: ["shopexpert.com"] };
+    expect(extractMentions("Vezi dedeman.com.", [], world, undefined, "RO").map((m) => m.domain)).toEqual(["dedeman.ro"]);
   });
 });
 
@@ -171,8 +175,12 @@ describe("piața magazinului", () => {
     expect(ms).toEqual([]);
   });
   it("numele contează dacă apare și domeniul de pe piața ta", () => {
-    const ms = extractMentions("ShopExpert (shopexpert.ro) livrează în 1-2 zile; există și shopexpert.dk.", [], world, undefined, "RO");
+    const ms = extractMentions("ShopExpert (shopexpert.com) livrează în 1-2 zile; există și shopexpert.dk.", [], world, undefined, "RO");
     expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com"]);
+  });
+  it("numele lângă alt TLD al mărcii merge cu acea adresă, ca magazin distinct", () => {
+    const ms = extractMentions("ShopExpert (shopexpert.ro) livrează în 1-2 zile.", [], world, undefined, "RO");
+    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.ro"]);
   });
   it("directoarele de firme și site-urile de recenzii nu sunt magazine", () => {
     const ms = extractMentions("Date despre firmă pe firmadeaur.ro și citymaps.ro; recenzii pe trustpilot.com. Cumpără de la dedeman.ro.", [], world, undefined, "RO");

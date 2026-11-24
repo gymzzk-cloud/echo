@@ -114,7 +114,7 @@ export async function addTrackedProducts(projectId: string, productIds: string[]
     if (fresh.length) await db.insert(Q).values(fresh.map((p) => ({ projectId, text: buyerQuery(p, language as "ro" | "hu"), category: null, intent: "produs", productId: p.id, language, suggested: false })));
   }
   // Lista automată se reface în worker (citește tot catalogul): cererea din panou rămâne rapidă.
-  if (add.length) await enqueue("prompts", { projectId });
+  if (add.length) await enqueue("prompts", { projectId, byStore: true });
   return { added: add.length, over: over.length, already, limit: promptLimit(plan) };
 }
 
@@ -122,5 +122,5 @@ export async function addTrackedProducts(projectId: string, productIds: string[]
 export async function removeTrackedProducts(projectId: string, productIds: string[]) {
   if (!productIds.length) return;
   await db.update(Q).set({ active: false, suggested: false, retiredAt: null }).where(and(eq(Q.projectId, projectId), inArray(Q.productId, productIds)));
-  await enqueue("prompts", { projectId });
+  await enqueue("prompts", { projectId, byStore: true });
 }

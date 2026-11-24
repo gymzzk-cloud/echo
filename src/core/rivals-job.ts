@@ -7,7 +7,7 @@ import { invalidateWorld, loadWorld } from "./ai/engine";
 import { projectRuns } from "./project-runs";
 import { isOwnBrand, pickAutoRivals, rankRivals } from "./rivals";
 import { notRivals } from "./source-kind";
-import { catalogBrands, orgDomains } from "./store-context";
+import { catalogBrands, storeAliases } from "./store-context";
 import { generateActions } from "./projects";
 
 /** Fereastra în care căutăm concurenții: ultimele 30 de zile de răspunsuri. */
@@ -21,13 +21,13 @@ export const RIVALS_WINDOW_DAYS = 30;
 export async function detectRivals(projectId: string) {
   const [p] = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId));
   if (!p) return { added: [] as string[] };
-  const rows = await projectRuns(projectId, daysAgo(RIVALS_WINDOW_DAYS));
+  const rows = await projectRuns(projectId, daysAgo(RIVALS_WINDOW_DAYS), { allPrompts: true });
 
   // Adăugat automat din greșeală: propriul magazin pe alt domeniu (ex. shopexpert.ro pentru shopexpert.com). Îl scoatem
   // înainte de recitire, ca mențiunile lui să fie socotite ale magazinului.
   const ownAuto = await db.select({ id: schema.competitors.id, domain: schema.competitors.domain }).from(schema.competitors)
     .where(and(eq(schema.competitors.projectId, projectId), eq(schema.competitors.suggested, true)));
-  const [own, brands] = await Promise.all([orgDomains(p.orgId), catalogBrands(projectId)]);
+  const [own, brands] = await Promise.all([storeAliases(p.id), catalogBrands(projectId)]);
   const notRival = new Set(notRivals(ownAuto.map((c) => c.domain), { ownDomains: [p.domain, ...own], brands }));
   // Tot din greșeală: alt magazin al clientului, un producător (bosch-professional.com) sau un site care nu vinde (platform.openai.com).
   const mine = ownAuto.filter((c) => isOwnBrand(c.domain, p.domain) || notRival.has(c.domain));

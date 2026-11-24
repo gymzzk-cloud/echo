@@ -4,11 +4,12 @@ import type { Mention } from "@/db/schema";
 import { daysAgo, today } from "@/lib/util";
 import { enqueue } from "./jobs";
 import { loadBase, productCounts, overview, trend, leaderboard, whoRecommends, shareOfRecommendations, sourceInsights, type Rows } from "./insights";
+import { recommendedNow } from "./engine-view";
 import { reputation } from "./reputation";
 import type { AuditResult } from "./audit";
 import { notRivals, isBrandSite } from "./source-kind";
 import { isStoreLike } from "./ai/domains";
-import { catalogBrands, orgDomains } from "./store-context";
+import { catalogBrands, storeAliases } from "./store-context";
 
 /**
  * Cifrele paginilor panoului care cer toate rulările pe 30 de zile (mii de răspunsuri cu mențiuni și surse):
@@ -26,7 +27,7 @@ async function computeHome(project: Project) {
   const o = await overview(project);
   const [prods, own, brands] = await Promise.all([
     db.select({ title: schema.products.title, price: schema.products.price }).from(schema.products).where(eq(schema.products.projectId, project.id)).limit(5000),
-    orgDomains(project.orgId), catalogBrands(project.id),
+    storeAliases(project.id), catalogBrands(project.id),
   ]);
   // Producătorii (Bosch Professional), propriile magazine și site-urile care nu vând nu sunt „în locul tău” (KNOWLEDGE A0, B32).
   const exclude = new Set(notRivals(o.rows.flatMap((r) => ((r.run.mentions as Mention[]) ?? []).map((m) => m.domain)), { ownDomains: [project.domain, ...own], brands }));
@@ -43,6 +44,7 @@ async function computeHome(project: Project) {
     comps: comps.map((c) => ({ domain: c.domain, name: c.name })),
     chart: trend(o.rows, project.domain, comps.map((c) => c.domain)),
     who: whoRecommends(o.rows, project.domain, o.audit, prods, exclude),
+    now: recommendedNow(o.rows, project.domain),
     share: shareOfRecommendations(o.rows.filter((r) => r.run.runDate >= (o.latest?.day ?? "")), project.domain, 3, exclude),
   };
 }
@@ -64,7 +66,7 @@ async function computeProducts(project: Project) {
 
 async function computeSources(project: Project) {
   const { rows, competitors } = await loadBase(project, 30);
-  const [own, brands] = await Promise.all([orgDomains(project.orgId), catalogBrands(project.id)]);
+  const [own, brands] = await Promise.all([storeAliases(project.id), catalogBrands(project.id)]);
   const s = sourceInsights(rows, project.domain, competitors.map((c) => c.domain), { ownDomains: own, brands, country: project.country ?? "RO" });
   return { rowCount: rows.length, list: s.list.slice(0, 100), listTotal: s.list.length, gaps: s.gaps.slice(0, 10), gapCount: s.gaps.length };
 }
@@ -82,6 +84,9 @@ export const SNAPSHOT_KEYS = Object.keys(COMPUTE) as SnapshotKey[];
 /** Un calcul mai vechi de atât se reface chiar dacă datele de bază par aceleași (prețuri, mărci din catalog). */
 const MAX_AGE_MS = 24 * 3600e3;
 
+/** Se schimbă când se schimbă felul în care calculăm: cifrele salvate înainte se refac după publicare. */
+const SNAPSHOT_VERSION = "v2-current-list";
+
 /**
  * Din ce date s-ar calcula acum: o singură interogare mică (numărători și ultima dată), fără să citească răspunsurile.
  * Ziua intră în ea pentru că ferestrele de 7 și 30 de zile se mută la miezul nopții.
@@ -90,14 +95,15 @@ export async function snapshotStamp(project: Project) {
   const r = await db.execute(dsql`select
     (select count(*)::text || '@' || coalesce(max(r.created_at)::text, '') from prompt_runs pr
        join prompts p on p.id = pr.prompt_id join runs r on r.id = pr.run_id
-       where p.project_id = ${project.id} and r.run_date >= ${daysAgo(30)}) as runs,
+       where p.project_id = ${project.id} and r.run_date >= ${daysAgo(30)} and p.active and p.retired_at is null) as runs,
+    (select count(*)::text || '@' || coalesce(max(created_at)::text, '') from prompts where project_id = ${project.id} and active and retired_at is null) as prompts,
     (select count(*)::text || '@' || coalesce(max(created_at)::text, '') from competitors where project_id = ${project.id}) as comps,
     (select count(*)::text from competitor_dismissals where project_id = ${project.id}) as dismissed,
     (select count(*) filter (where appearances > 0)::text || '/' || count(*) filter (where price_wrong)::text from product_ai_stats where project_id = ${project.id}) as products,
     (select coalesce(max(id::text), '') from audits where project_id = ${project.id} and status = 'done'
        and created_at = (select max(created_at) from audits where project_id = ${project.id} and status = 'done')) as audit`);
-  const x = (r as unknown as { runs: string; comps: string; dismissed: string; products: string; audit: string }[])[0];
-  return [today(), x.runs, x.comps, x.dismissed, x.products, x.audit, project.domain, project.name].join("|");
+  const x = (r as unknown as { runs: string; prompts: string; comps: string; dismissed: string; products: string; audit: string }[])[0];
+  return [SNAPSHOT_VERSION, today(), x.runs, x.prompts, x.comps, x.dismissed, x.products, x.audit, project.domain, project.name].join("|");
 }
 
 async function save(projectId: string, key: SnapshotKey, stamp: string, data: unknown) {

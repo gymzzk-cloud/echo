@@ -102,7 +102,7 @@ export async function productSheet(projectId: string, productId: string) {
   };
 }
 
-export { orgDomains } from "../store-context";
+export { storeAliases } from "../store-context";
 
 /**
  * Răspunsurile AI din ultimele 30 de zile despre acest produs: la întrebările urmărite pe el, cele în care l-am găsit

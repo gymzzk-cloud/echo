@@ -3,6 +3,7 @@ import { db, schema } from "@/db";
 import { CHANNELS, channelItems, loadFeedBase, type FeedProduct } from "./feed";
 import { feedStamp } from "./feed-files";
 import { suggestRules } from "./feed-rule-presets";
+import { feedQuality, type FeedQuality } from "./feed-quality";
 
 /** Un produs în rezumat: doar ce arată pagina (descrierea scurtată), ca rezumatul să rămână mic. */
 export type SummaryProduct = Pick<FeedProduct, "id" | "title" | "price" | "currency" | "inStock" | "brand" | "gtin" | "mpn" | "labels"> & { description: string | null };
@@ -12,6 +13,8 @@ export type FeedSummary = {
   gaps: { outOfStock: number; noDescription: number; noGtin: number; noBrand: number; noPrice: number };
   labelCounts: [string, number][];
   preview: SummaryProduct[];
+  /** Verificarea feed-ului: scor și probleme pe categorii (lipsește în rezumatele calculate înainte de 24.11.2026). */
+  quality?: FeedQuality;
   suggestions: { presetId: string; affected: number; examples: { id: string; before: SummaryProduct; after: SummaryProduct | null }[] }[];
 };
 
@@ -44,6 +47,7 @@ export function summarize(base: Awaited<ReturnType<typeof loadFeedBase>>, channe
     gaps: feedGaps(items),
     labelCounts: [...counts.entries()].sort((a, b) => b[1] - a[1]),
     preview: items.slice(0, 20).map(slim),
+    quality: feedQuality(items, base.focus),
     suggestions: suggestRules(items, base.rules, channel).map((s) => ({
       presetId: s.preset.id, affected: s.affected,
       examples: s.examples.map((e) => ({ id: e.id, before: slim(e.before), after: e.after ? slim(e.after) : null })),
@@ -55,8 +59,11 @@ export function summarize(base: Awaited<ReturnType<typeof loadFeedBase>>, channe
  * Jobul de feed (worker): refacem rezumatul fiecărui canal când s-au schimbat datele (aceeași amprentă ca fișierele).
  * Idempotent: cu aceeași amprentă nu face nimic. Catalogul se citește o singură dată pentru toate canalele.
  */
+/** Se schimbă când se schimbă ce conține rezumatul: rezumatele vechi se refac după publicare. */
+const SUMMARY_VERSION = "q1";
+
 export async function computeFeedSummaries(projectId: string) {
-  const stamp = await feedStamp(projectId);
+  const stamp = `${SUMMARY_VERSION}|${await feedStamp(projectId)}`;
   const have = await db.select({ channel: schema.feedSummaries.channel, stamp: schema.feedSummaries.stamp }).from(schema.feedSummaries).where(eq(schema.feedSummaries.projectId, projectId));
   const fresh = new Set(have.filter((h) => h.stamp === stamp).map((h) => h.channel));
   const todo = CHANNELS.filter((c) => !fresh.has(c.id));

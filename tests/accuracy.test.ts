@@ -50,10 +50,11 @@ describe("descrierea produsului", () => {
 });
 
 describe("sursele: ce fel de site e și dacă recomandăm ceva", () => {
-  const ctx = { ownDomains: ["shopexpert.com", "hardlineconstruct.ro"], competitorDomains: ["emag.ro", "dedeman.ro"], brands: ["BOSCH", "MAKITA", "CROMWELL", "RECORD POWER"] };
-  it("propriile domenii și magazinele aceluiași client sunt „site propriu”", () => {
-    expect(sourceKind("shopexpert.ro", ctx)).toBe("site propriu");
-    expect(sourceKind("hardlineconstruct.ro", ctx)).toBe("site propriu");
+  const ctx = { ownDomains: ["shopexpert.com"], competitorDomains: ["emag.ro", "dedeman.ro"], brands: ["BOSCH", "MAKITA", "CROMWELL", "RECORD POWER"] };
+  it("doar domeniul analizat e „site propriu”; alt TLD sau alt magazin al proprietarului e distinct (A21)", () => {
+    expect(sourceKind("shopexpert.com", ctx)).toBe("site propriu");
+    expect(sourceKind("shopexpert.ro", ctx)).not.toBe("site propriu");
+    expect(sourceKind("hardlineconstruct.ro", ctx)).not.toBe("site propriu");
   });
   it("site-urile producătorilor nu sunt „editorial / blog”", () => {
     expect(sourceKind("bosch-professional.com", ctx)).toBe("producător");
@@ -78,9 +79,9 @@ describe("sursele: ce fel de site e și dacă recomandăm ceva", () => {
     expect(canAct("site propriu")).toBe(false);
     expect(canAct("comparator")).toBe(true);
   });
-  it("producătorii, propriile magazine și site-urile care nu vând nu sunt concurenți", () => {
+  it("producătorii și site-urile care nu vând nu sunt concurenți; alt magazin al proprietarului poate fi (A21)", () => {
     expect(notRivals(["bosch-professional.com", "platform.openai.com", "hardlineconstruct.ro", "emag.ro", "dedeman.ro"], ctx).sort())
-      .toEqual(["bosch-professional.com", "hardlineconstruct.ro", "platform.openai.com"]);
+      .toEqual(["bosch-professional.com", "platform.openai.com"]);
   });
 });
 
