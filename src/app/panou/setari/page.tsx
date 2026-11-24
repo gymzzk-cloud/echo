@@ -74,7 +74,7 @@ export default async function Settings() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Cont" title="Setări magazin" subtitle={`${project.name} · ${project.domain}${project.pathPrefix} · ${project.country === "HU" ? "Ungaria" : "România"} · ${project.currency}`} />
+      <PageHeader eyebrow="Setări" title="Setări magazin" subtitle={`${project.name} · ${project.domain}${project.pathPrefix} · ${project.country === "HU" ? "Ungaria" : "România"} · ${project.currency}`} />
 
       <Card title="Catalogul de produse" description={<CardHelp id="settings.catalog" />}>
         {conns.length > 0 && (

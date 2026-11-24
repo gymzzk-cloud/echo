@@ -22,7 +22,7 @@ export default async function Developers() {
   const busy = await busyKinds(project.id);
   return (
     <>
-      <PageHeader eyebrow="Cont" title="API și MCP" subtitle="Agenții AI pot citi direct catalogul tău verificat prin MCP. Sistemele tale pot citi datele Echo prin API și pot primi evenimente prin webhook." />
+      <PageHeader eyebrow="Setări" title="API și MCP" subtitle="Agenții AI pot citi direct catalogul tău verificat prin MCP. Sistemele tale pot citi datele Echo prin API și pot primi evenimente prin webhook." />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Serverul MCP al magazinului" description={<CardHelp id="dev.mcp" />} className="lg:col-span-2">
           <p className="mb-2 flex flex-wrap items-center gap-2 text-sm">Adresa: <code className="break-all">{app}/mcp/magazin/{project.domain}{project.pathPrefix}</code> {project.mcpEnabled ? <Badge tone="good">Pornit</Badge> : <Badge>Oprit</Badge>}</p>

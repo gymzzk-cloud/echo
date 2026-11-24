@@ -28,7 +28,7 @@ export default async function FixesPage({ searchParams }: { searchParams: Promis
     : <form action={runFixes}>{pid}<SubmitButton variant="secondary" pendingText="Pornesc…">Caută reparații acum</SubmitButton></form>;
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Reparații" title="Reparații de produs" action={run}
+      <PageHeader eyebrow="Repară" title="Reparații de produs" action={run}
         subtitle="Titluri, descrieri, GTIN, marcă și categorie, propuse pentru fiecare produs cu un scor de încredere. Ce aprobi se aplică doar în feed-ul Echo; magazinul tău nu se modifică." />
       <Suspense key={`${sp.s ?? ""}|${sp.f ?? ""}|${sp.p ?? ""}`} fallback={<Card><p className="animate-pulse text-sm text-muted">Calculăm…</p></Card>}>
         <FixesBody projectId={project.id} threshold={project.fixAutoThreshold} checkedAt={project.fixesCheckedAt} sp={sp} busy={busy.has("fixes")} />

@@ -9,7 +9,7 @@ export const CARD_HELP = {
   // Acasă
   "home.firstReport": { ro: "Ce pregătim după ce ai adăugat magazinul. Durează câteva minute; pagina se actualizează singură.", hu: "Amit a webshop hozzáadása után előkészítünk. Néhány perc; az oldal magától frissül." },
   "home.trend": { ro: "Cât de des te recomandă AI-urile, zi de zi, față de concurenți. Vezi dacă urci sau cobori.", hu: "Milyen gyakran ajánlanak az AI-k, napról napra, a versenytársakhoz képest. Látod, hogy javulsz-e vagy romlasz." },
-  "home.todo": { ro: "Cele mai utile reparații de acum, alese după cât te ajută și cât de greu sunt. Începe cu prima.", hu: "A most leghasznosabb javítások, aszerint válogatva, mennyit segítenek és mennyire nehezek. Kezdd az elsővel." },
+  "home.todo": { ro: "O singură listă cu ce poți face tu acum, din date verificate: produse respinse sau slabe în feed-ul trimis la AI și problemele găsite pe site sau în răspunsuri. Cel mai util e primul.", hu: "Egyetlen lista arról, mit tehetsz most, ellenőrzött adatokból: az AI-nak küldött feedben elutasított vagy gyenge termékek, valamint az oldalon vagy a válaszokban talált problémák. A leghasznosabb van elöl." },
   "home.share": { ro: "Din toate recomandările de magazine făcute de AI-uri, cât la sută ajung la tine și cât la fiecare concurent.", hu: "Az AI-k összes webshop-ajánlásából hány százalék jut neked és mennyi az egyes versenytársaknak." },
   "home.alerts": { ro: "Schimbări importante de la ultima vizită: ai urcat, ai coborât, a apărut un concurent nou.", hu: "Fontos változások a legutóbbi látogatás óta: feljebb kerültél, lejjebb kerültél, új versenytárs jelent meg." },
   // Vizibilitate

@@ -28,7 +28,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader eyebrow="Cont" title="Echipă, securitate și abonament" subtitle={`${org.name} · ${org.kind === "agency" ? "agenție" : "magazin"}`} />
+      <PageHeader eyebrow="Setări" title="Echipă, securitate și abonament" subtitle={`${org.name} · ${org.kind === "agency" ? "agenție" : "magazin"}`} />
       {sp.plata && <div className="mb-6"><Notice tone="good">Plata a fost primită. Abonamentul se activează în câteva secunde.</Notice></div>}
       {sp.eroare && <div className="mb-6"><Notice tone="warn">{sp.eroare}</Notice></div>}
       <div className="grid gap-6 lg:grid-cols-2">

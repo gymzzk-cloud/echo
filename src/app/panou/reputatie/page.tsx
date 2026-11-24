@@ -11,10 +11,10 @@ export default async function Reputation() {
   // Calculat în worker din răspunsurile pe 30 de zile; pagina citește un rând (KNOWLEDGE B48).
   const snap = await readSnapshot(project, "reputation");
   const r = snap.data;
-  if (!r.hasData) return <><PageHeader eyebrow="Vizibilitate" title="Ce spune AI-ul despre tine" /><Empty title="Încă nu avem răspunsuri la întrebările despre magazin">Le punem zilnic: „{project.name} este un magazin de încredere?”, „Ce părere au clienții…”, „Livrează rapid?”.</Empty></>;
+  if (!r.hasData) return <><PageHeader eyebrow="Cum te recomandă AI-urile" title="Ce spune AI-ul despre tine" /><Empty title="Încă nu avem răspunsuri la întrebările despre magazin">Le punem zilnic: „{project.name} este un magazin de încredere?”, „Ce părere au clienții…”, „Livrează rapid?”.</Empty></>;
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Vizibilitate" title="Ce spune AI-ul despre tine" subtitle="Tonul fiecărui AI, ce afirmă despre tine și ce afirmații contrazic faptele de pe site. Pe acestea le poți corecta." />
+      <PageHeader eyebrow="Cum te recomandă AI-urile" title="Ce spune AI-ul despre tine" subtitle="Tonul fiecărui AI, ce afirmă despre tine și ce afirmații contrazic faptele de pe site. Pe acestea le poți corecta." />
       <SnapshotNote computedAt={snap.computedAt} stale={snap.stale} />
       <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
         <Card>

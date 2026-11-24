@@ -3,46 +3,40 @@ import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { readSnapshot } from "@/core/panel-snapshot";
 import { SnapshotNote } from "@/components/snapshot-note";
-import { PROVIDERS, providerLabel } from "@/core/ai/types";
-import { Badge, ButtonLink, Card, Delta, Empty, ListRow, Notice, SubCard, Table, Td, TextLink, Working, impactTone } from "@/components/ui";
-import { actionTitle } from "@/core/audit/problems";
+import { providerLabel } from "@/core/ai/types";
+import { Badge, ButtonLink, Card, Delta, Empty, ListRow, Notice, SubCard, Table, Td, TextLink, Working } from "@/components/ui";
 import { SubmitButton, TrendChart } from "@/components/client";
-import { ScoreRing } from "@/components/audit-view";
 import { markAlertsRead, runNow, setActionStatus } from "@/app/actions";
 import { dateShort } from "@/lib/format";
 import { busyKinds } from "@/core/jobs";
 import { activeProviders, isDemo } from "@/core/ai/engine";
 import { CardHelp } from "@/components/card-help";
+import { readHomeTodo } from "@/core/home-todo";
 
 // Tu: culoarea de marcă; concurenții: nuanțe de gri (DESIGN §9).
 const COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"];
+const TODO_SHOWN = 5;
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ "bun-venit"?: string }> }) {
   const sp = await searchParams;
   const { project } = await currentProject();
   // Cifrele din toate rulările (scor, grafic, cine te recomandă, cote) vin calculate din worker: pagina citește un rând (KNOWLEDGE B48).
-  const [snap, conns, jobs, alerts, actions] = await Promise.all([
+  const [snap, conns, jobs, alerts, todo] = await Promise.all([
     readSnapshot(project, "home"),
     db.select().from(schema.connections).where(eq(schema.connections.projectId, project.id)),
     db.select().from(schema.jobs).where(and(inArray(schema.jobs.status, ["queued", "running"]))).limit(50),
     db.select().from(schema.alerts).where(and(eq(schema.alerts.projectId, project.id), eq(schema.alerts.read, false))).orderBy(desc(schema.alerts.createdAt)).limit(5),
-    db.select().from(schema.actions).where(and(eq(schema.actions.projectId, project.id), eq(schema.actions.status, "noua"))).limit(50),
+    readHomeTodo(project.id),
   ]);
   const o = snap.data;
   const busy = await busyKinds(project.id, conns.map((c) => c.id));
   const analysing = busy.has("audit") || busy.has("run_project") || busy.has("sync");
   const noAi = isDemo() && process.env.ALLOW_DEMO_AI !== "1";
   const working = jobs.filter((j) => (j.payload as Record<string, string>).projectId === project.id || conns.some((c) => c.id === (j.payload as Record<string, string>).connectionId));
-  const rank: Record<string, number> = { mare: 0, mediu: 1, mic: 2 };
-  const top3 = actions.sort((a, b) => rank[a.impact] - rank[b.impact] || rank[a.effort] - rank[b.effort]).slice(0, 3);
 
   const { comps, chart, who, share } = o;
   // Aceeași cifră ca pe „Cum te văd AI-urile”: ultimul răspuns al fiecărui AI la fiecare întrebare din lista curentă.
   const now = (o as { now?: { hits: number; total: number; pct: number } }).now ?? null;
-  const score = o.latest?.score ?? null;
-  const focusScore = o.audit?.focusScore ?? null;
-  const diff = o.latest && o.weekAgo && o.latest.day !== o.weekAgo.day ? o.latest.score - o.weekAgo.score : null;
-  const recommending = o.perProvider.filter((p) => p.visibility > 0).length;
   // Doar AI-urile care au răspuns efectiv; cele cu eroare nu se socotesc ca „nu te recomandă”.
   const checked = o.perProvider.filter((p) => p.checked).length;
   const live = new Set(activeProviders().filter((p) => p.live).map((p) => p.id));
@@ -73,33 +67,22 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
 
   return (
     <div className="space-y-6">
-      {/* 1. Scorul și verdictul */}
+      {/* 1. O singură cifră: în câte răspunsuri te recomandă AI-urile (aceeași ca pe „Pe fiecare AI”) */}
       <Card>
         <SnapshotNote computedAt={snap.computedAt} stale={snap.stale} />
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-          <div className="shrink-0"><ScoreRing score={score ?? 0} size={120} /></div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1">
-            <div className="label">Scor de vizibilitate AI · {project.name}</div>
+            <div className="label">{project.name} în AI-uri</div>
             <div className="font-display mt-1 text-2xl font-semibold">{!checked || !now?.total ? "Încă nu avem răspunsuri reale de la AI-uri." : now.hits ? `Te recomandă în ${now.hits} din ${now.total} răspunsuri (${now.pct}%).` : `Niciun AI nu te recomandă încă, în ${now.total} răspunsuri.`}</div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-              <Delta value={diff} /><span>față de acum o săptămână</span>
-            </div>
-            <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-              <div><dt className="text-xs text-muted">Apari în răspunsuri</dt><dd className="num font-medium">{now ? `${now.pct}%` : `${o.latest.visibility}%`}</dd></div>
-              <div><dt className="text-xs text-muted">Cota din recomandări</dt><dd className="num font-medium">{o.latest.shareOfVoice}%</dd></div>
-              <div><dt className="text-xs text-muted">Pregătire tehnică</dt><dd className="num font-medium">{o.audit ? `${o.audit.score}/100` : "–"}</dd>{focusScore !== null && <dd className="text-xs text-muted">Produse focus: <span className="num">{focusScore}/100</span></dd>}</div>
-            </dl>
-            <p className="mt-2 text-xs text-muted">
-              Ultima măsurătoare ({o.latest.day.slice(8, 10)}.{o.latest.day.slice(5, 7)}). Scorul = 50% apariții + 20% cotă + 30% pregătire tehnică.
-              {!recommending && (score ?? 0) > 0 && ` Acum ${score} vine doar din pregătirea tehnică a site-ului; crește când AI-urile încep să te recomande.`}
-            </p>
+            <p className="mt-2 text-sm text-muted">La ultima întrebare pusă fiecărui AI, din lista ta de {perQ} întrebări despre produse. <TextLink href="/panou/vizibilitate">Vezi răspunsurile</TextLink></p>
+            {todo.quality && todo.quality.checked > 0 && (
+              <p className="mt-2 text-sm text-muted">Feed-ul spre ChatGPT: <span className="num font-medium text-fg">{todo.quality.score}%</span> corect ({todo.quality.perfect.toLocaleString("ro-RO")} din {todo.quality.checked.toLocaleString("ro-RO")} produse fără nicio problemă). <TextLink href="/panou/feed#verificare">Verificarea feed-ului</TextLink></p>
+            )}
             {o.unchecked.length > 0 && (
-              <p className="mt-2 text-xs text-warn">
-                Scor parțial: {o.unchecked.map((u) => `${providerLabel(u.provider)} nu a putut fi verificat (${u.reason})`).join("; ")}. Nu intră în scor și nici nu înseamnă că lipsești.
-              </p>
+              <p className="mt-2 text-xs text-warn">{o.unchecked.map((u) => `${providerLabel(u.provider)} nu a putut fi întrebat (${u.reason})`).join("; ")}. Nu intră în cifră și nici nu înseamnă că lipsești.</p>
             )}
           </div>
-          <div className="shrink-0 sm:max-w-56 sm:self-start">
+          <div className="shrink-0 sm:max-w-56">
             {analysing
               ? <Working hint="Întrebăm AI-urile și verificăm site-ul. Pagina se actualizează singură când e gata.">Analiza e în lucru</Working>
               : <form action={runNow}><input type="hidden" name="projectId" value={project.id} /><SubmitButton variant="secondary" pendingText="Pornesc…">Rulează acum</SubmitButton></form>}
@@ -107,35 +90,33 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
         </div>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
-        {/* 2. Evoluția */}
-        <Card title="Evoluție pe 30 de zile" description={<CardHelp id="home.trend" />} action={<TextLink href="/panou/vizibilitate">Detalii</TextLink>}>
-          {chart.length > 1
-            ? <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...comps.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} />
-            : <p className="text-sm text-muted">Graficul apare după a doua zi de măsurători.</p>}
-        </Card>
+      {/* 2. Ce faci acum: o listă, din feed și din acțiuni, cele care ajută cel mai mult primele */}
+      <Card title={todo.items.length ? `Ce faci acum: ${todo.items.length} lucruri, cel mai util primul` : "Ce faci acum"} description={<CardHelp id="home.todo" />} action={todo.items.length > TODO_SHOWN ? <TextLink href="/panou/actiuni">Toate</TextLink> : undefined}>
+        {todo.items.length === 0 ? <p className="text-sm text-muted">Nimic de reparat acum, din ce am putut verifica.</p> : (
+          <ol className="space-y-3">
+            {todo.items.slice(0, TODO_SHOWN).map((t, k) => (
+              <li key={t.key}>
+                <SubCard>
+                  <div className="flex flex-wrap items-center gap-2"><span className="num text-sm font-semibold text-muted">{k + 1}.</span><Badge tone={t.tone}>{t.tag}</Badge></div>
+                  <h3 className="mt-2 font-semibold">{t.title}</h3>
+                  <p className="mt-1 text-sm text-muted">{t.why}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <ButtonLink href={t.href} size="sm">Rezolvă</ButtonLink>
+                    {t.actionId && <form action={setActionStatus}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="id" value={t.actionId} /><input type="hidden" name="status" value="rezolvata" /><SubmitButton variant="ghost" size="sm" pendingText="Salvez…">Am rezolvat</SubmitButton></form>}
+                  </div>
+                </SubCard>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
 
-        {/* 3. Cele 3 lucruri de făcut: insigna deasupra titlului, ca titlurile să înceapă toate la aceeași linie */}
-        <Card title="3 lucruri de făcut săptămâna asta" description={<CardHelp id="home.todo" />} action={<TextLink href="/panou/actiuni">Toate</TextLink>}>
-          {top3.length === 0 ? <p className="text-sm text-muted">Nimic urgent. Bravo!</p> : (
-            <ul className="space-y-3">
-              {top3.map((a) => (
-                <li key={a.id}>
-                  <SubCard>
-                    <Badge tone={impactTone(a.impact)}>Impact {a.impact}</Badge>
-                    <h3 className="mt-2 font-semibold">{actionTitle(a)}</h3>
-                    <p className="mt-1 text-sm text-muted">{a.why}</p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {a.fixKind && a.fixKind !== "source" ? <ButtonLink href="/panou/audit#rezolva" size="sm">Rezolvă</ButtonLink> : <ButtonLink href="/panou/actiuni" size="sm">Vezi pașii</ButtonLink>}
-                      <form action={setActionStatus}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="id" value={a.id} /><input type="hidden" name="status" value="rezolvata" /><SubmitButton variant="ghost" size="sm" pendingText="Salvez…">Am rezolvat</SubmitButton></form>
-                    </div>
-                  </SubCard>
-                </li>
-              ))}
-            </ul>
-          )}
+      {/* Evoluția doar când are sens: cu cel puțin o săptămână de măsurători */}
+      {chart.length >= 7 && (
+        <Card title="Evoluție pe 30 de zile" description={<CardHelp id="home.trend" />} action={<TextLink href="/panou/vizibilitate">Detalii</TextLink>}>
+          <TrendChart data={chart} series={[{ key: "tu", label: "Tu", color: COLORS[0] }, ...comps.map((c, i) => ({ key: c.domain, label: c.name, color: COLORS[i + 1] }))]} />
         </Card>
-      </div>
+      )}
 
       {/* 4. Cine te recomandă și cine nu (ca în ilustrații) */}
       <div>

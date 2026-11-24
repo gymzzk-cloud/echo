@@ -19,7 +19,7 @@ export default async function AgentGate() {
   const app = process.env.APP_URL ?? "http://localhost:3000";
   return (
     <>
-      <PageHeader eyebrow="Reparații" title="Agent Gate" subtitle="Ce faci cu comenzile plasate de agenți AI (ChatGPT, Claude, Gemini…): accepți, ceri confirmare prin SMS pentru ramburs, verifici manual sau respingi." />
+      <PageHeader eyebrow="Repară" title="Agent Gate" subtitle="Ce faci cu comenzile plasate de agenți AI (ChatGPT, Claude, Gemini…): accepți, ceri confirmare prin SMS pentru ramburs, verifici manual sau respingi." />
       <div className="mb-6 grid grid-cols-2 gap-6 lg:grid-cols-4">
         {(["accepta", "confirma_sms", "verificare", "respinge"] as const).map((d) => <Stat key={d} label={DEC[d].label} value={orders.filter((o) => o.decision === d).length} hint="ultimele 50" />)}
       </div>

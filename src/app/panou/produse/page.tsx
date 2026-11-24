@@ -19,7 +19,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
   const { project } = await currentProject();
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Vizibilitate" title="Produse" subtitle="Ce produse recomandă AI-urile, la ce preț și ce date le lipsesc." />
+      <PageHeader eyebrow="Cum te recomandă AI-urile" title="Produse" subtitle="Ce produse recomandă AI-urile, la ce preț și ce date le lipsesc." />
       <Suspense key={`${sp.f ?? ""}|${sp.q ?? ""}|${sp.set ?? ""}`} fallback={<Card><p className="animate-pulse text-sm text-muted">Calculăm pentru tot catalogul…</p></Card>}>
         <ProductsBody project={project} sp={sp} />
       </Suspense>

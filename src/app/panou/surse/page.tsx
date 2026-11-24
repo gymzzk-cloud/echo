@@ -12,11 +12,11 @@ export default async function Sources() {
   // Calculat în worker din toate răspunsurile pe 30 de zile; pagina citește un rând (KNOWLEDGE B48).
   const snap = await readSnapshot(project, "sources");
   const s = snap.data;
-  if (!s.rowCount) return <><PageHeader eyebrow="Vizibilitate" title="Surse" /><Empty title="Încă nu avem răspunsuri de la AI-uri" /></>;
+  if (!s.rowCount) return <><PageHeader eyebrow="Cum te recomandă AI-urile" title="Surse" /><Empty title="Încă nu avem răspunsuri de la AI-uri" /></>;
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Vizibilitate" title="Surse" subtitle="Site-urile pe care le citesc AI-urile când răspund la întrebările din categoria ta." />
+      <PageHeader eyebrow="Cum te recomandă AI-urile" title="Surse" subtitle="Site-urile pe care le citesc AI-urile când răspund la întrebările din categoria ta." />
       <SnapshotNote computedAt={snap.computedAt} stale={snap.stale} />
       <Card title="Unde apar concurenții, dar tu nu" description={<CardHelp id="sources.gaps" />} action={<Badge tone={s.gapCount ? "warn" : "good"}>{s.gapCount} {s.gapCount === 1 ? "oportunitate" : "oportunități"}</Badge>}>
         {s.gaps.length === 0 ? <p className="text-sm text-muted">Nicio sursă importantă în care concurenții să fie mai prezenți decât tine.</p> : (

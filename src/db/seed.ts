@@ -20,7 +20,7 @@ import { parseFeed } from "@/core/connectors";
 import { connectStore, ensurePrompts, runProject, syncCatalog, auditProject } from "@/core/projects";
 import { invalidateWorld } from "@/core/ai/engine";
 
-const EMAIL = "demo@echo.local";
+const EMAIL = "demo@echo.local"; // = DEMO_EMAIL din src/lib/demo.ts
 const PASSWORD = "echo-demo-2026";
 const DAYS = 14;
 
