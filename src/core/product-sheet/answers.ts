@@ -1,5 +1,6 @@
 import type { Mention } from "@/db/schema";
 import { isOwnBrand, MARKETPLACES } from "../rivals";
+import { isComparatorDomain } from "../source-kind";
 import type { ChannelReport } from "./channels";
 
 /**
@@ -23,7 +24,7 @@ export type CompetitorView = {
 };
 
 const COMPARATOR = /(^|\.)(compari|pricy|price|shopmania|pricerunner|idealo|arukereso|olcsobbat|argep|okazii|cumparaturi|preturi)\./;
-export const isComparator = (domain: string) => COMPARATOR.test(`.${domain}.`);
+export const isComparator = (domain: string) => COMPARATOR.test(`.${domain}.`) || isComparatorDomain(domain);
 const hostOf = (u: string) => { try { return new URL(u).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } };
 const pathOf = (u: string) => u.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
 

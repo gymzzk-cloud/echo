@@ -65,7 +65,7 @@ async function computeProducts(project: Project) {
 async function computeSources(project: Project) {
   const { rows, competitors } = await loadBase(project, 30);
   const [own, brands] = await Promise.all([orgDomains(project.orgId), catalogBrands(project.id)]);
-  const s = sourceInsights(rows, project.domain, competitors.map((c) => c.domain), { ownDomains: own, brands });
+  const s = sourceInsights(rows, project.domain, competitors.map((c) => c.domain), { ownDomains: own, brands, country: project.country ?? "RO" });
   return { rowCount: rows.length, list: s.list.slice(0, 100), listTotal: s.list.length, gaps: s.gaps.slice(0, 10), gapCount: s.gaps.length };
 }
 

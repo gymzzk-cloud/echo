@@ -8,6 +8,13 @@ import { setActionStatus } from "@/app/actions";
 import { overview } from "@/core/insights";
 import { dateShort } from "@/lib/format";
 
+/** Unde duce fiecare tip de acțiune: lista cu dovezile, nu o pagină generală. */
+const LINKS: Record<string, { href: string; label: string }> = {
+  elsewhere: { href: "/panou/produse-ai?f=fara-magazin", label: "Vezi produsele" },
+  price: { href: "/panou/produse-ai?f=pret", label: "Vezi produsele" },
+  source: { href: "/panou/surse", label: "Vezi sursele" },
+};
+
 const TABS = [["noua", "De făcut"], ["in_lucru", "În lucru"], ["rezolvata", "Rezolvate"], ["ignorata", "Ignorate"]] as const;
 
 export default async function Actions({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
@@ -40,7 +47,8 @@ export default async function Actions({ searchParams }: { searchParams: Promise<
                 <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">Efect: vizibilitatea era {a.baselineVisibility}%, acum {nowVis}% <Badge tone={nowVis > a.baselineVisibility ? "good" : nowVis < a.baselineVisibility ? "bad" : "muted"}>{nowVis - a.baselineVisibility > 0 ? "▲ +" : nowVis < a.baselineVisibility ? "▼ " : ""}{nowVis - a.baselineVisibility} pp</Badge>{a.resolvedAt && <span className="text-muted">rezolvată pe {dateShort(a.resolvedAt)}</span>}</p>
               )}
               <div className="mt-4 flex flex-wrap gap-2">
-                {a.fixKind && a.fixKind !== "source" && a.fixKind !== "price" && <ButtonLink href="/panou/audit#rezolva" size="sm">Rezolvă</ButtonLink>}
+                {a.fixKind && LINKS[a.fixKind] ? <ButtonLink href={LINKS[a.fixKind].href} size="sm">{LINKS[a.fixKind].label}</ButtonLink>
+                  : a.fixKind && <ButtonLink href="/panou/audit#rezolva" size="sm">Rezolvă</ButtonLink>}
                 {status !== "in_lucru" && status !== "rezolvata" && btn(a.id, "in_lucru", "Încep")}
                 {status !== "rezolvata" && btn(a.id, "rezolvata", "Am rezolvat")}
                 {status === "noua" && btn(a.id, "ignorata", "Ignoră")}
