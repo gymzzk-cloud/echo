@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { politeFetch } from "../connectors/polite";
+import { productDescriptionWords } from "../audit/signals";
 import { isType, productFields, sdSummary, structuredData, type ProductFields } from "../audit/structured";
 
 /**
@@ -22,9 +23,11 @@ export function readProductPage(html: string): Pick<PageRead, "found" | "source"
   const sd = structuredData($);
   const product = sd.find((e) => isType(e, ["Product", "ProductGroup"]));
   const sdDesc = product ? String((Array.isArray(product.props.description) ? product.props.description[0] : product.props.description) ?? "") : "";
-  const pageDesc = $('[itemprop="description"], .product-description, #description, .woocommerce-Tabs-panel--description, .product__description').first().text();
-  const text = (sdDesc.length > pageDesc.length ? sdDesc : pageDesc).replace(/<[^>]*>/g, " ");
-  const words = text.split(/\s+/).filter(Boolean).length;
+  // Textul din pagină: aceleași locuri ca auditul (câmpul standard plus tab-urile „Descriere”, „Detalii tehnice”…).
+  // Înainte citeam doar câmpul standard, iar la ShopExpert ieșeau 5 cuvinte (descrierea din JSON-LD), deși pagina
+  // are descrierea în tab-uri (KNOWLEDGE B56). Luăm cea mai lungă dintre cele două.
+  const sdWords = sdDesc.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length;
+  const words = Math.max(sdWords, productDescriptionWords($));
   return { found: sdSummary(sd), source: product?.source ?? null, fields: product ? productFields(product) : null, descriptionWords: words || null };
 }
 

@@ -496,6 +496,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: regulă de sistem, pentru toate magazinele. Comparatoarele (inclusiv discount.ro, pretarena.ro, skroutz.ro) nu sunt concurenți. Subdomeniile se adună sub un singur nume. Un marketplace din altă țară nu se recomandă. Impactul se recalculează la fiecare generare. Fiecare sursă spune ce AI a citit-o și la ce întrebări. Acțiuni are acum, cu impact mare și cu linkul spre dovezi: „N produse ale tale sunt recomandate de AI, dar la alt magazin” și „AI-urile spun alt preț la N produse”.
 - De ce: ZoZo: „din panou din păcate tot nu îmi reies propuneri majore să ne ajute … clienții nu o să vadă utilitate”. Valoarea panoului e să spună ce faci întâi, din date reale.
 
+**B56. Recomandări pe care magazinul nu le poate face și o cifră din pagină citită greșit** *(24.11.2026, 19:50)*
+- Nu: (1) planul îi spunea magazinului să corecteze stocul pe discount.ro, iar Acțiuni scria „Listează-ți produsele pe acest comparator, cu prețuri și stoc corecte”. Discount.ro e un site separat, ShopExpert nu le trimite feed, deci nu are ce corecta acolo. (2) Fișa GA5030R arăta „Descriere în pagină: 5 cuvinte”. Cifra venea din descrierea scurtă din JSON-LD, pentru că cititorul paginii nu recunoștea tab-urile „Descriere” / „Detalii tehnice”, pe care auditul le citea deja. Așa am prezentat ca problemă a site-ului o limită a cititorului nostru.
+- În schimb: o recomandare spune doar ce poate face magazinul: la un comparator, să ceară listarea sau corectarea prin formularul lor, nu să „corecteze”. Pagina produsului numără descrierea din aceleași locuri ca auditul (câmpul standard plus tab-uri) și ia cea mai lungă dintre aceasta și JSON-LD. O cifră spusă clientului precizează din ce câmp vine.
+- De ce: ZoZo: „Nu eu corectez discountul, e o pagină total distinctă de noi … Unde avem descriere 5 cuvinte?” (A0: doar ce e verificat; o acțiune trebuie să poată fi făcută).
+
 ## C. Regula de întreținere (permanentă)
 
 1. **De fiecare dată când ZoZo spune că ceva e greșit**, punctul se adaugă imediat, în aceeași tură, în **partea B**, în forma „Nu / În schimb / De ce”, cu data.
