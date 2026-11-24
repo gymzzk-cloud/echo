@@ -1,0 +1,18 @@
+# Ține serverul Echo treaz noaptea, între 01:00 și 03:00 ora României, ca actualizarea zilnică a feed-ului
+# din ChatGPT Ads Manager (~02:00) să nu găsească serverul adormit (planul gratuit Render adoarme după 15 minute).
+# Decizia ZoZo, 24.11.2026 (KNOWLEDGE B58). Ping ușor pe /api/health, nu pe feed.
+# Ora României iarna = UTC+2: 23:00–00:59 UTC. Vara (UTC+3) acoperă 02:00–03:59; schimbă orele dacă e nevoie.
+name: keep-awake
+on:
+  schedule:
+    - cron: "*/10 23 * * *"
+    - cron: "*/10 0 * * *"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /api/health
+        run: curl -fsS --max-time 120 --retry 2 --retry-delay 10 -o /dev/null -w "%{http_code} %{time_total}s\n" https://echo-ai-9fnz.onrender.com/api/health
