@@ -23,6 +23,8 @@ export type SourceCtx = {
 
 const has = (d: string, re: RegExp) => re.test(`.${d}.`);
 const COMPARATOR = /[.-](compari|pricy|price|shopmania|pricespy|pricerunner|idealo|geizhals|arukereso|e-catalog|kelkoo|skinflint|ceneo|heureka)[.-]/;
+/** Site-uri care compară oferte de la mai multe magazine, fără cuvânt-cheie în nume (verificate de mână, B55). */
+const COMPARATOR_SITES = new Set(["discount.ro", "pretarena.ro", "skroutz.ro", "pretistoric.ro", "price.ro", "pricy.ro", "compari.ro", "arukereso.hu", "argep.hu", "olcsobbat.hu"]);
 const REVIEWS = /[.-](trustpilot|capterra|reviews|recenzii|parerimagazin|pareri|trusted|feefo|reviewcentre|sitejabber)[.-]/;
 const DIRECTORY = /[.-](cylex|firmadeaur|citymaps|listafirme|termene|risco|infocui|paginiaurii|firme|romanian-companies|companiesromania|opencorporates|totalfirme)[.-]/;
 const FORUM = /[.-](forum|reddit|softpedia|quora|dealabs|hotukdeals)[.-]/;
@@ -42,11 +44,41 @@ export function isBrandSite(domain: string, brands: string[]) {
   return brands.map(norm).some((b) => b.length >= 4 && label.startsWith(b));
 }
 
+/** Comparator de prețuri: discount.ro, pricy.ro, polizor-unghiular.compari.ro … (nu un magazin concurent). */
+export function isComparatorDomain(domain: string) {
+  return COMPARATOR_SITES.has(baseDomain(domain)) || has(domain, COMPARATOR);
+}
+
+/** Domeniul de bază: polizor-unghiular.compari.ro → compari.ro, ebay.co.uk → ebay.co.uk. */
+export function baseDomain(domain: string) {
+  const parts = domain.toLowerCase().replace(/^www\./, "").split(".");
+  const n = parts.length >= 3 && /^(co|com|org|net)$/.test(parts[parts.length - 2]) ? 3 : 2;
+  return parts.slice(-n).join(".");
+}
+
+/**
+ * Sub ce nume grupăm o sursă: subdomeniile unui comparator (roaba.compari.ro, multi-cutter.compari.ro) sunt
+ * același comparator, deci o singură recomandare, cu toate răspunsurile adunate.
+ */
+export function sourceGroup(domain: string, kind: SourceKind) {
+  return kind === "comparator" || kind === "marketplace" ? baseDomain(domain) : domain;
+}
+
+/**
+ * Un marketplace din altă țară (ebay.com, amazon.co.uk pentru un magazin din România) nu e un loc realist
+ * pentru magazin: nu-l recomandăm. Cele locale (.ro / .hu) și cele cunoscute din țară rămân.
+ */
+export function localMarketplace(domain: string, country: string) {
+  const tld = country.toLowerCase();
+  return domain.endsWith(`.${tld}`) || MARKETPLACES.has(domain);
+}
+
 export function sourceKind(domain: string, ctx: SourceCtx): SourceKind {
   if (isOwnDomain(domain, ctx.ownDomains)) return "site propriu";
+  // Un comparator nu e concurent, chiar dacă AI-ul l-a numit ca loc de cumpărare (discount.ro listează oferte de la magazine).
+  if (isComparatorDomain(domain)) return "comparator";
   if (ctx.competitorDomains.includes(domain)) return "concurent";
   if (MARKETPLACES.has(domain) || has(domain, MARKET_EXTRA)) return "marketplace";
-  if (has(domain, COMPARATOR)) return "comparator";
   if (has(domain, REVIEWS)) return "recenzii";
   if (has(domain, DIRECTORY)) return "director de firme";
   if (has(domain, FORUM)) return "forum";
@@ -74,5 +106,5 @@ export const canAct = (k: SourceKind) => !!SOURCE_ADVICE[k];
  * (Bosch Professional nu e un magazin care „apare în locul tău”) și site-urile care nu vând (platform.openai.com).
  */
 export function notRivals(domains: Iterable<string>, ctx: Pick<SourceCtx, "ownDomains" | "brands">): string[] {
-  return [...new Set(domains)].filter((d) => isOwnDomain(d, ctx.ownDomains) || isBrandSite(d, ctx.brands) || !isStoreLike(d));
+  return [...new Set(domains)].filter((d) => isOwnDomain(d, ctx.ownDomains) || isBrandSite(d, ctx.brands) || isComparatorDomain(d) || !isStoreLike(d));
 }

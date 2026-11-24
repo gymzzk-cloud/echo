@@ -491,6 +491,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: workerul scrie progresul real (`jobs.progress`, de exemplu întrebarea 12 din 30), iar JobWatcher arată „Analiza AI: întrebarea 12 din 30, ~3 min rămase” sau „la coadă, după N lucrări”. O lucrare întreruptă se reia prima și trece repede peste întrebările deja puse azi (nu se plătesc din nou). Gemini fără cotă e sărit până la resetarea Google (08:00 UTC). Nu publicăm cât rulează o analiză cerută de magazin: întâi verificăm în panou că nu apare „Analiza AI”.
 - De ce: ZoZo: „am dat analizează din nou, rulează încă și acum…”.
 
+**B55. Acțiuni fără propuneri mari: aceeași sursă de trei ori, marketplace-uri străine, comparatorul principal numit „concurent”** *(24.11.2026, 19:00)*
+- Nu: pagina Acțiuni arăta compari.ro de trei ori (pe subdomenii: polizor-unghiular.compari.ro, fierastrau-circular-de-masa.compari.ro …) și „Listează produsele pe ebay.com” unui magazin din România. Toate erau „Impact mediu”, fiindcă impactul rămânea cel de la prima creare (pricy.ro a crescut de la 2 la 10 răspunsuri, dar a rămas „mediu”). discount.ro, citit de ChatGPT în 28 de răspunsuri, era clasat „concurent”, deci nu primea nicio recomandare. Lipseau cele mai mari pârghii, deși datele existau: 38 de produse recomandate de AI la alt magazin și 14 prețuri greșite.
+- În schimb: regulă de sistem, pentru toate magazinele. Comparatoarele (inclusiv discount.ro, pretarena.ro, skroutz.ro) nu sunt concurenți. Subdomeniile se adună sub un singur nume. Un marketplace din altă țară nu se recomandă. Impactul se recalculează la fiecare generare. Fiecare sursă spune ce AI a citit-o și la ce întrebări. Acțiuni are acum, cu impact mare și cu linkul spre dovezi: „N produse ale tale sunt recomandate de AI, dar la alt magazin” și „AI-urile spun alt preț la N produse”.
+- De ce: ZoZo: „din panou din păcate tot nu îmi reies propuneri majore să ne ajute … clienții nu o să vadă utilitate”. Valoarea panoului e să spună ce faci întâi, din date reale.
+
 ## C. Regula de întreținere (permanentă)
 
 1. **De fiecare dată când ZoZo spune că ceva e greșit**, punctul se adaugă imediat, în aceeași tură, în **partea B**, în forma „Nu / În schimb / De ce”, cu data.

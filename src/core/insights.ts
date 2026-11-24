@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, ilike, inArray, sql as dsql, type SQL } from "drizzle-orm";
-import { canAct, sourceKind, type SourceCtx } from "./source-kind";
+import { canAct, localMarketplace, sourceGroup, sourceKind, type SourceCtx } from "./source-kind";
 import { db, schema } from "@/db";
 import type { Mention } from "@/db/schema";
 import { daysAgo, domainOf } from "@/lib/util";
@@ -135,7 +135,7 @@ export async function productInsights(project: Project, opts: { f?: string; q?: 
 }
 
 /** Surse: ce site-uri citesc AI-urile și unde apar concurenții, dar tu nu. */
-export function sourceInsights(rows: Rows, domain: string, competitorDomains: string[], extra: { ownDomains?: string[]; brands?: string[] } = {}) {
+export function sourceInsights(rows: Rows, domain: string, competitorDomains: string[], extra: { ownDomains?: string[]; brands?: string[]; country?: string } = {}) {
   const ctx: SourceCtx = { ownDomains: [domain, ...(extra.ownDomains ?? [])], competitorDomains, brands: extra.brands ?? [] };
   const all = new Map<string, { n: number; withMe: number; withComp: number; providers: Set<string> }>();
   for (const { run } of rows) {
@@ -144,8 +144,11 @@ export function sourceInsights(rows: Rows, domain: string, competitorDomains: st
     const comp = ms.some((m) => competitorDomains.includes(m.domain));
     const seen = new Set<string>();
     for (const s of run.sources as { url: string }[]) {
-      const d = domainOf(s.url);
-      if (!d || seen.has(d)) continue;
+      const raw = domainOf(s.url);
+      if (!raw) continue;
+      // Subdomeniile unui comparator (roaba.compari.ro …) sunt același comparator (B55).
+      const d = sourceGroup(raw, sourceKind(raw, ctx));
+      if (seen.has(d)) continue;
       seen.add(d);
       const e = all.get(d) ?? { n: 0, withMe: 0, withComp: 0, providers: new Set() };
       e.n++; if (me) e.withMe++; if (comp) e.withComp++; e.providers.add(run.provider);
@@ -154,8 +157,9 @@ export function sourceInsights(rows: Rows, domain: string, competitorDomains: st
   }
   const list = [...all.entries()].map(([d, e]) => ({ domain: d, kind: sourceKind(d, ctx), citations: e.n, withMe: e.withMe, gap: e.withComp - e.withMe, providers: [...e.providers] }))
     .sort((a, b) => b.citations - a.citations);
-  // Oportunități doar unde magazinul poate face ceva (nu alte magazine, producători sau propriul site).
-  return { list, gaps: list.filter((s) => s.gap > 0 && canAct(s.kind)).sort((a, b) => b.gap - a.gap) };
+  // Oportunități doar unde magazinul poate face ceva (nu alte magazine, producători, propriul site sau un marketplace din altă țară).
+  const realistic = (x: { domain: string; kind: string }) => x.kind !== "marketplace" || !extra.country || localMarketplace(x.domain, extra.country);
+  return { list, gaps: list.filter((s) => s.gap > 0 && canAct(s.kind) && realistic(s)).sort((a, b) => b.gap - a.gap) };
 }
 
 export async function overview(project: Project) {
