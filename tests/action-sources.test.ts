@@ -43,3 +43,14 @@ describe("surse pentru Acțiuni (B55)", () => {
     expect(sourceGaps([], { domain: "shopexpert.com", competitorDomains: [], ctx, country: "RO" })).toEqual([]);
   });
 });
+
+describe("ChatGPT Merchants după țară (B57)", () => {
+  it("deschis doar în SUA: România și Ungaria primesc altă recomandare", async () => {
+    const { merchantsOpen, countryName } = await import("@/core/feed-channels/chatgpt-markets");
+    expect(merchantsOpen("RO")).toBe(false);
+    expect(merchantsOpen("hu")).toBe(false);
+    expect(merchantsOpen("US")).toBe(true);
+    expect(merchantsOpen(null)).toBe(false);
+    expect(countryName("RO")).toBe("România");
+  });
+});
