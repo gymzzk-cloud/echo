@@ -23,11 +23,14 @@ export function sourceLabel(domain: string): string | null {
   return label.length >= 4 && !GENERIC_LABELS.has(label) && !/^\d+$/.test(label) ? label : null;
 }
 
-/** Marca din domeniu, fără cratime: „shopexpert.com”, „shopexpert.ro”, „shop-expert.ro” → „shopexpert”; „x.com.ro” → „x”. */
+/**
+ * Marca din domeniu, scrisă exact: „shopexpert.com”, „shopexpert.ro” → „shopexpert”; „x.com.ro” → „x”.
+ * Cratima contează (KNOWLEDGE B60): „shop-expert.ro” e ALT site decât shopexpert.com, nu magazinul.
+ */
 export function brandLabel(domain: string) {
   const parts = domain.toLowerCase().replace(/^www\./, "").split(".");
   if (parts.length > 2 && ["com", "co", "org", "net"].includes(parts[parts.length - 2])) parts.pop();
-  return (parts.length > 1 ? parts[parts.length - 2] : parts[0]).replace(/-/g, "");
+  return parts.length > 1 ? parts[parts.length - 2] : parts[0];
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -59,7 +62,8 @@ export function extractMentions(
   // Marcajele de citare ale ChatGPT („\ue200cite\ue202turn0search1\ue201”) nu sunt text.
   const text = cleanAnswer(answer);
   const hits = new Map<string, { idx: number; name?: string }>();
-  // Același magazin pe alt domeniu (shopexpert.ro, shop-expert.ro pentru shopexpert.com) e același magazin.
+  // Același magazin pe alt domeniu cu aceeași marcă exactă (shopexpert.ro pentru shopexpert.com) e același magazin;
+  // shop-expert.ro sau shexpert.ro sunt alte site-uri (B59, B60).
   // Domeniile magazinelor din Echo au întâietate: un concurent salvat greșit (shopexpert.ro) nu „fură” mențiunea.
   const own = new Set(world.ownDomains ?? []);
   const known = new Set(world.stores.map((s) => s.domain));

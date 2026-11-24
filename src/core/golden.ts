@@ -15,7 +15,9 @@ export const GOLDEN = {
   sitemap: "https://www.shopexpert.com/ro/sitemap.xml",
   cui: "RO16766463",
   /** Domenii care sunt ale magazinului (sau ale aceluiași client) și nu pot fi „concurent” sau „sursă de contactat”. */
-  ownAliases: ["shopexpert.ro", "shop-expert.ro"],
+  ownAliases: ["shopexpert.ro"],
+  /** Alte site-uri cu nume asemănător: NU sunt ale clientului (ZoZo, 24.11.2026, KNOWLEDGE B60). */
+  notOwn: ["shop-expert.ro", "shexpert.ro"],
   sameOwner: ["hardlineconstruct.ro"],
   brands: ["BOSCH", "MAKITA", "CROMWELL", "DEWALT", "RECORD POWER"],
   /** Site-uri de producător sau care nu vând: nu sunt concurenți. */
@@ -48,6 +50,10 @@ export function goldenClassifierIssues(): GoldenIssue[] {
   for (const d of [...GOLDEN.ownAliases, ...GOLDEN.sameOwner]) {
     const k = sourceKind(d, ctx);
     if (k !== "site propriu") out.push({ claim: `${d} clasificat „${k}”`, truth: `${d} e magazinul clientului (site propriu).` });
+  }
+  for (const d of GOLDEN.notOwn) {
+    const k = sourceKind(d, ctx);
+    if (k === "site propriu") out.push({ claim: `${d} clasificat „site propriu”`, truth: `${d} e alt site, nu al clientului (B60).` });
   }
   const nr = new Set(notRivals(GOLDEN.notRivals, ctx));
   for (const d of GOLDEN.notRivals) if (!nr.has(d)) out.push({ claim: `${d} poate apărea ca concurent`, truth: `${d} nu e un magazin concurent (producător sau site care nu vinde).` });
