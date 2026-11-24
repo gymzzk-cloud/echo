@@ -1,4 +1,5 @@
 import { compareSameQuestions } from "./engine-view";
+import { isLookalike } from "./ai/lookalike";
 import { and, asc, desc, eq, gte, ilike, inArray, sql as dsql, type SQL } from "drizzle-orm";
 import { canAct, localMarketplace, sourceGroup, sourceKind, type SourceCtx } from "./source-kind";
 import { db, schema } from "@/db";
@@ -50,7 +51,7 @@ export function leaderboard(rows: Rows, domain: string, competitors: { domain: s
 
 /** Pe fiecare întrebare: în ce AI-uri apari și cine apare în locul tău. */
 export function perPrompt(rows: Rows, domain: string, failed: Rows = []) {
-  const map = new Map<string, { prompt: string; category: string | null; intent: string; byProvider: Record<string, { me: number | null; top: string[]; runId: string; answer: string; failure: string | null }> }>();
+  const map = new Map<string, { prompt: string; category: string | null; intent: string; byProvider: Record<string, { me: number | null; top: string[]; lookalikes: string[]; runId: string; answer: string; failure: string | null }> }>();
   const latest = new Map<string, Rows[number]>();
   // Pe aceeași zi o rulare reușită o înlocuiește pe cea eșuată, deci „cea mai recentă” e cea de afișat.
   for (const r of [...failed, ...rows]) {
@@ -62,7 +63,9 @@ export function perPrompt(rows: Rows, domain: string, failed: Rows = []) {
     const e = map.get(r.promptId) ?? { prompt: r.prompt, category: r.category, intent: r.intent, byProvider: {} };
     const ms = r.run.mentions as Mention[];
     const failure = r.run.model === ERROR_MODEL ? failureReason(r.run.answer) : null;
-    e.byProvider[r.run.provider] = { me: failure ? null : ms.find((m) => m.domain === domain)?.position ?? null, top: ms.slice(0, 3).map((m) => m.name ?? m.domain), runId: r.run.id, answer: cleanAnswer(r.run.answer), failure };
+    e.byProvider[r.run.provider] = { me: failure ? null : ms.find((m) => m.domain === domain)?.position ?? null, top: ms.slice(0, 3).map((m) => m.name ?? m.domain),
+      // Site cu nume aproape ca al tău, dar alt site (B59): AI-ul te-a confundat cu el.
+      lookalikes: failure ? [] : [...new Set(ms.map((m) => m.domain).filter((d) => isLookalike(d, domain)))], runId: r.run.id, answer: cleanAnswer(r.run.answer), failure };
     map.set(r.promptId, e);
   }
   return [...map.entries()].map(([id, v]) => ({ id, ...v }));
