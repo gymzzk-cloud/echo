@@ -52,7 +52,7 @@ export default async function Visibility({ searchParams }: { searchParams: Promi
   return (
     <div className="space-y-6">
       <div>
-        <PageHeader eyebrow="Vizibilitate" title="Cum te văd AI-urile" subtitle="Ce spune fiecare AI despre magazinul și produsele tale, comparat cu concurenții, și unde vezi dovada." />
+        <PageHeader eyebrow="Cum te recomandă AI-urile" title="Cum te văd AI-urile" subtitle="Ce spune fiecare AI despre magazinul și produsele tale, comparat cu concurenții, și unde vezi dovada." />
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <Chips items={TABS.map((t) => ({ href: link({ v: t.id, ai: t.id ? ai : undefined, doar: t.id === "raspunsuri" ? only : undefined }), label: t.label, active: t.id === tab }))} />
           <Chips items={[7, 30, 90].map((d) => ({ href: link({ zile: String(d) }), label: `${d} zile`, active: d === days }))} />

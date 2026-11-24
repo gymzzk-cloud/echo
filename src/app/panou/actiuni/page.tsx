@@ -33,7 +33,7 @@ export default async function Actions({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Reparații" title="Acțiuni" subtitle="Ce să faci ca AI-urile să te recomande mai des, în ordinea impactului. Măsurăm efectul după ce marchezi o acțiune rezolvată." />
+      <PageHeader eyebrow="Repară" title="Ce repari" subtitle="Tot ce poți face tu ca AI-urile să te recomande mai des, în ordinea impactului. Problemele feed-ului le vezi pe pagina Feed și canale. Măsurăm efectul după ce marchezi o acțiune rezolvată." />
       <Chips items={TABS.map(([k, l]) => ({ href: `?s=${k}`, label: l, active: k === status, count: all.filter((a) => a.status === k).length }))} />
       {list.length === 0 ? <Empty title={status === "noua" ? "Nimic de făcut acum. Bravo!" : "Nicio acțiune aici"} /> : (
         <div className="space-y-6">

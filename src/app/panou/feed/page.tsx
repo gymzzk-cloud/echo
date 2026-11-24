@@ -35,7 +35,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
   return (
     <>
-      <PageHeader eyebrow="Reparații" title="Feed și canale" subtitle="Un singur catalog, optimizat automat pentru fiecare canal. Catalogul tău nu se modifică: regulile și titlurile aprobate se aplică doar în feed și se pot anula oricând." />
+      <PageHeader eyebrow="Repară" title="Feed și canale" subtitle="Un singur catalog, optimizat automat pentru fiecare canal. Catalogul tău nu se modifică: regulile și titlurile aprobate se aplică doar în feed și se pot anula oricând." />
       {total === 0 ? <Empty title="Nu există încă produse">Conectează catalogul din Setări magazin.</Empty> : (
       <div className="space-y-6">
         {working && <Notice tone="muted">{summary ? `Actualizăm feed-ul în fundal. Cifrele de mai jos sunt calculate la ${at}; pagina se reîncarcă singură când e gata.` : "Calculăm feed-ul pe tot catalogul, în fundal. Pagina se reîncarcă singură când e gata (de obicei sub un minut)."}</Notice>}

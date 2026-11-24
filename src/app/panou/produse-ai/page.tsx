@@ -39,7 +39,7 @@ export default async function ProductsInAi({ searchParams }: { searchParams: Pro
     : canWrite && sum.answers !== null && (
       <form action={recomputeProductAi}><input type="hidden" name="projectId" value={project.id} /><SubmitButton variant="secondary" pendingText="Pornesc…">Recalculează</SubmitButton></form>
     );
-  const header = <PageHeader eyebrow="Vizibilitate" title="Produse în AI" subtitle="Ce produse din catalogul tău numesc AI-urile, pe ce loc și la ce preț, și fișa fiecărui produs în ChatGPT și Google." action={action} />;
+  const header = <PageHeader eyebrow="Cum te recomandă AI-urile" title="Produse în AI" subtitle="Ce produse din catalogul tău numesc AI-urile, pe ce loc și la ce preț, și fișa fiecărui produs în ChatGPT și Google." action={action} />;
 
   if (!sum.catalog) return <>{header}<Empty title="Nu avem încă produsele tale" action={<ButtonLink href="/panou/setari">Conectează catalogul</ButtonLink>}>Conectează magazinul sau feed-ul de produse, ca să căutăm produsele tale în răspunsurile AI-urilor.</Empty></>;
   if (sum.answers === null) return <div className="space-y-6">{header}{search}<Empty title={working ? "Calculăm vizibilitatea pe produs" : "Încă nu avem răspunsuri AI"} action={!working && <ButtonLink href="/panou/vizibilitate" variant="secondary">Vezi întrebările urmărite</ButtonLink>}>

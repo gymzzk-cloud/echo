@@ -8,7 +8,7 @@ export default async function NewStore() {
   await requireAuth();
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader eyebrow="Cont" title="Adaugă un magazin" subtitle="Fiecare magazin are propriile întrebări, concurenți și rapoarte. Merge și pentru subfoldere, de exemplu magazin.com/hu." />
+      <PageHeader eyebrow="Setări" title="Adaugă un magazin" subtitle="Fiecare magazin are propriile întrebări, concurenți și rapoarte. Merge și pentru subfoldere, de exemplu magazin.com/hu." />
       <Card>
         <ActionForm action={addProject} className="space-y-4">
           <Field label="Numele magazinului"><Input name="storeName" required placeholder="Magazinul meu" /></Field>

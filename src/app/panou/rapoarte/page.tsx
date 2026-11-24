@@ -16,7 +16,7 @@ export default async function Reports() {
   const generating = (await busyKinds(project.id)).has("report");
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Cont" title="Rapoarte" subtitle="Raportul săptămânal vine pe email luni dimineață. Îl poți genera și acum." />
+      <PageHeader eyebrow="Rezultate" title="Rapoarte" subtitle="Raportul săptămânal vine pe email luni dimineață. Îl poți genera și acum." />
       <Card>
         {generating ? <Working hint="Se generează în fundal; pagina se actualizează singură când e gata.">Raportul se generează</Working> : (
           <>

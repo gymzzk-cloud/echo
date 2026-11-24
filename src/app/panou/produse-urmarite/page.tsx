@@ -51,7 +51,7 @@ export default async function TrackedProducts({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Vizibilitate" title="Produse urmărite" subtitle="Alegi tu ce produse din catalog întrebăm AI-urile, la fiecare rulare programată. Tu știi cel mai bine ce produse contează." />
+      <PageHeader eyebrow="Cum te recomandă AI-urile" title="Produse urmărite" subtitle="Alegi tu ce produse din catalog întrebăm AI-urile, la fiecare rulare programată. Tu știi cel mai bine ce produse contează." />
 
       <Feedback sp={sp} limit={limit} />
 

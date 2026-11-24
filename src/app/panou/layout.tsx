@@ -4,6 +4,7 @@ import { db, schema } from "@/db";
 import { currentProject } from "@/lib/project";
 import { BRAND } from "@/lib/brand";
 import { isDemo } from "@/core/ai/engine";
+import { DEMO_EMAIL } from "@/lib/demo";
 import { PanelNav } from "@/components/panel-nav";
 import { Suspense } from "react";
 import { JobWatcher } from "@/components/job-watcher";
@@ -30,7 +31,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
           <div className="min-w-0 flex-1 lg:hidden"><ProjectSwitcher projects={projects} current={project.id} action={selectProject} /></div>
         </div>
         <div className="hidden px-4 pt-4 lg:block"><ProjectSwitcher projects={projects} current={project.id} action={selectProject} /></div>
-        <div className="px-4 pb-2 pt-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-3 lg:pb-4 lg:pt-6"><PanelNav alerts={n} agency={org.kind === "agency"} client={role === "client"} lang={lang} /></div>
+        <div className="px-4 pb-2 pt-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-3 lg:pb-4 lg:pt-6"><PanelNav alerts={n} agency={org.kind === "agency"} client={role === "client"} demo={isDemo() || user.email === DEMO_EMAIL} lang={lang} /></div>
         <div className="hidden space-y-2 border-t border-side-active px-4 py-4 text-xs text-side-muted lg:block">
           <Link prefetch={false} href="/panou/magazin-nou" className="block px-3 hover:text-side-fg">+ Adaugă magazin</Link>
           <div className="truncate px-3">{user.email}</div>
