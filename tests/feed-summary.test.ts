@@ -7,7 +7,7 @@ const prod = (i: number, o: Partial<FeedProduct> = {}): FeedProduct => ({
   price: 100, currency: "RON", inStock: true, brand: "Bosch", category: null, gtin: `59${i}`, mpn: null, labels: [], ...o,
 });
 const base = (products: FeedProduct[], rules: Parameters<typeof summarize>[0]["rules"] = []) =>
-  ({ project: {} as never, products, rules, labels: new Map(products.map((p) => [p.id, p.labels])), total: products.length });
+  ({ project: {} as never, products, rules, labels: new Map(products.map((p) => [p.id, p.labels])), focus: new Set<string>(), total: products.length });
 
 describe("rezumatul feed-ului calculat în worker", () => {
   it("catalog gol: zero peste tot, fără sugestii", () => {
