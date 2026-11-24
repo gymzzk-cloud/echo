@@ -46,6 +46,14 @@ export function productType(title: string, language: "ro" | "hu") {
   return t.length >= 3 ? t : null;
 }
 
+/**
+ * Nume de categorie care nu sunt un tip de produs („Diverse”, „Accesorii”, „Promoții”): un cumpărător nu caută
+ * „diverse cel mai bun preț”, iar AI-ul răspunde cu eMAG/Altex generic, ceea ce nu măsoară nimic despre magazin
+ * (ShopExpert, 23.11.2026: „diverse cel mai bun preț”, „accesorii cel mai bun preț”; KNOWLEDGE B58).
+ */
+const GENERIC_TYPE = /^(diverse|divers|altele|alte produse|others?|misc|generic|accesorii|accesorii diverse|piese|piese de schimb|consumabile|produse|promo(ț|t)ii|promo|oferte|oferta|reduceri|lichidare|lichidari|outlet|noutăți|noutati|nou|resigilate|cadouri|egyéb|egyeb|kiegészítők|kiegeszitok|tartozékok|tartozekok|akció|akcio|akciók|újdonságok|alkatrészek|termékek)$/i;
+export const isGenericType = (t: string) => GENERIC_TYPE.test(t.trim());
+
 const same = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" }) === 0;
 
 /**
@@ -55,10 +63,11 @@ const same = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivi
 export function categoryType(p: Pick<CatalogProduct, "title" | "category" | "brand">, language: "ro" | "hu") {
   const parts = (p.category ?? "").split(/\s*(?:>|\/|\|)\s*/).map((s) => s.trim()).filter((s) => s.length >= 3);
   // Nivelurile care arată ca un tip de produs: nu marca, nu fragmente („pentru …”), nu denumiri lungi.
-  const good = parts.filter((s) => (!p.brand || !same(s, p.brand)) && !CONNECTORS.has(s.split(" ")[0].toLowerCase()) && s.split(" ").length <= 5);
+  const good = parts.filter((s) => (!p.brand || !same(s, p.brand)) && !CONNECTORS.has(s.split(" ")[0].toLowerCase()) && s.split(" ").length <= 5 && !isGenericType(s));
   const last = good[good.length - 1];
   if (last) return last.toLowerCase();
-  return productType(p.title, language);
+  const t = productType(p.title, language);
+  return t && !isGenericType(t) ? t : null;
 }
 
 /** Numele produsului cum îl scrie un client: marca + model, fără texte lungi de marketing. */
@@ -298,6 +307,8 @@ export function buyerQuery(p: Pick<CatalogProduct, "title" | "brand">, language:
 }
 
 const CODE_SLOT = 2;
+/** Mărci care nu sunt mărci („Diverse”, „N/A”): nu le punem în fața codului. */
+const NO_BRAND_WORD = /^(n\/?a|none|generic|diverse|altele|other|fara brand|fără brand|egyéb)$/i;
 
 export function productPrompts(picked: { product: CatalogProduct; category: string }[], language: "ro" | "hu"): SuggestedPrompt[] {
   const tpls = PRODUCT_Q[language];
@@ -306,7 +317,11 @@ export function productPrompts(picked: { product: CatalogProduct; category: stri
     const slot = i % tpls.length;
     if (slot === CODE_SLOT) {
       const code = validCode(p.mpn, p.title) ? p.mpn!.trim() : validEan(p.gtin) ? p.gtin!.trim() : null;
-      if (code) return { text: tpls[CODE_SLOT](code), category, intent: "cod" as const, productId: p.id };
+      // Codul de producător singur e ambiguu („P-70378” → o proteină pe UniProt): îl scriem cu marca („Makita P-70378 preț”). EAN-ul e unic, rămâne singur.
+      const b = p.brand?.trim();
+      const isMpn = !!code && code === p.mpn?.trim();
+      const withBrand = code && isMpn && b && !NO_BRAND_WORD.test(b) && !code.toLowerCase().includes(b.toLowerCase()) ? `${brandName(b)} ${code}` : code;
+      if (withBrand) return { text: tpls[CODE_SLOT](withBrand), category, intent: "cod" as const, productId: p.id };
       return { text: tpls[3](name), category, intent: "produs" as const, productId: p.id };
     }
     return { text: tpls[slot](name), category, intent: "produs" as const, productId: p.id };

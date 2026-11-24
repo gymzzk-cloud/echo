@@ -1,3 +1,4 @@
+import { compareSameQuestions } from "./engine-view";
 import { and, asc, desc, eq, gte, ilike, inArray, sql as dsql, type SQL } from "drizzle-orm";
 import { canAct, localMarketplace, sourceGroup, sourceKind, type SourceCtx } from "./source-kind";
 import { db, schema } from "@/db";
@@ -171,8 +172,9 @@ export async function overview(project: Project) {
   const latestDay = latest?.day;
   const perProvider = PROVIDERS.map((p) => {
     const cur = stats.find((s) => s.day === latestDay && s.provider === p.id);
-    const old = stats.find((s) => s.day === weekAgo?.day && s.provider === p.id);
-    return { provider: p.id, checked: !!cur, visibility: cur?.visibility ?? 0, avgPosition: cur?.avgPosition ? parseFloat(cur.avgPosition) : null, delta: cur && old && old.day !== cur.day ? cur.visibility - old.visibility : null };
+    // Variația doar pe aceleași întrebări (KNOWLEDGE B58): o zi cu alte întrebări nu se compară.
+    const same = cur ? compareSameQuestions(rows.filter((r) => r.run.provider === p.id), project.domain) : null;
+    return { provider: p.id, checked: !!cur, visibility: cur?.visibility ?? 0, avgPosition: cur?.avgPosition ? parseFloat(cur.avgPosition) : null, delta: same?.delta ?? null };
   });
   const today7 = rows.filter((r) => r.run.runDate >= daysAgo(7));
   const sum = summarize(today7, project.domain, competitors.map((c) => c.domain), audit?.score ?? null);

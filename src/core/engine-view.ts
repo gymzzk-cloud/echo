@@ -22,8 +22,15 @@ export type EngineView = {
   /** % din răspunsuri care te numesc. */
   visibility: number;
   avgPosition: number | null;
-  /** Vizibilitatea la ultima măsurătoare față de cea dinainte (puncte procentuale); null dacă e una singură. */
+  /**
+   * Variația (puncte procentuale) pe ACELEAȘI întrebări: ultima zi față de cea mai recentă zi dinainte care are întrebări comune.
+   * null dacă nu există o zi comparabilă (o singură zi sau alte întrebări în fiecare zi): altfel am compara mere cu pere.
+   */
   delta: number | null;
+  /** Pe ce se bazează variația: ziua de comparație și câte întrebări comune. */
+  deltaBase: SameQuestions | null;
+  /** Au fost mai multe zile, dar fără întrebări comune: variația nu se poate calcula. */
+  deltaUnavailable: boolean;
   lastDay: string | null;
   /** Magazinul care apare cel mai des la acest AI, altul decât tine, și cât de des. */
   leader: { domain: string; name: string; visibility: number } | null;
@@ -39,6 +46,43 @@ export type EngineView = {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const pct = (a: number, b: number) => (b ? Math.round((a * 100) / b) : 0);
+
+/** Comparația a două zile pe aceleași întrebări. */
+export type SameQuestions = { from: string; to: string; prompts: number; fromVis: number; toVis: number; delta: number };
+
+/** Cel puțin atâtea întrebări comune ca două zile să se poată compara. */
+export const MIN_COMMON_PROMPTS = 2;
+
+/**
+ * Compară două zile doar pe întrebările puse în ambele (KNOWLEDGE B58): lista de întrebări se schimbă (intenție de cumpărare,
+ * produse focus noi), iar o zi cu alte întrebări nu spune dacă AI-ul te arată mai rar. Cheia unei întrebări e AI + întrebare.
+ * `mode` „last”: ultima zi față de cea mai recentă zi dinainte comparabilă (variația de pe card);
+ * „first”: prima zi comparabilă cu ultima (ce s-a schimbat de la început).
+ */
+export function compareSameQuestions(rows: EngineRow[], domain: string, mode: "last" | "first" = "last"): SameQuestions | null {
+  const byDay = new Map<string, Map<string, boolean>>();
+  for (const r of rows) {
+    const key = `${r.run.provider}|${r.promptId}`;
+    const hit = ((r.run.mentions as Mention[]) ?? []).some((m) => m.domain === domain);
+    const day = byDay.get(r.run.runDate) ?? new Map<string, boolean>();
+    day.set(key, (day.get(key) ?? false) || hit);
+    byDay.set(r.run.runDate, day);
+  }
+  const days = [...byDay.keys()].sort();
+  if (days.length < 2) return null;
+  const to = days.at(-1)!;
+  const last = byDay.get(to)!;
+  const candidates = mode === "last" ? days.slice(0, -1).reverse() : days.slice(0, -1);
+  for (const from of candidates) {
+    const prev = byDay.get(from)!;
+    const common = [...last.keys()].filter((k) => prev.has(k));
+    if (common.length < MIN_COMMON_PROMPTS) continue;
+    const fromVis = pct(common.filter((k) => prev.get(k)).length, common.length);
+    const toVis = pct(common.filter((k) => last.get(k)).length, common.length);
+    return { from, to, prompts: common.length, fromVis, toVis, delta: toVis - fromVis };
+  }
+  return null;
+}
 
 /** Cifrele pe fiecare AI. Ordinea: AI-urile care au răspuns, cele mai vizibile întâi; apoi cele care n-au putut fi întrebate. */
 export function perEngine(rows: EngineRow[], failed: EngineFailure[], domain: string, products: EngineProducts[] = [], excluded: string[] = []): EngineView[] {
@@ -71,8 +115,7 @@ export function perEngine(rows: EngineRow[], failed: EngineFailure[], domain: st
     }
     const days = [...byDay.keys()].sort();
     const lastDay = days.at(-1) ?? null;
-    const dayVis = (d: string) => pct(byDay.get(d)![0], byDay.get(d)![1]);
-    const delta = days.length > 1 ? dayVis(days.at(-1)!) - dayVis(days.at(-2)!) : null;
+    const deltaBase = compareSameQuestions(rs, domain);
     const rivals = rs.length ? rankRivals(rs, domain, excluded) : null;
     const lead = rivals?.rivals.slice().sort((a, b) => b.appearances - a.appearances)[0];
     const beat = rivals?.rivals.find((r) => r.beats > 0);
@@ -80,7 +123,8 @@ export function perEngine(rows: EngineRow[], failed: EngineFailure[], domain: st
     // Eșecul contează doar dacă e mai nou decât ultimul răspuns bun (altfel AI-ul a răspuns între timp).
     const failure = fail && (!lastDay || fail.runDate >= lastDay) ? fail.reason : null;
     out.push({
-      provider: id, answers: rs.length, hits, visibility: pct(hits, rs.length), avgPosition: hits ? round1(posSum / hits) : null, delta, lastDay,
+      provider: id, answers: rs.length, hits, visibility: pct(hits, rs.length), avgPosition: hits ? round1(posSum / hits) : null,
+      delta: deltaBase?.delta ?? null, deltaBase, deltaUnavailable: days.length > 1 && !deltaBase, lastDay,
       leader: lead && lead.appearances > 0 ? { domain: lead.domain, name: lead.name, visibility: pct(lead.appearances, rs.length) } : null,
       instead: beat ? { name: beat.name, times: beat.beats } : null,
       tone, named: prod.get(id)?.named ?? 0, wrongPrice: prod.get(id)?.wrongPrice ?? 0, failure,

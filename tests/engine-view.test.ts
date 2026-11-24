@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { engineVerdict, perEngine, progressSince, type EngineRow } from "@/core/engine-view";
+import { compareSameQuestions, engineVerdict, perEngine, progressSince, type EngineRow } from "@/core/engine-view";
 
 const ME = "shopexpert.com";
 const row = (promptId: string, provider: string, runDate: string, mentions: { domain: string; position: number; name?: string; opinions?: { aspect: null; tone: 1 | -1; quote: string }[] }[]): EngineRow =>
@@ -31,6 +31,40 @@ describe("perEngine", () => {
       row("p2", "gemini", "2026-11-20", []),
     ];
     expect(perEngine(rows, [], ME)[0]).toMatchObject({ visibility: 25, delta: 50, lastDay: "2026-11-20" });
+  });
+
+  it("variația se calculează doar pe aceleași întrebări (B58): alte întrebări nu se compară", () => {
+    // 20.11: întrebările vechi (doar numele produsului); 23.11: întrebări noi, cu „preț”. Nicio întrebare comună.
+    const rows = [
+      row("vechi1", "chatgpt", "2026-11-20", [{ domain: ME, position: 1 }]),
+      row("vechi2", "chatgpt", "2026-11-20", [{ domain: ME, position: 1 }]),
+      row("nou1", "chatgpt", "2026-11-23", []),
+      row("nou2", "chatgpt", "2026-11-23", []),
+      row("nou3", "chatgpt", "2026-11-23", [{ domain: ME, position: 2 }]),
+    ];
+    const e = perEngine(rows, [], ME)[0];
+    expect(e).toMatchObject({ visibility: 60, delta: null, deltaBase: null, deltaUnavailable: true });
+  });
+
+  it("variația sare peste o zi fără întrebări comune și spune pe câte întrebări s-a calculat", () => {
+    const rows = [
+      row("p1", "claude", "2026-11-13", []),
+      row("p2", "claude", "2026-11-13", []),
+      row("x1", "claude", "2026-11-20", [{ domain: ME, position: 1 }]),
+      row("p1", "claude", "2026-11-23", [{ domain: ME, position: 1 }]),
+      row("p2", "claude", "2026-11-23", []),
+      row("nou", "claude", "2026-11-23", []),
+    ];
+    expect(compareSameQuestions(rows, ME)).toEqual({ from: "2026-11-13", to: "2026-11-23", prompts: 2, fromVis: 0, toVis: 50, delta: 50 });
+  });
+
+  it("aceeași întrebare la AI-uri diferite nu e aceeași întrebare comună", () => {
+    const rows = [
+      row("p1", "claude", "2026-11-20", []), row("p2", "claude", "2026-11-20", []),
+      row("p1", "chatgpt", "2026-11-23", []), row("p2", "chatgpt", "2026-11-23", []),
+    ];
+    expect(compareSameQuestions(rows, ME)).toBeNull();
+    expect(compareSameQuestions(rows, ME, "first")).toBeNull();
   });
 
   it("AI căzut: apare cu motivul, după cele care au răspuns, și nu ca „nu te recomandă”", () => {

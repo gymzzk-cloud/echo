@@ -1,7 +1,7 @@
 import { providerLabel } from "@/core/ai/types";
 import { actionTitle } from "@/core/audit/problems";
 import type { progressData } from "@/core/engine-view-read";
-import { progressSince } from "@/core/engine-view";
+import { progressSince, type SameQuestions } from "@/core/engine-view";
 import { dateShort } from "@/lib/format";
 import { Badge, ButtonLink, Card, Delta, ListRow, SubCard, TextLink, impactTone } from "../ui";
 import { CardHelp } from "@/components/card-help";
@@ -12,7 +12,10 @@ type Data = Awaited<ReturnType<typeof progressData>>;
  * „Ce s-a schimbat de când folosești Echo” și „Ce repari acum”: cifrele de la prima măsurătoare până azi,
  * ce ai rezolvat (cu vizibilitatea de atunci) și următorii pași, fiecare cu locul unde îl faci.
  */
-export function ProgressCards({ data, links }: { data: Data; links: { wrongPrice: string; withoutStore: string } }) {
+/** `same`: prima zi față de ultima, doar pe întrebările puse în ambele (total și pe fiecare AI); null = nu se pot compara. */
+export type SameChange = { all: SameQuestions | null; perProvider: { provider: string; change: SameQuestions | null }[] };
+
+export function ProgressCards({ data, links, same }: { data: Data; links: { wrongPrice: string; withoutStore: string }; same: SameChange }) {
   const p = progressSince(data.stats);
   const now = p.last?.visibility ?? null;
   return (
@@ -23,18 +26,29 @@ export function ProgressCards({ data, links }: { data: Data; links: { wrongPrice
             <dl className="grid gap-4 sm:grid-cols-2">
               <SubCard>
                 <dt className="label">Apari în răspunsuri</dt>
-                <dd className="mt-1 flex flex-wrap items-baseline gap-2"><span className="num font-display text-2xl font-semibold">{p.first.visibility}% → {p.last!.visibility}%</span><Delta value={p.visibilityDelta} suffix=" pp" /></dd>
+                {same.all ? (
+                  <>
+                    <dd className="mt-1 flex flex-wrap items-baseline gap-2"><span className="num font-display text-2xl font-semibold">{same.all.fromVis}% → {same.all.toVis}%</span><Delta value={same.all.delta} suffix=" pp" /></dd>
+                    <dd className="mt-1 text-xs text-muted">Pe aceleași {same.all.prompts} întrebări, {dateShort(same.all.from)} → {dateShort(same.all.to)}.</dd>
+                  </>
+                ) : (
+                  <>
+                    <dd className="mt-1 num font-display text-2xl font-semibold">{p.last!.visibility}%</dd>
+                    <dd className="mt-1 text-xs text-muted">Fără comparație: în zilele măsurate s-au pus alte întrebări.</dd>
+                  </>
+                )}
               </SubCard>
               <SubCard>
                 <dt className="label">Scor de vizibilitate</dt>
                 <dd className="mt-1 flex flex-wrap items-baseline gap-2"><span className="num font-display text-2xl font-semibold">{p.first.score} → {p.last!.score}</span><Delta value={p.scoreDelta} /></dd>
               </SubCard>
             </dl>
-            {p.perProvider.length > 0 && (
+            {same.perProvider.length > 0 && (
               <ul className="mt-4 text-sm">
-                {p.perProvider.map((x) => (
-                  <ListRow key={x.provider} end={<Delta value={x.to - x.from} suffix=" pp" />}>
-                    {providerLabel(x.provider)} <span className="num text-muted">{x.from}% → {x.to}%</span>
+                {same.perProvider.map(({ provider, change: c }) => (
+                  <ListRow key={provider} end={c ? <Delta value={c.delta} suffix=" pp" /> : <span className="text-xs text-muted">alte întrebări</span>}>
+                    {providerLabel(provider)}{" "}
+                    {c ? <span className="num text-muted">{c.fromVis}% → {c.toVis}% pe aceleași {c.prompts} întrebări</span> : <span className="text-muted">nu se poate compara</span>}
                   </ListRow>
                 ))}
               </ul>

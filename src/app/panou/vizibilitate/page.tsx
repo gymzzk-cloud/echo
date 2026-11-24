@@ -5,7 +5,7 @@ import { notRivals } from "@/core/source-kind";
 import { orgDomains } from "@/core/store-context";
 import { PROVIDERS, providerLabel } from "@/core/ai/types";
 import { activeProviders } from "@/core/ai/engine";
-import { perEngine } from "@/core/engine-view";
+import { compareSameQuestions, perEngine } from "@/core/engine-view";
 import { engineProducts, engineRuns, progressData } from "@/core/engine-view-read";
 import { Card, Chips, Empty, PageHeader, Table, TextLink, Td } from "@/components/ui";
 import { TrendChart } from "@/components/client";
@@ -15,7 +15,7 @@ import { RivalsCard } from "@/components/rivals-card";
 import { SentimentCard } from "@/components/sentiment-card";
 import { sampleQuotes, sentimentBoard } from "@/core/ai/sentiment";
 import { EngineCards, type EvidenceLinks } from "@/components/visibility/engine-cards";
-import { ProgressCards } from "@/components/visibility/progress-cards";
+import { ProgressCards, type SameChange } from "@/components/visibility/progress-cards";
 import { AnswersList } from "@/components/visibility/answers-list";
 import { CardHelp } from "@/components/card-help";
 import { focusPromptCounts } from "@/core/focus";
@@ -71,6 +71,11 @@ async function EnginesTab({ project, days, link }: Ctx) {
   // Producătorii (Bosch Professional) și magazinele proprii nu sunt „în locul tău” sau „cel mai vizibil magazin”.
   const excluded = notRivals(runs.rows.flatMap((r) => ((r.run.mentions as { domain: string }[]) ?? []).map((m) => m.domain)), { ownDomains: [project.domain, ...own], brands });
   const list = perEngine(runs.rows, runs.failed, project.domain, products, excluded);
+  // „Ce s-a schimbat”: prima zi față de ultima, doar pe întrebările puse în ambele (KNOWLEDGE B58).
+  const same: SameChange = {
+    all: compareSameQuestions(runs.rows, project.domain, "first"),
+    perProvider: list.filter((e) => e.answers).map((e) => ({ provider: e.provider, change: compareSameQuestions(runs.rows.filter((r) => r.run.provider === e.provider), project.domain, "first") })),
+  };
   const off = activeProviders().filter((p) => !p.live && !list.some((e) => e.provider === p.id)).map((p) => providerLabel(p.id));
   if (!list.length) return <Empty title="Încă nu avem răspunsuri de la AI-uri">Prima rulare pornește automat după înregistrare. Pagina se actualizează singură când e gata.</Empty>;
   const links: EvidenceLinks = {
@@ -82,7 +87,7 @@ async function EnginesTab({ project, days, link }: Ctx) {
   return (
     <div className="space-y-6">
       <EngineCards list={list} links={links} off={off} />
-      <ProgressCards data={progress} links={{ wrongPrice: "/panou/produse-ai?f=pret", withoutStore: "/panou/produse-ai?f=fara-magazin" }} />
+      <ProgressCards data={progress} same={same} links={{ wrongPrice: "/panou/produse-ai?f=pret", withoutStore: "/panou/produse-ai?f=fara-magazin" }} />
       <p className="text-xs text-muted">
         Cifrele vin din răspunsurile deja primite în ultimele {days} zile, fără întrebări în plus.
         {scope.active > 0 && <> Din cele {scope.active} întrebări urmărite acum, {scope.focus} sunt despre <TextLink href="/panou/setari#focus">produsele focus</TextLink>; restul sunt despre tipuri de produs și despre magazin.</>} Produsele și prețurile sunt din ultimele 30 de zile și se recunosc doar după cod, link sau numele complet din catalog.
