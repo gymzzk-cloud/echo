@@ -33,7 +33,12 @@ export function AnswersList({ prompts, shown, open = false }: { prompts: Prompts
                 if (!b) return null;
                 return (
                   <SubCard key={x.id} className="p-3 text-xs">
-                    <div className="mb-1 flex flex-wrap justify-between gap-2 font-medium"><span>{providerLabel(x.id)}{!b.failure && (b.me ? ` · tu pe locul ${b.me}` : " · lipsești")}</span>{!b.failure && <span className="text-muted">Primele: {b.top.join(", ") || "–"}</span>}</div>
+                    <div className="mb-1 flex flex-wrap justify-between gap-2 font-medium"><span>{providerLabel(x.id)}{!b.failure && (b.me ? ` · tu pe locul ${b.me}` : " · lipsești")}</span>{!b.failure && <span className="text-muted">Primele: {b.top.map((t) => (b.lookalikes.includes(t) ? `${t} (alt site)` : t)).join(", ") || "–"}</span>}</div>
+                    {b.lookalikes.length > 0 && (
+                      <p className="mb-2 rounded-lg bg-warn-bg p-2 text-warn">
+                        Atenție: {providerLabel(x.id)} citează {b.lookalikes.join(", ")}, un alt site cu nume asemănător, nu magazinul tău. Ce scrie de acolo (retur, contact, adresă) poate fi prezentat greșit ca fiind al tău.
+                      </p>
+                    )}
                     {b.failure
                       ? <p className="text-warn">Nu am putut întreba {providerLabel(x.id)}: {b.failure}. Nu știm dacă te-ar fi recomandat, așa că nu intră în scor.</p>
                       : <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-sans leading-relaxed text-muted">{b.answer.replace(/\*\*/g, "")}</pre>}
