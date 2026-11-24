@@ -5,9 +5,9 @@ describe("site cu nume asemănător, dar alt site (B59)", () => {
   it("shexpert.ro nu e ShopExpert, dar seamănă", () => {
     expect(isLookalike("shexpert.ro", "shopexpert.com")).toBe(true);
   });
-  it("variantele cu aceeași marcă sunt magazinul, nu un alt site", () => {
+  it("aceeași marcă exactă e magazinul; cu cratimă e alt site (B60)", () => {
     expect(isLookalike("shopexpert.ro", "shopexpert.com")).toBe(false);
-    expect(isLookalike("shop-expert.ro", "shopexpert.com")).toBe(false);
+    expect(isLookalike("shop-expert.ro", "shopexpert.com")).toBe(true);
   });
   it("magazinele diferite nu se confundă", () => {
     expect(isLookalike("dedeman.ro", "shopexpert.com")).toBe(false);

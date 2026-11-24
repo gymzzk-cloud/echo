@@ -3,8 +3,8 @@ import { brandLabel } from "./extract";
 /**
  * Site cu nume aproape la fel cu al magazinului, dar ALT site (KNOWLEDGE B59): „shexpert.ro” lângă „shopexpert.com”.
  * ShopExpert, 24.11.2026: ChatGPT a citat www.shexpert.ro/refund_returns și contact@shexpert.ro ca fiind ale ShopExpert.
- * Variantele cu aceeași marcă (shopexpert.ro, shop-expert.ro) sunt deja recunoscute ca „tu” la extragere; aici prindem
- * doar numele diferite cu cel mult 2 litere schimbate, ca magazinul să vadă că AI-ul îl confundă cu altcineva.
+ * Doar aceeași marcă exactă (shopexpert.ro) e „tu” (B60); orice nume cu cel mult 2 caractere diferite
+ * (shexpert.ro, shop-expert.ro) e alt site, ca magazinul să vadă că AI-ul îl confundă cu altcineva.
  */
 function distance(a: string, b: string) {
   if (Math.abs(a.length - b.length) > 2) return 3;

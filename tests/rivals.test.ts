@@ -114,9 +114,9 @@ describe("runMentions", () => {
 
 describe("același magazin pe alt domeniu", () => {
   const world = { stores: [{ domain: "shopexpert.com", name: "ShopExpert RO" }, { domain: "scule.ro", name: "Scule RO Shop" }], products: [] };
-  it("shopexpert.ro și shop-expert.ro în text contează ca shopexpert.com", () => {
+  it("shopexpert.ro contează ca shopexpert.com; shop-expert.ro e alt site (B60)", () => {
     const ms = extractMentions("Recenzii pentru shopexpert.ro / shop-expert.ro, apoi dedeman.ro.", [], world, undefined, "RO");
-    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com", "dedeman.ro"]);
+    expect(ms.map((m) => m.domain)).toEqual(["shopexpert.com", "shop-expert.ro", "dedeman.ro"]);
   });
   it("numele de marcă scris în text („ShopExpert”) e recunoscut", () => {
     const ms = extractMentions("Clienții ShopExpert spun că livrarea e rapidă.", [], world);
@@ -136,7 +136,7 @@ describe("același magazin pe alt domeniu", () => {
   });
   it("brandLabel", () => {
     expect(brandLabel("shopexpert.com")).toBe("shopexpert");
-    expect(brandLabel("www.shop-expert.ro")).toBe("shopexpert");
+    expect(brandLabel("www.shop-expert.ro")).toBe("shop-expert");
     expect(brandLabel("magazin.com.ro")).toBe("magazin");
   });
 });
