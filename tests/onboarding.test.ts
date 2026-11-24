@@ -8,21 +8,33 @@ import { advance, cleanDomain, cleanList, domainFromName, TRIAL_QUESTIONS } from
 const base = { storeName: "ShopExpert", categories: ["Scule electrice", "Grădină"], brands: ["Makita", "Bosch"], products: ["Makita DHP485Z", "Bosch GSR 12V"], focus: "buy" as const, markets: ["RO" as const] };
 
 describe("buildTrialPrompts", () => {
-  it("dă exact numărul de întrebări al testului, fără dubluri", () => {
+  it("cel mult numărul de întrebări al testului, fără dubluri", () => {
     const q = buildTrialPrompts(base);
     expect(q.length).toBeLessThanOrEqual(TRIAL_QUESTIONS);
-    expect(q.length).toBeGreaterThan(10);
     expect(new Set(q.map((x) => x.text.toLowerCase())).size).toBe(q.length);
   });
   it("e determinist: aceleași date dau aceleași întrebări", () => {
     expect(buildTrialPrompts(base)).toEqual(buildTrialPrompts(base));
+  });
+  it("doar întrebări punctuale despre produse și despre magazin, niciuna generală pe categorie (A16)", () => {
+    const q = buildTrialPrompts({ ...base, city: "Cluj-Napoca" });
+    expect(q.every((x) => x.source === "magazin" || x.source === "produs" || x.source === "comparatie")).toBe(true);
+    expect(q.some((x) => /scule|grădină|cum aleg|cel mai bun/i.test(x.text))).toBe(false);
+    expect(q.map((x) => x.text)).toContain("Makita DHP485Z preț");
+    expect(q.map((x) => x.text)).toContain("Makita DHP485Z sau Bosch GSR 12V?");
+  });
+  it("10 produse umplu testul; „preț” vine înaintea numelui simplu", () => {
+    const products = Array.from({ length: 10 }, (_, i) => `Bosch GSR 12V-${i + 10}`);
+    const q = buildTrialPrompts({ ...base, products });
+    expect(q).toHaveLength(TRIAL_QUESTIONS);
+    expect(q.findIndex((x) => x.text === "Bosch GSR 12V-19 preț")).toBeLessThan(q.findIndex((x) => x.text === "Bosch GSR 12V-10"));
   });
   it("profil gol: doar întrebările despre magazin", () => {
     const q = buildTrialPrompts({ ...base, categories: [], brands: [], products: [] });
     expect(q.every((x) => x.source === "magazin")).toBe(true);
     expect(q.length).toBeGreaterThan(0);
   });
-  it("Ungaria: întrebări în maghiară doar din nume de produse și mărci, cel mult o treime", () => {
+  it("Ungaria: întrebări în maghiară doar din nume de produse, cel mult o treime", () => {
     const q = buildTrialPrompts({ ...base, markets: ["RO", "HU"] });
     const hu = q.filter((x) => x.language === "hu");
     expect(hu.length).toBeGreaterThan(0);
@@ -31,14 +43,6 @@ describe("buildTrialPrompts", () => {
   });
   it("doar Ungaria: nicio întrebare în română", () => {
     expect(buildTrialPrompts({ ...base, markets: ["HU"] }).every((x) => x.language === "hu")).toBe(true);
-  });
-  it("orașul adaugă întrebări locale", () => {
-    expect(buildTrialPrompts({ ...base, city: "Cluj-Napoca" }).some((x) => x.source === "local" && x.text.includes("Cluj-Napoca"))).toBe(true);
-  });
-  it("accentul schimbă proporțiile", () => {
-    const research = buildTrialPrompts({ ...base, focus: "research" }).filter((x) => x.intent === "informativ").length;
-    const buy = buildTrialPrompts({ ...base, focus: "buy" }).filter((x) => x.intent === "informativ").length;
-    expect(research).toBeGreaterThanOrEqual(buy);
   });
 });
 

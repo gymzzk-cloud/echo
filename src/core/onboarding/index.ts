@@ -130,7 +130,7 @@ export async function finishScan(orgId: string, projectId: string) {
     names: ob.names.length > 1 ? ob.names : [...new Set([name, p.name])],
     categories: ob.categories.length ? ob.categories : s.categories.slice(0, 8),
     brands: ob.brands.length ? ob.brands : s.brands.slice(0, 8),
-    products: ob.products.length ? ob.products : s.products.slice(0, 6),
+    products: ob.products.length ? ob.products : s.products.slice(0, 10),
     cui: ob.cui ?? s.cui ?? undefined,
     logo: s.logo ?? ob.logo,
   }, { name });
