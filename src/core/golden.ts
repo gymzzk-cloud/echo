@@ -14,11 +14,10 @@ export const GOLDEN = {
   pathPrefix: "/ro",
   sitemap: "https://www.shopexpert.com/ro/sitemap.xml",
   cui: "RO16766463",
-  /** Domenii care sunt ale magazinului (sau ale aceluiași client) și nu pot fi „concurent” sau „sursă de contactat”. */
-  ownAliases: ["shopexpert.ro"],
+  /** Alte magazine ale aceluiași proprietar: în analiză sunt magazine distincte, nu „tu” (ZoZo, 24.11.2026, KNOWLEDGE A21). */
+  distinctStores: ["shopexpert.ro", "hardlineconstruct.ro"],
   /** Alte site-uri cu nume asemănător: NU sunt ale clientului (ZoZo, 24.11.2026, KNOWLEDGE B60). */
   notOwn: ["shop-expert.ro", "shexpert.ro"],
-  sameOwner: ["hardlineconstruct.ro"],
   brands: ["BOSCH", "MAKITA", "CROMWELL", "DEWALT", "RECORD POWER"],
   /** Site-uri de producător sau care nu vând: nu sunt concurenți. */
   notRivals: ["bosch-professional.com", "makitatools.com", "platform.openai.com"],
@@ -46,10 +45,10 @@ export function goldenAuditIssues(r: AuditResult): GoldenIssue[] {
 /** Clasificarea domeniilor (surse, concurenți) pe etalon. Funcție pură. */
 export function goldenClassifierIssues(): GoldenIssue[] {
   const out: GoldenIssue[] = [];
-  const ctx = { ownDomains: [GOLDEN.domain, ...GOLDEN.sameOwner], competitorDomains: [], brands: [...GOLDEN.brands] };
-  for (const d of [...GOLDEN.ownAliases, ...GOLDEN.sameOwner]) {
+  const ctx = { ownDomains: [GOLDEN.domain], competitorDomains: [], brands: [...GOLDEN.brands] };
+  for (const d of GOLDEN.distinctStores) {
     const k = sourceKind(d, ctx);
-    if (k !== "site propriu") out.push({ claim: `${d} clasificat „${k}”`, truth: `${d} e magazinul clientului (site propriu).` });
+    if (k === "site propriu") out.push({ claim: `${d} clasificat „site propriu”`, truth: `${d} e un magazin distinct în analiză (A21).` });
   }
   for (const d of GOLDEN.notOwn) {
     const k = sourceKind(d, ctx);
@@ -65,7 +64,7 @@ async function goldenActionIssues(): Promise<GoldenIssue[]> {
   const [p] = await db.select({ id: schema.projects.id }).from(schema.projects)
     .where(and(eq(schema.projects.domain, GOLDEN.domain), eq(schema.projects.pathPrefix, GOLDEN.pathPrefix))).limit(1);
   if (!p) return [];
-  const bad = ["audit:sitemap", "audit:jsonld-product", ...[...GOLDEN.ownAliases, ...GOLDEN.sameOwner, ...GOLDEN.notRivals].map((d) => `source:${d}`)];
+  const bad = ["audit:sitemap", "audit:jsonld-product", ...[...GOLDEN.distinctStores, ...GOLDEN.notRivals].map((d) => `source:${d}`)];
   const open = await db.select({ key: schema.actions.key, title: schema.actions.title }).from(schema.actions)
     .where(and(eq(schema.actions.projectId, p.id), inArray(schema.actions.key, bad), inArray(schema.actions.status, ["noua", "in_lucru"])));
   const out: GoldenIssue[] = open.map((a) => ({ claim: `Acțiune deschisă: „${a.title}”`, truth: "Nu e o problemă reală la ShopExpert RO." }));

@@ -22,7 +22,7 @@ import { PROVIDERS, providerLabel } from "./ai/types";
 import { isStoreLike } from "./ai/domains";
 import { notRivals, SOURCE_ADVICE, type SourceCtx } from "./source-kind";
 import { sourceGaps } from "./action-sources";
-import { catalogBrands, catalogDescriptionStats, orgDomains } from "./store-context";
+import { catalogBrands, catalogDescriptionStats, storeAliases } from "./store-context";
 import { refreshPrompts } from "./tracked-prompts";
 import { pruneStalePriceAlerts } from "./price-alerts";
 import { computeFocus } from "./focus";
@@ -257,7 +257,7 @@ export async function computeStats(projectId: string) {
   const day = today();
   const rows = (await projectRuns(projectId, day)).filter((r) => r.run.runDate === day);
   if (!rows.length) return;
-  const [own, brands] = await Promise.all([orgDomains(p.orgId), catalogBrands(projectId)]);
+  const [own, brands] = await Promise.all([storeAliases(p.id), catalogBrands(projectId)]);
   const exclude = new Set(notRivals(rows.flatMap((r) => (r.run.mentions as Mention[]).map((m) => m.domain)), { ownDomains: [p.domain, ...own], brands }));
   exclude.delete(p.domain);
   const s = summarize(rows, p.domain, comps, audit?.score ?? null, exclude);
@@ -371,7 +371,7 @@ export async function generateActions(projectId: string) {
   // directoare, presă, forumuri, marketplace-uri). Nu alte magazine, site-uri de producător sau propriile magazine.
   const rows = await projectRuns(projectId, daysAgo(14));
   const comps = (await db.select().from(schema.competitors).where(eq(schema.competitors.projectId, projectId))).map((c) => c.domain);
-  const [own, brands] = await Promise.all([orgDomains(p.orgId), catalogBrands(projectId)]);
+  const [own, brands] = await Promise.all([storeAliases(p.id), catalogBrands(projectId)]);
   const srcCtx: SourceCtx = { ownDomains: [p.domain, ...own], competitorDomains: comps, brands };
   const picked = sourceGaps(rows, { domain: p.domain, competitorDomains: comps, ctx: srcCtx, country: p.country ?? "RO" }).slice(0, 5);
   // Recomandările vechi spre surse care nu mai trec regula (alt magazin, producător, subdomeniu de comparator,

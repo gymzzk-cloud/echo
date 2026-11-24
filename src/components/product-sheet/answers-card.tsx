@@ -2,7 +2,7 @@ import { competitorView, likelyReasons } from "@/core/product-sheet/answers";
 import { whyNotRecommended } from "@/core/product-sheet/why";
 import type { ProductExample } from "@/core/product-visibility";
 import type { ChannelReport } from "@/core/product-sheet/channels";
-import { orgDomains, productAnswerRuns, SHEET_WINDOW_DAYS } from "@/core/product-sheet/read";
+import { storeAliases, productAnswerRuns, SHEET_WINDOW_DAYS } from "@/core/product-sheet/read";
 import { providerLabel } from "@/core/ai/types";
 import { Badge, Card, Notice, SubCard, TextLink } from "@/components/ui";
 import { dateTime } from "@/lib/format";
@@ -19,7 +19,7 @@ export async function AnswersCard(props: {
   product: { price: number | null; currency: string; mpn: string | null; gtin: string | null; inStock: boolean };
   country: string | null; pageRating: string | null | undefined; examples: ProductExample[];
 }) {
-  const [runs, domains] = await Promise.all([productAnswerRuns(props.projectId, props.productId, props.namedRunIds), orgDomains(props.orgId)]);
+  const [runs, domains] = await Promise.all([productAnswerRuns(props.projectId, props.productId, props.namedRunIds), storeAliases(props.projectId)]);
   const view = competitorView(runs, { ownDomain: props.ownDomain, ownDomains: domains, productUrl: props.productUrl, namedRunIds: new Set(props.namedRunIds) });
   const reasons = likelyReasons({ inStock: props.inStock, openai: props.openai, openaiActive: props.openaiActive, google: props.google, page: props.page, wrongPrices: props.wrongPrices });
   const why = whyNotRecommended({

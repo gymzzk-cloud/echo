@@ -40,6 +40,8 @@ const wordRe = (w: string) => new RegExp(`(^|[^a-z0-9ăâîșț])${escapeRe(w)}(
 function firstWord(text: string, w: string, proper = false) {
   for (const m of text.matchAll(new RegExp(wordRe(w).source, "gi"))) {
     const at = m.index! + m[1].length;
+    // Parte dintr-o adresă („ShopExpert.ro”, „www.shopexpert.com”): domeniul se recunoaște separat, ca magazin distinct.
+    if (/^\.[a-z]{2,}/i.test(text.slice(at + w.length)) || /[./@]$/.test(text.slice(0, at))) continue;
     if (!proper || /\p{Lu}/u.test(text[at])) return at;
   }
   return -1;
@@ -62,17 +64,16 @@ export function extractMentions(
   // Marcajele de citare ale ChatGPT („\ue200cite\ue202turn0search1\ue201”) nu sunt text.
   const text = cleanAnswer(answer);
   const hits = new Map<string, { idx: number; name?: string }>();
-  // Același magazin pe alt domeniu cu aceeași marcă exactă (shopexpert.ro pentru shopexpert.com) e același magazin;
-  // shop-expert.ro sau shexpert.ro sunt alte site-uri (B59, B60).
-  // Domeniile magazinelor din Echo au întâietate: un concurent salvat greșit (shopexpert.ro) nu „fură” mențiunea.
+  // Un magazin analizat de Echo e doar domeniul lui (și adresele declarate de el): aceeași marcă pe alt TLD
+  // (shopexpert.ro pentru shopexpert.com) e un magazin distinct (KNOWLEDGE A21); shop-expert.ro, shexpert.ro sunt alte site-uri (B59, B60).
+  // Pentru ceilalți magazini (concurenți, retaileri mari), aceeași marcă pe piața magazinului e același magazin (dedeman.com → dedeman.ro).
   const own = new Set(world.ownDomains ?? []);
   const known = new Set(world.stores.map((s) => s.domain));
-  const ownBrand = new Map<string, string>();
-  for (const d of own) if (!ownBrand.has(brandLabel(d))) ownBrand.set(brandLabel(d), d);
   const byBrand = new Map<string, string>();
-  for (const s of world.stores) if (!byBrand.has(brandLabel(s.domain))) byBrand.set(brandLabel(s.domain), s.domain);
+  for (const s of world.stores) if (!own.has(s.domain) && !byBrand.has(brandLabel(s.domain))) byBrand.set(brandLabel(s.domain), s.domain);
+  const ownLabels = new Set([...own].map(brandLabel));
   // Doar pe piața magazinului: shopexpert.dk (Danemarca) nu e ShopExpert România.
-  const alias = (d: string) => (own.has(d) || !inMarket(d, country) ? d : ownBrand.get(brandLabel(d)) ?? (known.has(d) ? d : byBrand.get(brandLabel(d)) ?? d));
+  const alias = (d: string) => (own.has(d) || known.has(d) || !inMarket(d, country) || ownLabels.has(brandLabel(d)) ? d : byBrand.get(brandLabel(d)) ?? d);
   // Mărcile scrise în text doar cu un domeniu din altă țară („ShopExpert (shopexpert.dk)”): numele lor nu contează.
   const domainsInText = [...text.matchAll(ANY_DOMAIN_RE)].map((m) => m[1].toLowerCase().replace(/^www\./, ""));
   const foreignOnly = new Set<string>();
@@ -89,6 +90,8 @@ export function extractMentions(
     // Marca din domeniu contează doar ca nume propriu (cu majusculă): „scule.ro” nu e „scule electrice”.
     const label = brandLabel(s.domain);
     if (foreignOnly.has(label)) continue;
+    // „ShopExpert (shopexpert.ro)”: numele merge cu adresa scrisă lângă el, nu cu magazinul de pe alt TLD (KNOWLEDGE A21).
+    if (domainsInText.some((d) => d !== s.domain && !d.endsWith(`.${s.domain}`) && brandLabel(d) === label && inMarket(d, country))) continue;
     const names: [string, boolean][] = [[s.name.toLowerCase(), false], ...(label.length >= 5 && !GENERIC_LABELS.has(label) ? [[label, true] as [string, boolean]] : [])];
     for (const [name, proper] of names) {
       if (name.length < 3) continue;

@@ -8,7 +8,7 @@ import { reputation } from "./reputation";
 import type { AuditResult } from "./audit";
 import { notRivals, isBrandSite } from "./source-kind";
 import { isStoreLike } from "./ai/domains";
-import { catalogBrands, orgDomains } from "./store-context";
+import { catalogBrands, storeAliases } from "./store-context";
 
 /**
  * Cifrele paginilor panoului care cer toate rulările pe 30 de zile (mii de răspunsuri cu mențiuni și surse):
@@ -26,7 +26,7 @@ async function computeHome(project: Project) {
   const o = await overview(project);
   const [prods, own, brands] = await Promise.all([
     db.select({ title: schema.products.title, price: schema.products.price }).from(schema.products).where(eq(schema.products.projectId, project.id)).limit(5000),
-    orgDomains(project.orgId), catalogBrands(project.id),
+    storeAliases(project.id), catalogBrands(project.id),
   ]);
   // Producătorii (Bosch Professional), propriile magazine și site-urile care nu vând nu sunt „în locul tău” (KNOWLEDGE A0, B32).
   const exclude = new Set(notRivals(o.rows.flatMap((r) => ((r.run.mentions as Mention[]) ?? []).map((m) => m.domain)), { ownDomains: [project.domain, ...own], brands }));
@@ -64,7 +64,7 @@ async function computeProducts(project: Project) {
 
 async function computeSources(project: Project) {
   const { rows, competitors } = await loadBase(project, 30);
-  const [own, brands] = await Promise.all([orgDomains(project.orgId), catalogBrands(project.id)]);
+  const [own, brands] = await Promise.all([storeAliases(project.id), catalogBrands(project.id)]);
   const s = sourceInsights(rows, project.domain, competitors.map((c) => c.domain), { ownDomains: own, brands, country: project.country ?? "RO" });
   return { rowCount: rows.length, list: s.list.slice(0, 100), listTotal: s.list.length, gaps: s.gaps.slice(0, 10), gapCount: s.gaps.length };
 }

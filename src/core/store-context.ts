@@ -15,16 +15,11 @@ export async function catalogBrands(projectId: string, limit = 30) {
 }
 
 /**
- * Domeniile tuturor magazinelor clientului (nu sunt concurenți sau surse unul pentru altul, KNOWLEDGE B19):
- * cele din contul curent și cele din alte conturi ale aceluiași proprietar (același om e owner/admin în ambele),
- * ca hardlineconstruct.ro să nu apară ca „în locul tău” la shopexpert.com. Întoarce doar domenii, nicio altă dată din celălalt cont.
+ * Celelalte adrese ale ACELUIAȘI magazin, declarate de el la identitate (redirecționări, domenii vechi).
+ * Alte magazine ale aceluiași proprietar NU sunt incluse: se analizează ca magazine distincte (ZoZo, 24.11.2026, KNOWLEDGE A21).
  */
-export async function orgDomains(orgId: string) {
-  const r = await db.execute(dsql`select distinct p.domain from projects p where p.org_id = ${orgId}
-    union select distinct p.domain from projects p
-      join memberships m2 on m2.org_id = p.org_id and m2.role in ('owner', 'admin')
-      join memberships m1 on m1.user_id = m2.user_id and m1.role in ('owner', 'admin')
-    where m1.org_id = ${orgId}`);
+export async function storeAliases(projectId: string) {
+  const r = await db.execute(dsql`select jsonb_array_elements_text(coalesce(onboarding->'aliases', '[]'::jsonb)) as domain from projects where id = ${projectId}`);
   return (r as unknown as { domain: string }[]).map((x) => x.domain);
 }
 
