@@ -479,6 +479,23 @@ export const feedOutputs = pgTable("feed_outputs", {
 }, (t) => [uniqueIndex("feed_outputs_project_channel_idx").on(t.projectId, t.channel)]);
 
 /**
+ * Cine a descărcat feed-ul unui canal și cum a mers (KNOWLEDGE B58): ora, robotul (OpenAI, Google…), răspunsul,
+ * cât a durat și câți octeți s-au trimis. Fără IP și fără alte date despre vizitator. Se păstrează 30 de zile.
+ */
+export const feedFetches = pgTable("feed_fetches", {
+  id: id(),
+  feedOutputId: uuid("feed_output_id").notNull().references(() => feedOutputs.id, { onDelete: "cascade" }),
+  bot: text("bot").notNull(),
+  status: integer("status").notNull(),
+  /** Trimis complet, întrerupt (clientul a închis) sau doar verificat (304). */
+  outcome: text("outcome").notNull(),
+  bytes: integer("bytes"),
+  durationMs: integer("duration_ms"),
+  compressed: boolean("compressed").notNull().default(false),
+  at: createdAt(),
+}, (t) => [index("feed_fetches_output_at_idx").on(t.feedOutputId, t.at)]);
+
+/**
  * Reparații de produs propuse (titlu, descriere, GTIN, marcă, categorie), fiecare cu un scor de încredere.
  * Se aplică doar în feed-ul Echo, după aprobare (de mână sau automat peste pragul magazinului), și se pot anula.
  * Un singur rând pe produs și câmp: o propunere nouă îl actualizează doar dacă datele produsului s-au schimbat (input_hash).

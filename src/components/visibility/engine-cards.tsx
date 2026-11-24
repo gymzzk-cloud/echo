@@ -39,7 +39,13 @@ function EngineCard({ e, links }: { e: EngineView; links: EvidenceLinks }) {
         <span className="num font-display text-3xl font-semibold">{e.visibility}%</span>
         <Delta value={e.delta} suffix=" pp" />
       </div>
-      <p className="mt-1 text-xs text-muted" title="Variația e față de măsurătoarea dinainte">din răspunsuri te numesc</p>
+      <p className="mt-1 text-xs text-muted">din răspunsuri te numesc</p>
+      {e.deltaBase && (
+        <p className="mt-1 text-xs text-muted">
+          Variația, pe aceleași {e.deltaBase.prompts} întrebări: {e.deltaBase.fromVis}% pe {dateShort(e.deltaBase.from)} → {e.deltaBase.toVis}% pe {dateShort(e.deltaBase.to)}.
+        </p>
+      )}
+      {e.deltaUnavailable && <p className="mt-1 text-xs text-muted">Fără variație: în zilele măsurate s-au pus alte întrebări, deci nu se pot compara.</p>}
       <dl className="mt-4">
         <Row label="Apari în">
           <TextLink href={links.answers(e.provider, "apari")}>{e.hits} din {e.answers} răspunsuri</TextLink>

@@ -141,7 +141,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ "
         <h2 className="mb-4 text-xl font-semibold sm:text-2xl">Cine te recomandă și cine nu</h2>
         <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
           <Card>
-            <Table head={["AI", "Te recomandă", "În locul tău", "Problema", "Săptămâna"]}>
+            <Table head={["AI", "Te recomandă", "În locul tău", "Problema", "Variația"]}>
               {who.map((w) => {
                 const pp = o.perProvider.find((x) => x.provider === w.provider);
                 return (

@@ -10,6 +10,7 @@ import { effectivePolicy } from "@/core/feed-channels/policy-links";
 import { CardHelp } from "@/components/card-help";
 import { regenerateFeeds, toggleChannel } from "@/app/actions-feed";
 import { dateTime, num } from "@/lib/format";
+import { FeedFetches } from "./fetches";
 
 /** Doar coloanele de afișat: fișierul generat (câțiva MB) nu se citește niciodată în pagină. */
 async function outputsOf(projectId: string) {
@@ -57,6 +58,13 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
               <code className="min-w-0 break-all text-xs">{feedUrl(o)}</code>
               <CopyButton text={feedUrl(o)} />
             </div>
+            <span className="label mb-2 mt-4 block">Același feed, comprimat (.csv.gz)</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <code className="min-w-0 break-all text-xs">{feedUrl(o)}.gz</code>
+              <CopyButton text={`${feedUrl(o)}.gz`} />
+              <TextLink href={`${feedUrl(o)}.gz`} className="text-xs" external>Descarcă fișierul</TextLink>
+            </div>
+            <p className="mt-1 text-xs text-muted">De vreo 3 ori mai mic și trimis pe loc, fără lucru pe server. OpenAI acceptă și csv.gz: îl folosești dacă adresa simplă dă eroare sau îl încarci de mână.</p>
             <p className="mt-2 text-xs text-muted">
               {o.generatedAt ? <>Generat la {dateTime(o.generatedAt)}{s ? <> · {num(s.included)} din {num(s.total)} produse</> : null}. </> : "Primul fișier e gata în câteva minute (catalogul mare durează mai mult). "}
               Adresa e secretă: o dai doar lui ChatGPT.
@@ -104,9 +112,11 @@ export async function ChatGptCard({ projectId }: { projectId: string }) {
             <ol className="mt-2 list-decimal space-y-1 pl-6 text-sm">
               <li>Intră în <TextLink href="https://ads.openai.com" external>ads.openai.com</TextLink>, la <b>Tools → Feeds</b>, și apasă <b>Create feed</b>.</li>
               <li>Alege varianta cu adresă găzduită (hosted URL) și lipește adresa de mai sus. Adresa ține reclamele la zi singură (prețuri, stoc); un fișier încărcat de mână rămâne cum l-ai încărcat.</li>
+              <li>Dacă „Connect” sau o actualizare dă eroare, uită-te mai jos la „Descărcări făcute de OpenAI”: dacă OpenAI nici n-a cerut fișierul, eroarea e la ei. Încearcă adresa .csv.gz; ca rezervă, descarcă fișierul .csv.gz și încarcă-l de mână (el nu se mai actualizează singur).</li>
               <li>Când feed-ul apare ca procesat, creează o campanie de tip <b>Product feed</b> și alege {countryName(proj?.country)} la țări.</li>
             </ol>
           </div>
+          <FeedFetches outputId={o.id} label="OpenAI" />
           <div className="border-t border-border pt-6">
             <span className="label mb-2 block">Găsite automat pe site</span>
             <ul className="space-y-1 text-sm">

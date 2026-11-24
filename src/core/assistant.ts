@@ -20,7 +20,7 @@ export async function assistantContext(project: Project) {
   const sales = await salesSummary(project.id, daysAgo(30));
   return {
     score: o.latest?.score ?? null, scoreWeekAgo: o.weekAgo?.score ?? null,
-    perProvider: o.perProvider.map((p) => ({ ai: providerLabel(p.provider), vizibilitate: p.visibility, schimbare7zile: p.delta })),
+    perProvider: o.perProvider.map((p) => ({ ai: providerLabel(p.provider), vizibilitate: p.visibility, schimbarePeAceleasiIntrebari: p.delta })),
     clasament: lb.map((l) => ({ magazin: l.name ?? l.domain, domeniu: l.domain, vizibilitate: l.visibility })),
     actiuni: acts.map((a) => ({ titlu: a.title, de_ce: a.why, impact: a.impact })),
     vanzari30zile: { vizite: sales.total.visits, comenzi: sales.total.orders, valoare: sales.total.value, surse: sales.list.slice(0, 5).map((s) => ({ sursa: sourceLabel(s.source), valoare: s.value })) },
@@ -33,9 +33,9 @@ export function ruleAnswer(q: string, c: Awaited<ReturnType<typeof assistantCont
   const lines: string[] = [];
   const top = c.actiuni.slice(0, 3);
   if (/scazut|scade|de ce|why|csokken/.test(n)) {
-    const down = c.perProvider.filter((p) => (p.schimbare7zile ?? 0) < 0).sort((a, b) => (a.schimbare7zile ?? 0) - (b.schimbare7zile ?? 0));
+    const down = c.perProvider.filter((p) => (p.schimbarePeAceleasiIntrebari ?? 0) < 0).sort((a, b) => (a.schimbarePeAceleasiIntrebari ?? 0) - (b.schimbarePeAceleasiIntrebari ?? 0));
     lines.push(c.score != null && c.scoreWeekAgo != null ? `Scorul este ${c.score}, față de ${c.scoreWeekAgo} acum o săptămână.` : "Nu avem încă destule zile de date pentru o comparație.");
-    if (down.length) lines.push(`Scăderea vine mai ales din ${down.map((d) => `${d.ai} (${d.schimbare7zile} puncte)`).join(", ")}.`);
+    if (down.length) lines.push(`Scăderea vine mai ales din ${down.map((d) => `${d.ai} (${d.schimbarePeAceleasiIntrebari} puncte)`).join(", ")}.`);
     if (top.length) lines.push(`Cel mai probabil motiv, după audit: ${top[0].de_ce}`);
   } else if (/concur|cine|competit|versen/.test(n)) {
     const me = c.clasament.find((l) => l.domeniu === name) ?? null;

@@ -139,7 +139,7 @@ export async function projectsWithStaleFeeds() {
 
 /** Fișierul gata generat pentru o adresă publică (doar canalele pornite). */
 export async function feedFileByToken(token: string) {
-  const [o] = await db.select({ file: schema.feedOutputs.file, fileType: schema.feedOutputs.fileType, generatedAt: schema.feedOutputs.generatedAt, stamp: schema.feedOutputs.stamp, channel: schema.feedOutputs.channel })
+  const [o] = await db.select({ id: schema.feedOutputs.id, file: schema.feedOutputs.file, fileType: schema.feedOutputs.fileType, generatedAt: schema.feedOutputs.generatedAt, stamp: schema.feedOutputs.stamp, channel: schema.feedOutputs.channel })
     .from(schema.feedOutputs).where(and(eq(schema.feedOutputs.token, token), eq(schema.feedOutputs.active, true))).limit(1);
   return o ?? null;
 }
