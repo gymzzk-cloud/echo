@@ -1,13 +1,15 @@
 import { Readable } from "node:stream";
 import { createGunzip } from "node:zlib";
 import { feedFileByToken } from "@/core/feed-files";
-import { botName, measured, recordFetch, type FetchOutcome } from "@/core/feed-fetches";
+import { botName, FEED_CACHE_CONTROL, measured, recordFetch, type FetchOutcome } from "@/core/feed-fetches";
 
 /**
  * Feed public pe canal, la un URL secret. Canalele (ChatGPT, Google, Meta…) îl descarcă periodic.
  * Se servește fișierul generat de worker, fără niciun calcul pe catalog la cerere. Adresa poate avea extensie (ex. /feed/<token>.csv).
  * Cu „.gz” la final se trimite fișierul comprimat așa cum e. Altfel îl decomprimăm în flux (fără să blocăm serverul), iar Next îl comprimă din nou pentru cine cere gzip
  * (Next ignoră un Content-Encoding pus de noi, deci nu putem trimite direct fișierul comprimat).
+ * Varianta necomprimată are „no-transform”: Next nu o mai recomprimă. Recomprimarea a ~30 MB pe 0,1 procesor dura 70–90 s
+ * și OpenAI nu mai prelua feed-ul (KNOWLEDGE B62); decomprimarea singură e de câteva ori mai rapidă.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const raw = (await params).token;
@@ -27,7 +29,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   }
   const etag = `"${(o.stamp ?? "").slice(0, 32)}"`;
   const headers: Record<string, string> = {
-    "content-type": o.fileType ?? "application/octet-stream", "cache-control": "public, max-age=900", "x-robots-tag": "noindex", etag,
+    "content-type": o.fileType ?? "application/octet-stream", "cache-control": FEED_CACHE_CONTROL, "x-robots-tag": "noindex", etag,
     ...(o.generatedAt ? { "last-modified": o.generatedAt.toUTCString() } : {}),
   };
   if (req.headers.get("if-none-match") === etag) { log(304, "nemodificat", null); return new Response(null, { status: 304, headers }); }
