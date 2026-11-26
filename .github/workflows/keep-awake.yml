@@ -3,12 +3,12 @@
 # Decizia ZoZo, 24.11.2026 (KNOWLEDGE B58). Ping ușor pe /api/health, nu pe feed.
 # Ora României iarna = UTC+2: 23:00–00:59 UTC. Vara (UTC+3) acoperă 02:00–03:59; schimbă orele dacă e nevoie.
 # 26.11.2026: programările GitHub întârzie ore întregi (au rulat abia pe la 04:40–05:50 UTC), deci ele doar TREZESC serverul,
-# cu multe încercări peste zi; îl ține treaz workerul, care se cheamă singur la 5 minute între 06:00 și 02:30 ora României
-# (src/core/keep-awake.ts, B63). Orice trezire de peste zi ajunge, oricât ar întârzia.
+# cu multe încercări peste zi; îl ține treaz workerul, care se cheamă singur la 5 minute între 15:00 și 02:30 ora României
+# (src/core/keep-awake.ts, B63). Orice trezire după 15:00 RO ajunge, oricât ar întârzia.
 name: keep-awake
 on:
   schedule:
-    - cron: "*/20 4-23 * * *"
+    - cron: "*/20 13-23 * * *"
   workflow_dispatch:
 permissions: {}
 jobs:

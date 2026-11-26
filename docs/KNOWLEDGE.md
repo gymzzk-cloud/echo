@@ -550,7 +550,7 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 
 **B63. Trezirea de noapte prin GitHub a venit cu ore întârziere** *(26.11.2026, 15:45)*
 - Nu: am bazat trezirea serverului (01:00–03:00 RO) doar pe programările GitHub Actions; pe 25.11 au rulat abia la 07:12 și 07:47 RO. ZoZo: „să nu fie adormit serverul când încearcă el”.
-- În schimb: workerul se cheamă singur pe adresa publică (`/api/health`) la 5 minute între 06:00 și 02:30 ora României (`src/core/keep-awake.ts`), deci odată trezit peste zi (de un client, de un job sau de GitHub, oricât ar întârzia) rămâne treaz până după descărcarea de noapte. Doarme doar 02:30–06:00, ca să rămânem sub cele 750 de ore gratuite Render pe lună. Pe 26.11 s-a verificat în loguri că pingurile proprii țin serverul treaz (fereastra de doar 20:00–02:30 n-a mers: GitHub n-a trezit serverul seara).
+- În schimb: workerul se cheamă singur pe adresa publică (`/api/health`) la 5 minute între 15:00 și 02:30 ora României (`src/core/keep-awake.ts`), deci odată trezit după-amiaza (de un client, de un job sau de GitHub, oricât ar întârzia) rămâne treaz până după descărcarea de noapte. Cele 750 de ore gratuite Render sunt pe tot contul ZoZo (și ai-widget-test-dashboard le folosește), deci fereastra rămâne ~11,5 h/zi; depășirea ar suspenda toate serviciile gratuite. Pe 26.11 s-a verificat în loguri că pingurile proprii țin serverul treaz (fereastra de doar 20:00–02:30 n-a mers: GitHub n-a trezit serverul seara).
 - De ce: o programare „la cel mai bun efort” nu e o garanție; ce trebuie să meargă la oră fixă stă în procesul nostru, nu într-un serviciu care poate întârzia.
 
 ---
