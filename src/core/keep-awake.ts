@@ -1,12 +1,14 @@
 /**
- * Ține serverul treaz noaptea, cât canalele își iau feed-ul (OpenAI vine pe la 01:10 ora României).
+ * Ține serverul treaz până după descărcarea de noapte a feed-urilor (OpenAI vine pe la 01:10 ora României).
  * Planul gratuit Render adoarme după 15 minute fără cereri; workerul se cheamă singur pe adresa publică (/api/health),
- * ceea ce contează ca trafic. Doar în fereastra de noapte, ca să nu consumăm orele gratuite toată ziua (decizia ZoZo, 26.11.2026).
+ * ceea ce contează ca trafic. Odată trezit (de oricine, oricând între 06:00 și 02:30), serverul rămâne treaz până la 02:30,
+ * deci noaptea nu mai depinde de o trezire la oră fixă (programările GitHub întârzie ore întregi, B63).
+ * Doarme doar 02:30–06:00, ca să rămânem sub orele gratuite Render (~20,5 h/zi ≈ 615 h/lună din 750).
  * Ora e a României (Europe/Bucharest), deci trecerea la ora de vară nu mută fereastra.
  */
 export const KEEP_AWAKE_TZ = "Europe/Bucharest";
-/** Minute de la miezul nopții, ora României: 20:00 → 02:30 (peste miezul nopții). */
-export const KEEP_AWAKE_FROM = 20 * 60;
+/** Minute de la miezul nopții, ora României: 06:00 → 02:30 (peste miezul nopții). */
+export const KEEP_AWAKE_FROM = 6 * 60;
 export const KEEP_AWAKE_TO = 2 * 60 + 30;
 
 export function minutesInRomania(d: Date): number {

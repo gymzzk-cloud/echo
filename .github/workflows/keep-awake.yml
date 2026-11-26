@@ -2,13 +2,13 @@
 # din ChatGPT Ads Manager (~02:00) să nu găsească serverul adormit (planul gratuit Render adoarme după 15 minute).
 # Decizia ZoZo, 24.11.2026 (KNOWLEDGE B58). Ping ușor pe /api/health, nu pe feed.
 # Ora României iarna = UTC+2: 23:00–00:59 UTC. Vara (UTC+3) acoperă 02:00–03:59; schimbă orele dacă e nevoie.
-# 26.11.2026: programările GitHub pot întârzia ore întregi (pe 25.11 au rulat abia la 07:12 RO), deci ele doar TREZESC serverul
-# seara (18:00–00:59 UTC); îl ține treaz workerul, care se cheamă singur la 5 minute între 20:00 și 02:30 ora României (src/core/keep-awake.ts, B63).
+# 26.11.2026: programările GitHub întârzie ore întregi (au rulat abia pe la 04:40–05:50 UTC), deci ele doar TREZESC serverul,
+# cu multe încercări peste zi; îl ține treaz workerul, care se cheamă singur la 5 minute între 06:00 și 02:30 ora României
+# (src/core/keep-awake.ts, B63). Orice trezire de peste zi ajunge, oricât ar întârzia.
 name: keep-awake
 on:
   schedule:
-    - cron: "*/10 18-23 * * *"
-    - cron: "*/10 0 * * *"
+    - cron: "*/20 4-23 * * *"
   workflow_dispatch:
 permissions: {}
 jobs:
