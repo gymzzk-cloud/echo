@@ -21,6 +21,7 @@ import { computeProductVisibility, projectsDueForProductAi } from "@/core/produc
 import { checkProductPage } from "@/core/product-sheet/page-check";
 import { runGoldenCheck } from "@/core/golden";
 import { computePanelSnapshots } from "@/core/panel-snapshot";
+import { keepAwakeTick } from "@/core/keep-awake";
 
 /**
  * Workerul: rulează joburile de fundal (audit, sincronizare catalog, rulări AI, rapoarte)
@@ -238,6 +239,10 @@ try {
   for (const { id } of old) await enqueue("feed", { projectId: id });
   if (old.length) console.log(`Feed-uri ChatGPT de refăcut în CSV: ${old.length}`);
 } catch (e) { console.error("Nu am putut verifica formatul feed-urilor:", e); }
+// Noaptea (20:00–02:30 ora României) serverul se cheamă singur la 5 minute, ca OpenAI să-l găsească treaz la descărcarea feed-ului (B63).
+// Separat de bucla de joburi: un job lung nu oprește pingul.
+const keepAwake = setInterval(() => { void keepAwakeTick().then((r) => { if (r === "error") console.error("keep-awake: pingul pe /api/health a eșuat"); }); }, 5 * 60e3);
+keepAwake.unref();
 let lastSchedule = 0;
 while (!stopping) {
   if (Date.now() - lastSchedule > 10 * 60e3) {
