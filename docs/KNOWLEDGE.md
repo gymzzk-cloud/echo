@@ -548,6 +548,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: un feed e „preluat” doar când canalul o arată (Upload history „Processed”), nu când logul nostru arată 200. Varianta `.csv` are `Cache-Control: no-transform`, ca Next să n-o mai recomprime; pentru OpenAI se recomandă adresa `.csv.gz` (fișierul salvat, trimis așa cum e).
 - De ce: un 200 în logul nostru nu spune ce a făcut canalul cu fișierul; un raport „a mers” neverificat costă încrederea clientului (A0).
 
+**B63. Trezirea de noapte prin GitHub a venit cu ore întârziere** *(26.11.2026, 15:45)*
+- Nu: am bazat trezirea serverului (01:00–03:00 RO) doar pe programările GitHub Actions; pe 25.11 au rulat abia la 07:12 și 07:47 RO. ZoZo: „să nu fie adormit serverul când încearcă el”.
+- În schimb: workerul se cheamă singur pe adresa publică (`/api/health`) la 5 minute între 20:00 și 02:30 ora României (`src/core/keep-awake.ts`), iar GitHub doar îl trezește seara, cu multe încercări (18:00–00:59 UTC). Se verifică în logurile Render că pingurile chiar vin la ora lor.
+- De ce: o programare „la cel mai bun efort” nu e o garanție; ce trebuie să meargă la oră fixă stă în procesul nostru, nu într-un serviciu care poate întârzia.
+
 ---
 
 ## C. Regula de întreținere (permanentă)
