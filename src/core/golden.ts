@@ -54,10 +54,6 @@ export function goldenClassifierIssues(): GoldenIssue[] {
     const k = sourceKind(d, ctx);
     if (k === "site propriu") out.push({ claim: `${d} clasificat „site propriu”`, truth: `${d} e alt site, nu al clientului (B60).` });
   }
-  for (const d of GOLDEN.notOwn) {
-    const k = sourceKind(d, ctx);
-    if (k === "site propriu") out.push({ claim: `${d} clasificat „site propriu”`, truth: `${d} e alt site, nu al clientului (B60).` });
-  }
   const nr = new Set(notRivals(GOLDEN.notRivals, ctx));
   for (const d of GOLDEN.notRivals) if (!nr.has(d)) out.push({ claim: `${d} poate apărea ca concurent`, truth: `${d} nu e un magazin concurent (producător sau site care nu vinde).` });
   return out;
