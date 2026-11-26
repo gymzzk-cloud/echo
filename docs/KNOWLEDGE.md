@@ -543,6 +543,11 @@ Fiecare punct e o corectură reală de la ZoZo (sau prinsă de noi și confirmat
 - În schimb: 4 secțiuni (A52), o singură cifră principală calculată o dată, întrebări punctuale pe produse din feed (A16), magazine distincte (A21), sarcini ordonate după răspunsurile AI pe care le schimbă, verificarea feed-ului cu scor și probleme pe categorii (A54), fără factori externi obligatorii (A53).
 - De ce: un panou e util doar dacă răspunde repede la „unde stau, ce fac, a mers?”, cu date corelate și corecte, pentru orice magazin.
 
+**B62. Am spus „OpenAI a descărcat feed-ul” fără să verific că l-a și procesat** *(26.11.2026, 15:30)*
+- Nu: pe 25.11 am raportat ca reușită descărcarea de la 01:10 (OAI-SearchBot, 200, 10,7 MB), dar în OpenAI, la Upload history, nu apărea nimic din noaptea aceea. ZoZo: „in open ai nu asa arata”. Descărcarea dura 71–86 s (pe 20.11, când a fost procesată, dura 8 s), pentru că Next recomprima pe 0,1 procesor cele ~30 MB decomprimate.
+- În schimb: un feed e „preluat” doar când canalul o arată (Upload history „Processed”), nu când logul nostru arată 200. Varianta `.csv` are `Cache-Control: no-transform`, ca Next să n-o mai recomprime; pentru OpenAI se recomandă adresa `.csv.gz` (fișierul salvat, trimis așa cum e).
+- De ce: un 200 în logul nostru nu spune ce a făcut canalul cu fișierul; un raport „a mers” neverificat costă încrederea clientului (A0).
+
 ---
 
 ## C. Regula de întreținere (permanentă)

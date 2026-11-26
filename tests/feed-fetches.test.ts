@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("@/db", () => ({ db: {}, schema: {} }));
-import { botName, measured } from "@/core/feed-fetches";
+import { createServer, get, type IncomingMessage, type ServerResponse } from "node:http";
+import { createRequire } from "node:module";
+import type { AddressInfo } from "node:net";
+import { botName, FEED_CACHE_CONTROL, measured } from "@/core/feed-fetches";
 
 describe("jurnalul descărcărilor de feed (B58)", () => {
   it("recunoaște roboții după User-Agent, fără să păstreze textul întreg", () => {
@@ -26,5 +29,27 @@ describe("jurnalul descărcărilor de feed (B58)", () => {
     await r.cancel();
     expect(done).toHaveBeenCalledTimes(1);
     expect(done.mock.calls[0][1]).toBe(false);
+  });
+
+  it("Next nu recomprimă feed-ul: compresia lui sare peste răspunsurile cu no-transform (B62)", async () => {
+    type Mw = (req: IncomingMessage, res: ServerResponse, next: () => void) => void;
+    const compression = createRequire(import.meta.url)("next/dist/compiled/compression") as () => Mw;
+    const mw = compression();
+    const encodingFor = async (cacheControl: string) => {
+      const server = createServer((req, res) => mw(req, res, () => {
+        res.setHeader("content-type", "text/csv");
+        res.setHeader("cache-control", cacheControl);
+        res.end("a,b\n".repeat(2000));
+      }));
+      await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+      const { port } = server.address() as AddressInfo;
+      const enc = await new Promise<string | undefined>((resolve, reject) => {
+        get({ host: "127.0.0.1", port, headers: { "accept-encoding": "gzip" } }, (res) => { res.resume(); resolve(res.headers["content-encoding"]); }).on("error", reject);
+      });
+      server.close();
+      return enc;
+    };
+    expect(await encodingFor("public, max-age=900")).toBe("gzip");
+    expect(await encodingFor(FEED_CACHE_CONTROL)).toBeUndefined();
   });
 });

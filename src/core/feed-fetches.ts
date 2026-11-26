@@ -22,6 +22,12 @@ export function botName(ua: string | null): string {
 }
 
 export type FetchOutcome = "trimis" | "intrerupt" | "nemodificat" | "in-generare" | "verificat";
+/**
+ * Cache-Control pentru feed-urile publice. „no-transform” oprește recomprimarea făcută de Next (pachetul compression
+ * o sare când vede no-transform): pe 0,1 procesor, recomprimarea feed-ului ChatGPT dura 70–90 s (KNOWLEDGE B62).
+ */
+export const FEED_CACHE_CONTROL = "public, max-age=900, no-transform";
+
 export type FetchRecord = { feedOutputId: string; bot: string; status: number; outcome: FetchOutcome; bytes: number | null; durationMs: number | null; compressed: boolean };
 
 /** Salvează o descărcare. Nu aruncă niciodată: jurnalul nu are voie să strice livrarea feed-ului. */
